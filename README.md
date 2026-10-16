@@ -24,7 +24,9 @@
 ```bash
 pnpm install
 cp .env.example .env            # при необходимости измените пароли
+cp .env.example .env.test       # в DATABASE_URL укажите базу iot_test, NODE_ENV=test
 pnpm db:up                      # PostgreSQL 16: базы iot_dev и iot_test
+pnpm db:migrate                 # миграции и генерация клиента Prisma
 pnpm dev                        # API на http://localhost:3000, web на http://localhost:5173
 ```
 
@@ -38,9 +40,11 @@ pnpm dev                        # API на http://localhost:3000, web на http:
 | `pnpm build`                  | Сборка всех пакетов                                                                                          |
 | `pnpm lint`                   | ESLint                                                                                                       |
 | `pnpm typecheck`              | Проверка типов (`tsc`, `vue-tsc`)                                                                            |
-| `pnpm test`                   | Модульные и e2e-тесты API, модульные тесты web                                                               |
+| `pnpm test`                   | Модульные и e2e-тесты API (нужны запущенный PostgreSQL и `.env.test`), модульные тесты web                   |
 | `pnpm test:e2e`               | Сквозные тесты Playwright (перед первым запуском: `pnpm --filter @iot/web exec playwright install chromium`) |
 | `pnpm db:up` / `pnpm db:down` | Запуск и остановка PostgreSQL для разработки                                                                 |
 | `pnpm db:migrate`             | Применение миграций Prisma (`prisma migrate dev`)                                                            |
 | `pnpm db:seed`                | Заполнение демо-данными                                                                                      |
+| `pnpm db:generate`            | Генерация клиента Prisma (выполняется автоматически перед сборкой, проверкой типов и тестами API)            |
+| `pnpm db:erd`                 | Обновление ER-диаграммы `docs/architecture/er-diagram.md` по схеме                                           |
 | `pnpm format`                 | Форматирование Prettier                                                                                      |

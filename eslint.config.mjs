@@ -43,7 +43,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/api/prisma/seed.ts'],
+    files: ['apps/api/prisma/seed.ts', 'apps/api/prisma/erd.ts'],
     rules: { 'no-console': 'off' },
   },
   prettier,

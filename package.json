@@ -20,7 +20,9 @@
     "db:up": "docker compose -f docker-compose.dev.yml up -d",
     "db:down": "docker compose -f docker-compose.dev.yml down",
     "db:migrate": "pnpm --filter @iot/api db:migrate",
-    "db:seed": "pnpm --filter @iot/api db:seed"
+    "db:seed": "pnpm --filter @iot/api db:seed",
+    "db:generate": "pnpm --filter @iot/api db:generate",
+    "db:erd": "pnpm --filter @iot/api db:erd"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

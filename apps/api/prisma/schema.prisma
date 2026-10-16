@@ -1,4 +1,7 @@
-// Схема базы данных. Модели появляются на этапе 01 (см. CLAUDE.md, п. 4).
+// Схема базы данных «ИОТ — цифровое сопровождение ИОТ студентов колледжа».
+// Таблицы из п. 7 ТЗ сохраняют свои имена (@@map), вспомогательные таблицы — по NFR-009.
+// Описание таблиц, жизненных циклов статусов и правил неизменяемости: docs/architecture/data-model.md.
+// Значения enum продублированы в packages/shared (src/enums.ts); их совпадение проверяет тест.
 
 generator client {
   provider = "prisma-client"
@@ -7,4 +10,1426 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─────────────────────────────── Перечисления ───────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  ARCHIVED
+}
+
+/// Статус сопровождения студента (п. 4.2, FR-060).
+enum SupportStatus {
+  STANDARD
+  NEEDS_ATTENTION
+  ADDITIONAL_SUPPORT
+}
+
+/// Видимость записи: студенту или только педагогам (FR-016, FR-068).
+enum Visibility {
+  STUDENT_VISIBLE
+  INTERNAL
+}
+
+enum QuestionnaireStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+/// Версия методики: черновик редактируется, опубликованная неизменяема (FR-026).
+enum QuestionnaireVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  LIKERT
+  NUMBER
+  SHORT_TEXT
+}
+
+enum MeasurementType {
+  PRIMARY
+  INTERMEDIATE
+  REPEATED
+}
+
+enum DiagnosticSessionStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+/// Источник ответов: онлайн-прохождение или ручной ввод бумажного бланка (FR-022).
+enum DiagnosticSource {
+  ONLINE
+  PAPER
+}
+
+/// Ревизия результатов сессии: первичный расчёт, исправление ввода (FR-013), пересчёт (FR-026).
+enum DiagnosticRevisionKind {
+  INITIAL
+  CORRECTION
+  RECALCULATION
+}
+
+enum MotivationLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum MotivationProfileStatus {
+  PROPOSED
+  NEEDS_MORE_DIAGNOSTICS
+  CONFIRMED
+  CORRECTED
+}
+
+enum TrajectoryStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  NEEDS_CORRECTION
+  COMPLETED
+  ARCHIVED
+}
+
+enum StageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum CheckpointStatus {
+  PENDING
+  PASSED
+  MISSED
+}
+
+enum DifficultyLevel {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum SubmissionFormat {
+  TEXT
+  FILE
+  LINK
+}
+
+/// Статус назначенного задания (FR-053). Просрочка вычисляется по сроку, а не хранится.
+enum AssignmentStatus {
+  OFFERED
+  ASSIGNED
+  IN_PROGRESS
+  SUBMITTED
+  RETURNED
+  COMPLETED
+  DECLINED
+  CANCELLED
+}
+
+enum AssessmentDecision {
+  ACCEPTED
+  RETURNED
+}
+
+enum MaterialKind {
+  FILE
+  LINK
+  TEXT
+}
+
+enum FeedbackKind {
+  RECOMMENDATION
+  COMMENT
+  SHORT_TERM_GOAL
+  SELF_ASSESSMENT_REQUEST
+  QUESTION
+  DIFFICULTY_REPORT
+  ROUTE_CHANGE_PROPOSAL
+}
+
+enum ConsultationStatus {
+  REQUESTED
+  SCHEDULED
+  HELD
+  CANCELLED
+}
+
+enum AcademicResultSource {
+  ASSIGNMENT
+  MANUAL
+}
+
+enum ResearchProjectStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum ResearchGroup {
+  EXPERIMENTAL
+  CONTROL
+}
+
+// ──────────────────────── Пользователи, роли, права ─────────────────────────
+
+/// Учётные записи всех ролей.
+model User {
+  id                  String     @id @default(uuid(7)) @db.Uuid
+  login               String     @unique
+  email               String?    @unique
+  passwordHash        String     @map("password_hash")
+  lastName            String     @map("last_name")
+  firstName           String     @map("first_name")
+  middleName          String?    @map("middle_name")
+  status              UserStatus @default(ACTIVE)
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until")
+  mustChangePassword  Boolean    @default(false) @map("must_change_password")
+  passwordChangedAt   DateTime?  @map("password_changed_at")
+  lastLoginAt         DateTime?  @map("last_login_at")
+  archivedAt          DateTime?  @map("archived_at")
+  createdById         String?    @map("created_by") @db.Uuid
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  createdBy       User?               @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers    User[]              @relation("UserCreatedBy")
+  roles           UserRole[]          @relation("UserRoleUser")
+  grantedRoles    UserRole[]          @relation("UserRoleGrantedBy")
+  permissions     UserPermission[]    @relation("UserPermissionUser")
+  grantedPerms    UserPermission[]    @relation("UserPermissionGrantedBy")
+  authSessions    AuthSession[]
+  student         Student?            @relation("StudentUser")
+  teacherAssigns  TeacherAssignment[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  idempotencyKeys IdempotencyKey[]
+
+  @@index([lastName])
+  @@map("users")
+}
+
+/// Роли (admin, teacher, student, researcher) и их наборы разрешений.
+model Role {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+/// Гранулярные разрешения (например, доступ к диагностическим ответам).
+model Permission {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  code        String  @unique
+  description String?
+
+  roles RolePermission[]
+  users UserPermission[]
+
+  @@map("permissions")
+}
+
+/// Разрешения, входящие в роль.
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Роли пользователя (пользователь может иметь несколько ролей).
+model UserRole {
+  userId      String   @map("user_id") @db.Uuid
+  roleId      String   @map("role_id") @db.Uuid
+  grantedById String?  @map("granted_by") @db.Uuid
+  grantedAt   DateTime @default(now()) @map("granted_at")
+
+  user      User  @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  grantedBy User? @relation("UserRoleGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+/// Индивидуально выданные разрешения сверх роли (п. 2.1, 2.4) — с основанием и сроком.
+model UserPermission {
+  userId       String    @map("user_id") @db.Uuid
+  permissionId String    @map("permission_id") @db.Uuid
+  reason       String
+  expiresAt    DateTime? @map("expires_at")
+  grantedById  String?   @map("granted_by") @db.Uuid
+  grantedAt    DateTime  @default(now()) @map("granted_at")
+
+  user       User       @relation("UserPermissionUser", fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedBy  User?      @relation("UserPermissionGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+/// Refresh-сессии: в БД хранится только хеш токена.
+model AuthSession {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  ipAddress String?   @map("ip_address")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+// ───────────────────── Группы, дисциплины, студенты ──────────────────────
+
+/// Учебные группы.
+model Group {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  name        String    @unique
+  course      Int
+  specialty   String
+  archivedAt  DateTime? @map("archived_at")
+  createdById String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  currentStudents       Student[]
+  enrollments           Enrollment[]
+  teacherAssignments    TeacherAssignment[]
+  diagnosticAssignments DiagnosticAssignment[]
+
+  @@map("groups")
+}
+
+/// Учебные дисциплины.
+model Discipline {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  name        String    @unique
+  code        String?   @unique
+  description String?
+  archivedAt  DateTime? @map("archived_at")
+  createdById String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  teacherAssignments TeacherAssignment[]
+  trajectories       Trajectory[]
+  assignments        Assignment[]
+  materials          Material[]
+  academicResults    AcademicResult[]
+  observations       PedagogicalObservation[]
+
+  @@map("disciplines")
+}
+
+/// Закрепление преподавателя за группой и дисциплиной — основа scope доступа (FR-002).
+model TeacherAssignment {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  teacherId    String    @map("teacher_id") @db.Uuid
+  groupId      String    @map("group_id") @db.Uuid
+  disciplineId String    @map("discipline_id") @db.Uuid
+  startsAt     DateTime  @default(now()) @map("starts_at")
+  endsAt       DateTime? @map("ends_at")
+  createdById  String?   @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  teacher    User       @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  group      Group      @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  discipline Discipline @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+
+  @@unique([teacherId, groupId, disciplineId, startsAt])
+  @@index([groupId])
+  @@map("teacher_assignments")
+}
+
+/// Профили студентов. ФИО — ПДн; в исследовательских выборках используется код участника.
+model Student {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  userId          String?       @unique @map("user_id") @db.Uuid
+  participantCode String        @unique @map("participant_code")
+  lastName        String        @map("last_name")
+  firstName       String        @map("first_name")
+  middleName      String?       @map("middle_name")
+  /// Текущая группа (денормализация для фильтров); история — в enrollments (FR-010).
+  currentGroupId  String?       @map("current_group_id") @db.Uuid
+  supportStatus   SupportStatus @default(STANDARD) @map("support_status")
+  /// Интересы, которые указывает сам студент (п. 2.3).
+  interests       String?
+  archivedAt      DateTime?     @map("archived_at")
+  archiveReason   String?       @map("archive_reason")
+  createdById     String?       @map("created_by") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  user                  User?                    @relation("StudentUser", fields: [userId], references: [id], onDelete: SetNull)
+  currentGroup          Group?                   @relation(fields: [currentGroupId], references: [id], onDelete: SetNull)
+  enrollments           Enrollment[]
+  observations          PedagogicalObservation[]
+  diagnosticAssignments DiagnosticAssignment[]
+  diagnosticSessions    DiagnosticSession[]
+  motivationProfiles    MotivationProfile[]
+  trajectories          Trajectory[]
+  trajectoryAssignments TrajectoryAssignment[]
+  choiceGroups          AssignmentChoiceGroup[]
+  feedback              Feedback[]
+  consultations         Consultation[]
+  reflections           Reflection[]
+  academicResults       AcademicResult[]
+  researchParticipants  ResearchParticipant[]
+
+  @@index([lastName])
+  @@index([currentGroupId])
+  @@map("students")
+}
+
+/// Принадлежность студента к группе во времени: перевод закрывает запись и открывает новую (FR-010).
+model Enrollment {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  studentId   String    @map("student_id") @db.Uuid
+  groupId     String    @map("group_id") @db.Uuid
+  startsAt    DateTime  @default(now()) @map("starts_at")
+  endsAt      DateTime? @map("ends_at")
+  reason      String?
+  createdById String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Restrict)
+
+  @@index([studentId])
+  @@index([groupId])
+  @@map("enrollments")
+}
+
+/// Педагогические наблюдения с датой и автором (FR-014). По умолчанию — служебные (FR-016).
+model PedagogicalObservation {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  studentId    String     @map("student_id") @db.Uuid
+  disciplineId String?    @map("discipline_id") @db.Uuid
+  authorId     String     @map("author_id") @db.Uuid
+  observedAt   DateTime   @map("observed_at")
+  text         String
+  visibility   Visibility @default(INTERNAL)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  discipline Discipline? @relation(fields: [disciplineId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, observedAt])
+  @@map("pedagogical_observations")
+}
+
+// ───────────────────────────── Диагностика ─────────────────────────────
+
+/// Настраиваемые диагностические направления (п. 4.4).
+model DiagnosticDirection {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  code      String   @unique
+  name      String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  questionnaires Questionnaire[]
+
+  @@map("diagnostic_directions")
+}
+
+/// Методика — постоянная сущность; содержание и ключи живут в версиях.
+model Questionnaire {
+  id           String              @id @default(uuid(7)) @db.Uuid
+  directionId  String?             @map("direction_id") @db.Uuid
+  status       QuestionnaireStatus @default(ACTIVE)
+  /// Демо-методика: «ДЕМО — не для исследования» (огр. 1, ADR-003).
+  isDemo       Boolean             @default(false) @map("is_demo")
+  copiedFromId String?             @map("copied_from_id") @db.Uuid
+  archivedAt   DateTime?           @map("archived_at")
+  createdById  String?             @map("created_by") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  direction  DiagnosticDirection?   @relation(fields: [directionId], references: [id], onDelete: SetNull)
+  copiedFrom Questionnaire?         @relation("QuestionnaireCopy", fields: [copiedFromId], references: [id], onDelete: SetNull)
+  copies     Questionnaire[]        @relation("QuestionnaireCopy")
+  versions   QuestionnaireVersion[]
+
+  @@map("questionnaires")
+}
+
+/// Версия методики со всеми полями п. 4.4. После публикации не изменяется (FR-026).
+model QuestionnaireVersion {
+  id              String                     @id @default(uuid(7)) @db.Uuid
+  questionnaireId String                     @map("questionnaire_id") @db.Uuid
+  versionNumber   Int                        @map("version_number")
+  status          QuestionnaireVersionStatus @default(DRAFT)
+  title           String
+  author          String?
+  purpose         String?
+  instruction     String?
+  ageRestrictions String?                    @map("age_restrictions")
+  source          String?
+  termsOfUse      String?                    @map("terms_of_use")
+  /// Разрешено ли сохранять черновик ответов (UC-01, альтернативный сценарий).
+  allowDraft      Boolean                    @default(true) @map("allow_draft")
+  changeNote      String?                    @map("change_note")
+  publishedAt     DateTime?                  @map("published_at")
+  publishedById   String?                    @map("published_by") @db.Uuid
+  createdById     String?                    @map("created_by") @db.Uuid
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+
+  questionnaire Questionnaire          @relation(fields: [questionnaireId], references: [id], onDelete: Restrict)
+  questions     Question[]
+  scales        QuestionnaireScale[]
+  assignments   DiagnosticAssignment[]
+  sessions      DiagnosticSession[]
+  revisions     DiagnosticRevision[]
+  comparableAsA VersionComparability[] @relation("ComparabilityA")
+  comparableAsB VersionComparability[] @relation("ComparabilityB")
+  measurements  ResearchMeasurement[]
+
+  @@unique([questionnaireId, versionNumber])
+  @@map("questionnaire_versions")
+}
+
+/// Сопоставимость двух версий методики, утверждённая исследователем (UC-06, FR-072).
+model VersionComparability {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  versionAId   String   @map("version_a_id") @db.Uuid
+  versionBId   String   @map("version_b_id") @db.Uuid
+  note         String?
+  approvedById String   @map("approved_by") @db.Uuid
+  approvedAt   DateTime @default(now()) @map("approved_at")
+
+  versionA QuestionnaireVersion @relation("ComparabilityA", fields: [versionAId], references: [id], onDelete: Restrict)
+  versionB QuestionnaireVersion @relation("ComparabilityB", fields: [versionBId], references: [id], onDelete: Restrict)
+
+  @@unique([versionAId, versionBId])
+  @@map("questionnaire_version_comparabilities")
+}
+
+/// Вопросы версии методики.
+model Question {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  versionId  String       @map("version_id") @db.Uuid
+  sortOrder  Int          @map("sort_order")
+  text       String
+  type       QuestionType
+  isRequired Boolean      @default(true) @map("is_required")
+  /// Границы для шкалы Лайкерта и числового ответа.
+  minValue   Decimal?     @map("min_value") @db.Decimal(10, 3)
+  maxValue   Decimal?     @map("max_value") @db.Decimal(10, 3)
+  /// Подписи полюсов шкалы Лайкерта и прочие параметры отображения.
+  settings   Json?
+
+  version     QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  options     AnswerOption[]
+  scoringKeys ScoringKey[]
+  answers     DiagnosticAnswer[]
+
+  @@unique([versionId, sortOrder])
+  @@map("questions")
+}
+
+/// Варианты ответов на вопросы с выбором.
+model AnswerOption {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  questionId String  @map("question_id") @db.Uuid
+  sortOrder  Int     @map("sort_order")
+  text       String
+  value      Decimal @db.Decimal(10, 3)
+
+  question    Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  scoringKeys ScoringKey[]
+
+  @@unique([questionId, sortOrder])
+  @@map("answer_options")
+}
+
+/// Шкалы методики (FR-021: несколько шкал).
+model QuestionnaireScale {
+  id          String  @id @default(uuid(7)) @db.Uuid
+  versionId   String  @map("version_id") @db.Uuid
+  code        String
+  name        String
+  description String?
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  version             QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  scoringKeys         ScoringKey[]
+  interpretationRules InterpretationRule[]
+  scores              DiagnosticScore[]
+
+  @@unique([versionId, code])
+  @@map("questionnaire_scales")
+}
+
+/// Ключ начисления баллов: вклад вопроса (или конкретного варианта) в шкалу; обратное кодирование.
+model ScoringKey {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  scaleId        String   @map("scale_id") @db.Uuid
+  questionId     String   @map("question_id") @db.Uuid
+  answerOptionId String?  @map("answer_option_id") @db.Uuid
+  /// Баллы за выбранный вариант; если не заданы — используется значение ответа.
+  points         Decimal? @db.Decimal(10, 3)
+  isReverse      Boolean  @default(false) @map("is_reverse")
+  weight         Decimal  @default(1) @db.Decimal(10, 3)
+
+  scale        QuestionnaireScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+  question     Question           @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerOption AnswerOption?      @relation(fields: [answerOptionId], references: [id], onDelete: Cascade)
+
+  @@index([scaleId])
+  @@map("scoring_keys")
+}
+
+/// Правила интерпретации: диапазон баллов шкалы → уровень и текст.
+model InterpretationRule {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  scaleId         String           @map("scale_id") @db.Uuid
+  minScore        Decimal?         @map("min_score") @db.Decimal(10, 3)
+  maxScore        Decimal?         @map("max_score") @db.Decimal(10, 3)
+  levelCode       String           @map("level_code")
+  levelLabel      String           @map("level_label")
+  /// Вклад уровня шкалы в мотивационный профиль (этап 09); null — шкала профиль не определяет.
+  motivationLevel MotivationLevel? @map("motivation_level")
+  description     String?
+  /// Понятная студенту интерпретация (FR-016).
+  studentText     String?          @map("student_text")
+  sortOrder       Int              @default(0) @map("sort_order")
+
+  scale  QuestionnaireScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+  scores DiagnosticScore[]
+
+  @@index([scaleId])
+  @@map("interpretation_rules")
+}
+
+/// Назначение методики студенту или группе на период (FR-018, FR-019).
+model DiagnosticAssignment {
+  id                    String          @id @default(uuid(7)) @db.Uuid
+  versionId             String          @map("version_id") @db.Uuid
+  groupId               String?         @map("group_id") @db.Uuid
+  studentId             String?         @map("student_id") @db.Uuid
+  measurementType       MeasurementType @default(PRIMARY) @map("measurement_type")
+  researchMeasurementId String?         @map("research_measurement_id") @db.Uuid
+  startsAt              DateTime        @map("starts_at")
+  endsAt                DateTime        @map("ends_at")
+  cancelledAt           DateTime?       @map("cancelled_at")
+  assignedById          String          @map("assigned_by") @db.Uuid
+  createdAt             DateTime        @default(now()) @map("created_at")
+
+  version             QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  group               Group?               @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  student             Student?             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  researchMeasurement ResearchMeasurement? @relation(fields: [researchMeasurementId], references: [id], onDelete: SetNull)
+  sessions            DiagnosticSession[]
+
+  @@map("diagnostic_assignments")
+}
+
+/// Прохождение методики студентом (UC-01). Хранит версию, даты и время прохождения (FR-023).
+model DiagnosticSession {
+  id              String                  @id @default(uuid(7)) @db.Uuid
+  assignmentId    String?                 @map("assignment_id") @db.Uuid
+  studentId       String                  @map("student_id") @db.Uuid
+  versionId       String                  @map("version_id") @db.Uuid
+  status          DiagnosticSessionStatus @default(ASSIGNED)
+  measurementType MeasurementType         @default(PRIMARY) @map("measurement_type")
+  source          DiagnosticSource        @default(ONLINE)
+  /// Черновик ответов до завершения; после завершения ответы — в diagnostic_answers.
+  draftAnswers    Json?                   @map("draft_answers")
+  startedAt       DateTime?               @map("started_at")
+  completedAt     DateTime?               @map("completed_at")
+  durationSeconds Int?                    @map("duration_seconds")
+  /// Номер действующей ревизии результатов (diagnostic_revisions).
+  currentRevision Int                     @default(0) @map("current_revision")
+  /// Кто ввёл бумажный бланк (FR-022).
+  enteredById     String?                 @map("entered_by") @db.Uuid
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+
+  assignment     DiagnosticAssignment?     @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  student        Student                   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  version        QuestionnaireVersion      @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  revisions      DiagnosticRevision[]
+  answers        DiagnosticAnswer[]
+  scores         DiagnosticScore[]
+  profileSources MotivationProfileSource[]
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId, completedAt])
+  @@map("diagnostic_sessions")
+}
+
+/// Ревизии результатов сессии: исправление ошибочного ввода (FR-013) или пересчёт по новой версии ключей (FR-026).
+model DiagnosticRevision {
+  id               String                 @id @default(uuid(7)) @db.Uuid
+  sessionId        String                 @map("session_id") @db.Uuid
+  revision         Int
+  kind             DiagnosticRevisionKind
+  /// Версия ключей, по которой выполнен расчёт этой ревизии.
+  scoringVersionId String                 @map("scoring_version_id") @db.Uuid
+  reason           String?
+  createdById      String?                @map("created_by") @db.Uuid
+  createdAt        DateTime               @default(now()) @map("created_at")
+
+  session        DiagnosticSession    @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  scoringVersion QuestionnaireVersion @relation(fields: [scoringVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, revision])
+  @@map("diagnostic_revisions")
+}
+
+/// Исходные ответы. Записываются при завершении и не изменяются;
+/// исправление добавляет строку с новой ревизией (FR-013).
+model DiagnosticAnswer {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  sessionId  String   @map("session_id") @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  revision   Int      @default(1)
+  /// Значение ответа: id вариантов, число или текст — по типу вопроса.
+  value      Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  session  DiagnosticSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  question Question          @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, questionId, revision])
+  @@map("diagnostic_answers")
+}
+
+/// Рассчитанные показатели по шкалам для каждой ревизии сессии. Пропуск = null, не 0 (FR-074).
+model DiagnosticScore {
+  id                   String   @id @default(uuid(7)) @db.Uuid
+  sessionId            String   @map("session_id") @db.Uuid
+  scaleId              String   @map("scale_id") @db.Uuid
+  revision             Int      @default(1)
+  rawScore             Decimal? @map("raw_score") @db.Decimal(10, 3)
+  interpretationRuleId String?  @map("interpretation_rule_id") @db.Uuid
+  missingAnswers       Int      @default(0) @map("missing_answers")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  session            DiagnosticSession   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  scale              QuestionnaireScale  @relation(fields: [scaleId], references: [id], onDelete: Restrict)
+  interpretationRule InterpretationRule? @relation(fields: [interpretationRuleId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, scaleId, revision])
+  @@map("diagnostic_scores")
+}
+
+// ────────────────────────── Мотивационные профили ──────────────────────────
+
+/// Мотивационный профиль: предложение системы и решение преподавателя (FR-027–FR-029).
+model MotivationProfile {
+  id               String                  @id @default(uuid(7)) @db.Uuid
+  studentId        String                  @map("student_id") @db.Uuid
+  status           MotivationProfileStatus
+  /// Уровень, предложенный по правилам интерпретации; null — данных недостаточно.
+  proposedLevel    MotivationLevel?        @map("proposed_level")
+  /// Уровень после подтверждения или корректировки преподавателем.
+  level            MotivationLevel?
+  /// Показатели, повлиявшие на рекомендацию (FR-028).
+  basis            Json?
+  correctionReason String?                 @map("correction_reason")
+  /// Понятная студенту интерпретация (FR-016).
+  studentSummary   String?                 @map("student_summary")
+  decidedById      String?                 @map("decided_by") @db.Uuid
+  decidedAt        DateTime?               @map("decided_at")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  student      Student                    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  sources      MotivationProfileSource[]
+  history      MotivationProfileHistory[]
+  trajectories Trajectory[]
+
+  @@index([studentId, createdAt])
+  @@map("motivation_profiles")
+}
+
+/// Диагностические сессии, на основании которых сформирован профиль.
+model MotivationProfileSource {
+  profileId String @map("profile_id") @db.Uuid
+  sessionId String @map("session_id") @db.Uuid
+
+  profile MotivationProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  session DiagnosticSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@id([profileId, sessionId])
+  @@map("motivation_profile_sources")
+}
+
+/// История изменений профиля (FR-032).
+model MotivationProfileHistory {
+  id          String                  @id @default(uuid(7)) @db.Uuid
+  profileId   String                  @map("profile_id") @db.Uuid
+  status      MotivationProfileStatus
+  fromLevel   MotivationLevel?        @map("from_level")
+  toLevel     MotivationLevel?        @map("to_level")
+  reason      String?
+  changedById String?                 @map("changed_by") @db.Uuid
+  createdAt   DateTime                @default(now()) @map("created_at")
+
+  profile MotivationProfile @relation(fields: [profileId], references: [id], onDelete: Restrict)
+
+  @@index([profileId, createdAt])
+  @@map("motivation_profile_history")
+}
+
+// ───────────────────────── Файлы и материалы ─────────────────────────
+
+/// Загруженные файлы. Содержимое — в локальном хранилище под случайным именем, выдача только через API.
+model File {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  storageKey   String    @unique @map("storage_key")
+  originalName String    @map("original_name")
+  mimeType     String    @map("mime_type")
+  sizeBytes    Int       @map("size_bytes")
+  sha256       String
+  uploadedById String?   @map("uploaded_by") @db.Uuid
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  materials             Material[]
+  assignmentAttachments AssignmentAttachment[]
+  submissionFiles       SubmissionFile[]
+
+  @@map("files")
+}
+
+/// Библиотека материалов: файлы, ссылки, тексты.
+model Material {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  title        String
+  description  String?
+  kind         MaterialKind
+  fileId       String?      @map("file_id") @db.Uuid
+  url          String?
+  body         String?
+  disciplineId String?      @map("discipline_id") @db.Uuid
+  topic        String?
+  archivedAt   DateTime?    @map("archived_at")
+  createdById  String?      @map("created_by") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  file       File?           @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  discipline Discipline?     @relation(fields: [disciplineId], references: [id], onDelete: SetNull)
+  stages     StageMaterial[]
+
+  @@index([disciplineId, topic])
+  @@map("materials")
+}
+
+// ─────────────────────────── Траектории (ИОТ) ───────────────────────────
+
+/// Шаблоны ИОТ; стандартный пятиэтапный и варианты под профили (FR-034, FR-035).
+model TrajectoryTemplate {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  title           String
+  description     String?
+  /// Профиль, для которого шаблон предлагается автоматически.
+  motivationLevel MotivationLevel? @map("motivation_level")
+  isStandard      Boolean          @default(false) @map("is_standard")
+  archivedAt      DateTime?        @map("archived_at")
+  createdById     String?          @map("created_by") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  stages       TrajectoryTemplateStage[]
+  trajectories Trajectory[]
+
+  @@map("trajectory_templates")
+}
+
+/// Этапы шаблона ИОТ; копируются в trajectory_stages при создании маршрута.
+model TrajectoryTemplateStage {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  templateId     String  @map("template_id") @db.Uuid
+  sortOrder      Int     @map("sort_order")
+  title          String
+  goal           String?
+  description    String?
+  plannedResults String? @map("planned_results")
+  durationDays   Int?    @map("duration_days")
+
+  template TrajectoryTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, sortOrder])
+  @@map("trajectory_template_stages")
+}
+
+/// Индивидуальная траектория — паспорт ИОТ (п. 4.6). У студента может быть несколько ИОТ (FR-045).
+/// Текущее содержимое редактируется здесь и в trajectory_stages; каждая утверждённая или
+/// скорректированная редакция фиксируется снимком в trajectory_versions (FR-043).
+model Trajectory {
+  id                  String           @id @default(uuid(7)) @db.Uuid
+  studentId           String           @map("student_id") @db.Uuid
+  disciplineId        String           @map("discipline_id") @db.Uuid
+  teacherId           String           @map("teacher_id") @db.Uuid
+  templateId          String?          @map("template_id") @db.Uuid
+  /// Мотивационный профиль на момент назначения.
+  motivationProfileId String?          @map("motivation_profile_id") @db.Uuid
+  /// Участие в исследовании; ИОТ контрольной группе запрещены на сервере (огр. 4).
+  researchProjectId   String?          @map("research_project_id") @db.Uuid
+  status              TrajectoryStatus @default(DRAFT)
+  goals               String?
+  plannedResults      String?          @map("planned_results")
+  supportMethods      String?          @map("support_methods")
+  startDate           DateTime?        @map("start_date") @db.Date
+  plannedEndDate      DateTime?        @map("planned_end_date") @db.Date
+  currentStageId      String?          @unique @map("current_stage_id") @db.Uuid
+  /// Номер последней зафиксированной версии маршрута; 0 — ещё не утверждалась.
+  currentVersion      Int              @default(0) @map("current_version")
+  approvedById        String?          @map("approved_by") @db.Uuid
+  approvedAt          DateTime?        @map("approved_at")
+  completedAt         DateTime?        @map("completed_at")
+  /// Итоговая оценка достижения целей (FR-044).
+  finalAssessment     String?          @map("final_assessment")
+  archivedAt          DateTime?        @map("archived_at")
+  createdById         String?          @map("created_by") @db.Uuid
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  student           Student                @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  discipline        Discipline             @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  template          TrajectoryTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  motivationProfile MotivationProfile?     @relation(fields: [motivationProfileId], references: [id], onDelete: SetNull)
+  researchProject   ResearchProject?       @relation(fields: [researchProjectId], references: [id], onDelete: Restrict)
+  currentStage      TrajectoryStage?       @relation("TrajectoryCurrentStage", fields: [currentStageId], references: [id], onDelete: SetNull)
+  stages            TrajectoryStage[]      @relation("TrajectoryStages")
+  versions          TrajectoryVersion[]
+  assignments       TrajectoryAssignment[]
+  feedback          Feedback[]
+  consultations     Consultation[]
+  reflections       Reflection[]
+
+  @@index([studentId, status])
+  @@index([teacherId])
+  @@index([disciplineId])
+  @@map("trajectories")
+}
+
+/// Зафиксированные версии ИОТ: неизменяемый снимок паспорта, этапов и заданий + причина (FR-043, UC-05).
+model TrajectoryVersion {
+  id            String           @id @default(uuid(7)) @db.Uuid
+  trajectoryId  String           @map("trajectory_id") @db.Uuid
+  versionNumber Int              @map("version_number")
+  /// Статус маршрута в момент фиксации версии.
+  status        TrajectoryStatus
+  snapshot      Json
+  reason        String?
+  createdById   String?          @map("created_by") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  trajectory Trajectory @relation(fields: [trajectoryId], references: [id], onDelete: Restrict)
+
+  @@unique([trajectoryId, versionNumber])
+  @@map("trajectory_versions")
+}
+
+/// Этапы маршрута (стандартно пять, п. 4.6). Удалённый при корректировке этап архивируется.
+model TrajectoryStage {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  trajectoryId   String      @map("trajectory_id") @db.Uuid
+  sortOrder      Int         @map("sort_order")
+  title          String
+  goal           String?
+  description    String?
+  plannedResults String?     @map("planned_results")
+  startDate      DateTime?   @map("start_date") @db.Date
+  endDate        DateTime?   @map("end_date") @db.Date
+  status         StageStatus @default(NOT_STARTED)
+  completedAt    DateTime?   @map("completed_at")
+  archivedAt     DateTime?   @map("archived_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  trajectory   Trajectory              @relation("TrajectoryStages", fields: [trajectoryId], references: [id], onDelete: Restrict)
+  currentOf    Trajectory?             @relation("TrajectoryCurrentStage")
+  checkpoints  TrajectoryCheckpoint[]
+  materials    StageMaterial[]
+  assignments  TrajectoryAssignment[]
+  choiceGroups AssignmentChoiceGroup[]
+  feedback     Feedback[]
+  reflections  Reflection[]
+
+  @@index([trajectoryId, sortOrder])
+  @@map("trajectory_stages")
+}
+
+/// Контрольные точки этапов (п. 6.4, FR-058).
+model TrajectoryCheckpoint {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  stageId     String           @map("stage_id") @db.Uuid
+  title       String
+  description String?
+  dueDate     DateTime?        @map("due_date") @db.Date
+  status      CheckpointStatus @default(PENDING)
+  passedAt    DateTime?        @map("passed_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  stage       TrajectoryStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  reflections Reflection[]
+
+  @@index([stageId])
+  @@map("trajectory_checkpoints")
+}
+
+/// Материалы, назначенные этапу (FR-037).
+model StageMaterial {
+  stageId    String @map("stage_id") @db.Uuid
+  materialId String @map("material_id") @db.Uuid
+  sortOrder  Int    @default(0) @map("sort_order")
+
+  stage    TrajectoryStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  material Material        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@id([stageId, materialId])
+  @@map("stage_materials")
+}
+
+// ──────────────────────────────── Задания ────────────────────────────────
+
+/// Типы заданий: стандартные из п. 4.7 и добавленные пользователями.
+model AssignmentType {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  code      String   @unique
+  name      String
+  isSystem  Boolean  @default(false) @map("is_system")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  assignments Assignment[]
+
+  @@map("assignment_types")
+}
+
+/// Библиотека заданий (FR-046, FR-047).
+model Assignment {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  title             String
+  disciplineId      String             @map("discipline_id") @db.Uuid
+  topic             String?
+  goal              String?
+  difficulty        DifficultyLevel
+  typeId            String             @map("type_id") @db.Uuid
+  instruction       String?
+  submissionFormats SubmissionFormat[] @map("submission_formats")
+  maxScore          Decimal?           @map("max_score") @db.Decimal(10, 3)
+  archivedAt        DateTime?          @map("archived_at")
+  createdById       String?            @map("created_by") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  discipline  Discipline             @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  type        AssignmentType         @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  criteria    AssessmentCriterion[]
+  attachments AssignmentAttachment[]
+  assigned    TrajectoryAssignment[]
+
+  @@index([disciplineId, topic])
+  @@index([difficulty])
+  @@map("assignments")
+}
+
+/// Критерии оценивания задания (FR-052).
+model AssessmentCriterion {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  assignmentId String  @map("assignment_id") @db.Uuid
+  sortOrder    Int     @map("sort_order")
+  title        String
+  description  String?
+  maxScore     Decimal @map("max_score") @db.Decimal(10, 3)
+
+  assignment Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  scores     AssessmentCriterionScore[]
+
+  @@unique([assignmentId, sortOrder])
+  @@map("assessment_criteria")
+}
+
+/// Файлы и ссылки, прикреплённые к заданию (FR-049).
+model AssignmentAttachment {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  assignmentId String  @map("assignment_id") @db.Uuid
+  fileId       String? @map("file_id") @db.Uuid
+  url          String?
+  title        String?
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  file       File?      @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@map("assignment_attachments")
+}
+
+/// Набор равнозначных заданий, из которых студент выбирает (FR-054).
+model AssignmentChoiceGroup {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  studentId     String    @map("student_id") @db.Uuid
+  stageId       String?   @map("stage_id") @db.Uuid
+  title         String
+  requiredCount Int       @default(1) @map("required_count")
+  chosenAt      DateTime? @map("chosen_at")
+  createdById   String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  student Student                @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  stage   TrajectoryStage?       @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  options TrajectoryAssignment[]
+
+  @@map("assignment_choice_groups")
+}
+
+/// Назначение задания конкретному студенту (FR-048), при наличии — в рамках этапа ИОТ.
+model TrajectoryAssignment {
+  id            String           @id @default(uuid(7)) @db.Uuid
+  assignmentId  String           @map("assignment_id") @db.Uuid
+  studentId     String           @map("student_id") @db.Uuid
+  trajectoryId  String?          @map("trajectory_id") @db.Uuid
+  stageId       String?          @map("stage_id") @db.Uuid
+  choiceGroupId String?          @map("choice_group_id") @db.Uuid
+  status        AssignmentStatus @default(ASSIGNED)
+  dueAt         DateTime?        @map("due_at")
+  assignedById  String           @map("assigned_by") @db.Uuid
+  assignedAt    DateTime         @default(now()) @map("assigned_at")
+  completedAt   DateTime?        @map("completed_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  assignment      Assignment             @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  student         Student                @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  trajectory      Trajectory?            @relation(fields: [trajectoryId], references: [id], onDelete: Restrict)
+  stage           TrajectoryStage?       @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  choiceGroup     AssignmentChoiceGroup? @relation(fields: [choiceGroupId], references: [id], onDelete: Restrict)
+  submissions     Submission[]
+  feedback        Feedback[]
+  academicResults AcademicResult[]
+
+  @@index([studentId, status])
+  @@index([stageId])
+  @@index([dueAt])
+  @@map("trajectory_assignments")
+}
+
+/// Попытки сдачи задания (FR-050, FR-051). Каждая повторная сдача — новая попытка.
+model Submission {
+  id                     String   @id @default(uuid(7)) @db.Uuid
+  trajectoryAssignmentId String   @map("trajectory_assignment_id") @db.Uuid
+  attemptNumber          Int      @map("attempt_number")
+  text                   String?
+  url                    String?
+  submittedAt            DateTime @default(now()) @map("submitted_at")
+
+  trajectoryAssignment TrajectoryAssignment @relation(fields: [trajectoryAssignmentId], references: [id], onDelete: Restrict)
+  files                SubmissionFile[]
+  assessment           Assessment?
+
+  @@unique([trajectoryAssignmentId, attemptNumber])
+  @@map("submissions")
+}
+
+/// Файлы, приложенные к попытке сдачи.
+model SubmissionFile {
+  submissionId String @map("submission_id") @db.Uuid
+  fileId       String @map("file_id") @db.Uuid
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  file       File       @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@id([submissionId, fileId])
+  @@map("submission_files")
+}
+
+/// Результат проверки попытки: решение, оценка, комментарий для студента (FR-052).
+model Assessment {
+  id           String             @id @default(uuid(7)) @db.Uuid
+  submissionId String             @unique @map("submission_id") @db.Uuid
+  assessorId   String             @map("assessor_id") @db.Uuid
+  decision     AssessmentDecision
+  score        Decimal?           @db.Decimal(10, 3)
+  comment      String?
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  submission      Submission                 @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  criterionScores AssessmentCriterionScore[]
+  academicResults AcademicResult[]
+
+  @@map("assessments")
+}
+
+/// Баллы проверки по каждому критерию оценивания.
+model AssessmentCriterionScore {
+  assessmentId String  @map("assessment_id") @db.Uuid
+  criterionId  String  @map("criterion_id") @db.Uuid
+  score        Decimal @db.Decimal(10, 3)
+  comment      String?
+
+  assessment Assessment          @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  criterion  AssessmentCriterion @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+
+  @@id([assessmentId, criterionId])
+  @@map("assessment_criterion_scores")
+}
+
+// ───────────────────── Сопровождение и обратная связь ─────────────────────
+
+/// Педагогическая обратная связь и обращения студента; привязка к студенту, этапу или заданию (FR-064).
+model Feedback {
+  id                     String       @id @default(uuid(7)) @db.Uuid
+  studentId              String       @map("student_id") @db.Uuid
+  authorId               String       @map("author_id") @db.Uuid
+  kind                   FeedbackKind
+  visibility             Visibility   @default(STUDENT_VISIBLE)
+  trajectoryId           String?      @map("trajectory_id") @db.Uuid
+  stageId                String?      @map("stage_id") @db.Uuid
+  trajectoryAssignmentId String?      @map("trajectory_assignment_id") @db.Uuid
+  parentId               String?      @map("parent_id") @db.Uuid
+  body                   String
+  dueDate                DateTime?    @map("due_date") @db.Date
+  resolvedAt             DateTime?    @map("resolved_at")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+
+  student              Student               @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  trajectory           Trajectory?           @relation(fields: [trajectoryId], references: [id], onDelete: Restrict)
+  stage                TrajectoryStage?      @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  trajectoryAssignment TrajectoryAssignment? @relation(fields: [trajectoryAssignmentId], references: [id], onDelete: Restrict)
+  parent               Feedback?             @relation("FeedbackThread", fields: [parentId], references: [id], onDelete: Restrict)
+  replies              Feedback[]            @relation("FeedbackThread")
+
+  @@index([studentId, createdAt])
+  @@map("feedback")
+}
+
+/// Консультации: запрос, назначение, проведение, история (FR-067).
+model Consultation {
+  id            String             @id @default(uuid(7)) @db.Uuid
+  studentId     String             @map("student_id") @db.Uuid
+  teacherId     String?            @map("teacher_id") @db.Uuid
+  trajectoryId  String?            @map("trajectory_id") @db.Uuid
+  status        ConsultationStatus
+  topic         String
+  scheduledAt   DateTime?          @map("scheduled_at")
+  heldAt        DateTime?          @map("held_at")
+  /// Итог консультации, видимый студенту.
+  summary       String?
+  /// Внутренняя заметка педагога — студенту не выдаётся (FR-068).
+  internalNote  String?            @map("internal_note")
+  requestedById String?            @map("requested_by") @db.Uuid
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  trajectory Trajectory? @relation(fields: [trajectoryId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, createdAt])
+  @@map("consultations")
+}
+
+/// Самооценка и рефлексия студента, в том числе после контрольной точки (FR-066).
+model Reflection {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  trajectoryId   String?  @map("trajectory_id") @db.Uuid
+  stageId        String?  @map("stage_id") @db.Uuid
+  checkpointId   String?  @map("checkpoint_id") @db.Uuid
+  /// Самооценка по шкале, заданной в интерфейсе; null — не указана.
+  selfAssessment Int?     @map("self_assessment")
+  achievements   String?
+  difficulties   String?
+  nextSteps      String?  @map("next_steps")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  student    Student               @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  trajectory Trajectory?           @relation(fields: [trajectoryId], references: [id], onDelete: Restrict)
+  stage      TrajectoryStage?      @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  checkpoint TrajectoryCheckpoint? @relation(fields: [checkpointId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, createdAt])
+  @@map("reflections")
+}
+
+/// Учебные достижения: оценки за задания и вручную внесённые результаты.
+model AcademicResult {
+  id                     String               @id @default(uuid(7)) @db.Uuid
+  studentId              String               @map("student_id") @db.Uuid
+  disciplineId           String               @map("discipline_id") @db.Uuid
+  source                 AcademicResultSource
+  trajectoryAssignmentId String?              @map("trajectory_assignment_id") @db.Uuid
+  assessmentId           String?              @map("assessment_id") @db.Uuid
+  title                  String?
+  score                  Decimal              @db.Decimal(10, 3)
+  maxScore               Decimal              @map("max_score") @db.Decimal(10, 3)
+  recordedAt             DateTime             @map("recorded_at")
+  recordedById           String?              @map("recorded_by") @db.Uuid
+  createdAt              DateTime             @default(now()) @map("created_at")
+
+  student              Student               @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  discipline           Discipline            @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  trajectoryAssignment TrajectoryAssignment? @relation(fields: [trajectoryAssignmentId], references: [id], onDelete: Restrict)
+  assessment           Assessment?           @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentId])
+  @@index([studentId, disciplineId, recordedAt])
+  @@map("academic_results")
+}
+
+// ─────────────────────────── Исследование ───────────────────────────
+
+/// Исследовательские проекты (п. 4.10).
+model ResearchProject {
+  id          String                @id @default(uuid(7)) @db.Uuid
+  title       String
+  description String?
+  status      ResearchProjectStatus @default(DRAFT)
+  startsAt    DateTime?             @map("starts_at") @db.Date
+  endsAt      DateTime?             @map("ends_at") @db.Date
+  createdById String?               @map("created_by") @db.Uuid
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  participants ResearchParticipant[]
+  measurements ResearchMeasurement[]
+  trajectories Trajectory[]
+
+  @@map("research_projects")
+}
+
+/// Участники исследования: исследовательский код и группа (ЭГ/КГ).
+model ResearchParticipant {
+  id         String        @id @default(uuid(7)) @db.Uuid
+  projectId  String        @map("project_id") @db.Uuid
+  studentId  String        @map("student_id") @db.Uuid
+  code       String
+  group      ResearchGroup
+  includedAt DateTime      @default(now()) @map("included_at")
+  excludedAt DateTime?     @map("excluded_at")
+
+  project ResearchProject @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  student Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, studentId])
+  @@unique([projectId, code])
+  @@map("research_participants")
+}
+
+/// Замеры исследования (первичный, повторный) по конкретной версии методики (FR-072).
+model ResearchMeasurement {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  projectId       String          @map("project_id") @db.Uuid
+  versionId       String          @map("version_id") @db.Uuid
+  measurementType MeasurementType @map("measurement_type")
+  title           String
+  startsAt        DateTime?       @map("starts_at") @db.Date
+  endsAt          DateTime?       @map("ends_at") @db.Date
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  project     ResearchProject        @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  version     QuestionnaireVersion   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  assignments DiagnosticAssignment[]
+
+  @@map("research_measurements")
+}
+
+// ──────────────────────────── Служебные ────────────────────────────
+
+/// Журнал значимых действий (п. 8.3). Записи не изменяются и не удаляются.
+model AuditLog {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  before     Json?
+  after      Json?
+  reason     String?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+/// Внутрисистемные уведомления (бейдж в шапке).
+model Notification {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  type       String
+  title      String
+  body       String?
+  link       String?
+  entityType String?   @map("entity_type")
+  entityId   String?   @map("entity_id")
+  readAt     DateTime? @map("read_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// Ключи идемпотентности форм (NFR-006): повтор запроса возвращает сохранённый ответ.
+model IdempotencyKey {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  key            String
+  requestHash    String   @map("request_hash")
+  responseStatus Int?     @map("response_status")
+  responseBody   Json?    @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+/// Системные настройки (в том числе тексты стратегий для трёх профилей, FR-030).
+model SystemSetting {
+  key         String   @id
+  value       Json
+  updatedById String?  @map("updated_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
 }

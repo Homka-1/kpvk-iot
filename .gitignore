@@ -23,3 +23,5 @@ playwright/.cache/
 .vscode/*
 !.vscode/extensions.json
 .DS_Store
+# Сгенерированный клиент Prisma (pnpm db:generate)
+apps/api/src/generated/
