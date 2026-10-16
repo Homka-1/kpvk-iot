@@ -14,11 +14,14 @@
   "dependencies": {
     "@iot/shared": "workspace:*",
     "@primeuix/themes": "2.0.3",
+    "@vee-validate/zod": "^4.15.1",
     "pinia": "^4.1.0",
     "primeicons": "7.0.0",
     "primevue": "4.5.5",
+    "vee-validate": "^4.15.1",
     "vue": "^3.5.44",
-    "vue-router": "^5.4.0"
+    "vue-router": "^5.4.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
