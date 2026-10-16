@@ -32,6 +32,12 @@ pnpm dev                        # API на http://localhost:3000, web на http:
 
 Проверка: `http://localhost:3000/api/health` возвращает `{"status":"ok"}`, документация API — `http://localhost:3000/api/docs`.
 
+В `.env` и `.env.test` задайте `JWT_SECRET` — случайную строку не короче 32 символов (`openssl rand -hex 32`), разную для каждого окружения. В `.env.test` удобно увеличить `LOGIN_RATE_LIMIT` (например, до 1000), чтобы тесты входа не упирались в ограничение частоты.
+
+### Демо-учётные записи
+
+`pnpm db:seed` создаёт учётные записи `admin`, `teacher`, `student`, `researcher` (по одной на роль). Пароли берутся из переменных `SEED_ADMIN_PASSWORD`, `SEED_TEACHER_PASSWORD`, `SEED_STUDENT_PASSWORD`, `SEED_RESEARCHER_PASSWORD` в `.env`; если переменная не задана, пароль генерируется и выводится в консоль один раз. Повторный запуск сида не меняет существующие учётные записи. Модель прав — `docs/architecture/access-model.md`.
+
 ## Команды
 
 | Команда                       | Что делает                                                                                                   |
