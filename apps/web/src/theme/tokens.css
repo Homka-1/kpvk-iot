@@ -29,6 +29,10 @@
   --iot-tone-warning-text: #744600;
   --iot-tone-danger-bg: #fbe8e8;
   --iot-tone-danger-text: #8f1d1d;
+  --iot-tone-danger-border: #f0c4c4;
+
+  /* Текст и иконки на основном (тёмно-синем) фоне. */
+  --iot-color-on-primary: #ffffff;
 
   --iot-font-family:
     system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;

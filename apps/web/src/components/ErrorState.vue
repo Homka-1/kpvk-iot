@@ -46,7 +46,7 @@ defineEmits<{ retry: [] }>();
   padding: var(--iot-space-6) var(--iot-space-4);
   text-align: center;
   background: var(--iot-tone-danger-bg);
-  border: 1px solid #f0c4c4;
+  border: 1px solid var(--iot-tone-danger-border);
   border-radius: var(--iot-radius);
   color: var(--iot-tone-danger-text);
 }

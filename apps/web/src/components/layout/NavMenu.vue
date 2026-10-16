@@ -58,12 +58,12 @@ const route = useRoute();
 
 .nav-menu__link--active {
   background: var(--iot-navy-700);
-  color: #fff;
+  color: var(--iot-color-on-primary);
   font-weight: 600;
 }
 
 .nav-menu__link--active i {
-  color: #fff;
+  color: var(--iot-color-on-primary);
 }
 
 .nav-menu__link--active:hover {
