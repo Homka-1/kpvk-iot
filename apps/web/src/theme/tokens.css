@@ -1,0 +1,136 @@
+/* Дизайн-токены интерфейса (ТЗ, п. 6.1). Описание — docs/design/tokens.md. */
+:root {
+  --iot-navy-50: #eef3fa;
+  --iot-navy-100: #d6e2f3;
+  --iot-navy-700: #1c3f70;
+  --iot-navy-800: #163259;
+  --iot-navy-900: #102543;
+
+  --iot-color-heading: var(--iot-navy-900);
+  --iot-color-text: #1f2937;
+  --iot-color-muted: #4b5563;
+  --iot-color-bg: #f4f6fa;
+  --iot-color-surface: #ffffff;
+  --iot-color-border: #d5dce7;
+  --iot-color-focus: #2f62a4;
+
+  --iot-color-info-bg: #e8f1fb;
+  --iot-color-info-border: #b9d3f0;
+  --iot-color-info-text: var(--iot-navy-800);
+
+  /* Тона статусов: цвет всегда дополняется текстом и иконкой (StatusBadge). */
+  --iot-tone-neutral-bg: #eef1f5;
+  --iot-tone-neutral-text: #374151;
+  --iot-tone-info-bg: var(--iot-color-info-bg);
+  --iot-tone-info-text: var(--iot-color-info-text);
+  --iot-tone-success-bg: #e6f4ea;
+  --iot-tone-success-text: #1d5e36;
+  --iot-tone-warning-bg: #fdf2d8;
+  --iot-tone-warning-text: #744600;
+  --iot-tone-danger-bg: #fbe8e8;
+  --iot-tone-danger-text: #8f1d1d;
+
+  --iot-font-family:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Helvetica Neue', Arial, sans-serif;
+  --iot-font-size: 15px;
+  --iot-radius: 8px;
+  --iot-shadow-card: 0 1px 2px rgb(16 37 67 / 8%);
+
+  --iot-space-1: 4px;
+  --iot-space-2: 8px;
+  --iot-space-3: 12px;
+  --iot-space-4: 16px;
+  --iot-space-5: 24px;
+  --iot-space-6: 32px;
+
+  --iot-header-height: 60px;
+  --iot-sidebar-width: 264px;
+  --iot-bottom-nav-height: 64px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 360px;
+  background: var(--iot-color-bg);
+  color: var(--iot-color-text);
+  font-family: var(--iot-font-family);
+  font-size: var(--iot-font-size);
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--iot-color-heading);
+  line-height: 1.25;
+  margin: 0 0 var(--iot-space-3);
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+a {
+  color: var(--iot-navy-700);
+}
+
+:focus-visible {
+  outline: 2px solid var(--iot-color-focus);
+  outline-offset: 2px;
+}
+
+.iot-page {
+  padding: var(--iot-space-5);
+  max-width: 1280px;
+}
+
+.iot-card {
+  background: var(--iot-color-surface);
+  border: 1px solid var(--iot-color-border);
+  border-radius: var(--iot-radius);
+  box-shadow: var(--iot-shadow-card);
+  padding: var(--iot-space-4);
+}
+
+.iot-skip-link {
+  position: absolute;
+  left: var(--iot-space-2);
+  top: -100px;
+  z-index: 1000;
+  padding: var(--iot-space-2) var(--iot-space-3);
+  background: var(--iot-color-surface);
+  border-radius: var(--iot-radius);
+}
+
+.iot-skip-link:focus {
+  top: var(--iot-space-2);
+}
+
+.iot-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 599px) {
+  .iot-page {
+    padding: var(--iot-space-4);
+  }
+}

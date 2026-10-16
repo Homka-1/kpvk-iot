@@ -8,5 +8,9 @@ export default defineConfig({
     url: 'http://localhost:5173',
     reuseExistingServer: true,
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
+    // NFR-004: минимальная поддерживаемая ширина экрана — 360 px.
+    { name: 'mobile-360', use: { ...devices['Pixel 5'], viewport: { width: 360, height: 740 } } },
+  ],
 });
