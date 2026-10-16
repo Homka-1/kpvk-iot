@@ -78,6 +78,10 @@
 - TODO(этап 21): trust proxy за nginx (req.ip для лимита и аудита), Secure-cookie по HTTPS, команда создания первого администратора на проде (сид демо — только dev), общее хранилище лимита при >1 инстансе.
 - открытые вопросы 5, 6, 8, 13 — ждут заказчика; дефолты в access-model.md.
 
+## исправления после закрытия
+
+- fix(db): корневой `pnpm db:seed` не собирал @iot/shared → в основной копии старый dist, сид падал «does not provide an export named PERMISSION_DESCRIPTIONS». теперь `db:seed` = `pnpm build:shared && …` (как dev/test).
+
 ## для след. этапа
 
 - новый эндпоинт: по умолчанию требует вход; права — @RequirePermissions(Permission.X); пользователь — @User() user: AuthUser; публичный — @Public().
