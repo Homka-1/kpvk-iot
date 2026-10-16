@@ -3,17 +3,25 @@ import { APP_SHORT_NAME } from '@iot/shared';
 import Button from 'primevue/button';
 import Drawer from 'primevue/drawer';
 import Select from 'primevue/select';
-import { ref } from 'vue';
-import { RouterLink, RouterView } from 'vue-router';
+import { computed, ref } from 'vue';
+import { RouterLink, RouterView, useRoute } from 'vue-router';
 import HeaderActions from '@/components/layout/HeaderActions.vue';
 import NavMenu from '@/components/layout/NavMenu.vue';
-import { TEACHER_NAV, TEACHER_SERVICE_NAV } from '@/navigation';
+import { TEACHER_NAV, TEACHER_SERVICE_NAV, visibleNavItems } from '@/navigation';
+import { useAuthStore } from '@/stores/auth';
+import ForbiddenView from '@/views/ForbiddenView.vue';
 
 /**
  * Оболочка рабочего места преподавателя (ТЗ, п. 4.1, 6.2): шапка с названием, группой,
  * дисциплиной, уведомлениями и профилем; слева постоянное меню. На узких экранах меню
  * открывается в выдвижной панели. Списки групп и дисциплин подключаются на этапах 04 и 16.
+ * Пункты меню без нужного разрешения скрыты; раздел без прав показывает «Нет доступа».
  */
+const auth = useAuthStore();
+const route = useRoute();
+const mainNav = computed(() => visibleNavItems(TEACHER_NAV, auth.hasPermission));
+const serviceNav = computed(() => visibleNavItems(TEACHER_SERVICE_NAV, auth.hasPermission));
+const allowed = computed(() => auth.hasPermission(route.meta.permission));
 const menuOpen = ref(false);
 const selectedGroup = ref<string | null>(null);
 const selectedDiscipline = ref<string | null>(null);
@@ -67,22 +75,27 @@ const disciplines: { label: string; value: string }[] = [];
     <div class="staff-body">
       <aside class="staff-sidebar">
         <nav aria-label="Основное меню">
-          <NavMenu :items="TEACHER_NAV" />
-          <h2 class="staff-nav-section">Служебные разделы</h2>
-          <NavMenu :items="TEACHER_SERVICE_NAV" />
+          <NavMenu :items="mainNav" />
+          <template v-if="serviceNav.length > 0">
+            <h2 class="staff-nav-section">Служебные разделы</h2>
+            <NavMenu :items="serviceNav" />
+          </template>
         </nav>
       </aside>
 
       <main id="main" class="staff-main" tabindex="-1">
-        <RouterView />
+        <RouterView v-if="allowed" />
+        <ForbiddenView v-else />
       </main>
     </div>
 
     <Drawer id="staff-drawer" v-model:visible="menuOpen" header="Меню" class="staff-drawer">
       <nav aria-label="Основное меню">
-        <NavMenu :items="TEACHER_NAV" @navigate="menuOpen = false" />
-        <h2 class="staff-nav-section">Служебные разделы</h2>
-        <NavMenu :items="TEACHER_SERVICE_NAV" @navigate="menuOpen = false" />
+        <NavMenu :items="mainNav" @navigate="menuOpen = false" />
+        <template v-if="serviceNav.length > 0">
+          <h2 class="staff-nav-section">Служебные разделы</h2>
+          <NavMenu :items="serviceNav" @navigate="menuOpen = false" />
+        </template>
       </nav>
     </Drawer>
   </div>

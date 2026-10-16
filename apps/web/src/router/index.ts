@@ -1,8 +1,17 @@
-import { APP_SHORT_NAME } from '@iot/shared';
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
+import { APP_SHORT_NAME, Permission } from '@iot/shared';
+import {
+  createRouter,
+  createWebHistory,
+  type RouteComponent,
+  type RouteLocationNormalized,
+  type RouteLocationRaw,
+  type RouteRecordRaw,
+} from 'vue-router';
 import StaffLayout from '@/layouts/StaffLayout.vue';
 import StudentLayout from '@/layouts/StudentLayout.vue';
 import { STUDENT_NAV, TEACHER_NAV, TEACHER_SERVICE_NAV, type NavItem } from '@/navigation';
+import { homePath } from '@/router/paths';
+import { useAuthStore } from '@/stores/auth';
 import LoginView from '@/views/LoginView.vue';
 import NotFoundView from '@/views/NotFoundView.vue';
 import PlaceholderView from '@/views/PlaceholderView.vue';
@@ -11,44 +20,95 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** Заголовок страницы (h1 и заголовок вкладки браузера). */
     title?: string;
+    /** Страница доступна без входа. */
+    public?: boolean;
+    /** Часть приложения: кабинет студента или рабочее место сотрудника. */
+    area?: 'staff' | 'student';
+    /** Разрешение, необходимое для раздела. Без него раздел показывает «Нет доступа». */
+    permission?: Permission;
   }
 }
 
-/** Пока разделы не реализованы, каждый пункт меню открывает заглушку. */
-function sectionRoute(item: NavItem, basePath: string): RouteRecordRaw {
+/** Реализованные разделы. Остальные пункты меню пока открывают заглушку. */
+const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<RouteComponent>)>> = {
+  settings: () => import('@/views/SettingsView.vue'),
+  admin: () => import('@/views/admin/AdminView.vue'),
+};
+
+function sectionRoute(item: NavItem, basePath: string, permission?: Permission): RouteRecordRaw {
   const relative = item.path.slice(basePath.length).replace(/^\//, '');
   return {
     path: relative,
     name: item.name,
-    component: PlaceholderView,
-    meta: { title: item.label },
+    component: SECTION_VIEWS[item.name] ?? PlaceholderView,
+    meta: { title: item.label, permission: item.permission ?? permission },
   };
 }
 
 export const routes: RouteRecordRaw[] = [
-  { path: '/login', name: 'login', component: LoginView, meta: { title: 'Вход в систему' } },
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginView,
+    meta: { title: 'Вход в систему', public: true },
+  },
+  {
+    path: '/account/password',
+    name: 'change-password',
+    component: () => import('@/views/ChangePasswordView.vue'),
+    meta: { title: 'Смена пароля' },
+  },
   {
     path: '/student',
     component: StudentLayout,
-    children: STUDENT_NAV.map((item) => sectionRoute(item, '/student')),
+    meta: { area: 'student' },
+    children: STUDENT_NAV.map((item) => sectionRoute(item, '/student', Permission.CABINET_ACCESS)),
   },
   {
     path: '/',
     component: StaffLayout,
+    meta: { area: 'staff' },
     children: [...TEACHER_NAV, ...TEACHER_SERVICE_NAV].map((item) => sectionRoute(item, '/')),
   },
   {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     component: NotFoundView,
-    meta: { title: 'Страница не найдена' },
+    meta: { title: 'Страница не найдена', public: true },
   },
 ];
+
+/**
+ * Проверка перед переходом: без сессии — на страницу входа; при временном пароле — на смену
+ * пароля; студент — только в своём кабинете, сотрудник — только в рабочем месте.
+ * Это удобство интерфейса; права на данные проверяет сервер.
+ */
+export async function authGuard(to: RouteLocationNormalized): Promise<true | RouteLocationRaw> {
+  const auth = useAuthStore();
+  if (!auth.user) await auth.refresh();
+  const user = auth.user;
+
+  if (to.meta.public) {
+    return to.name === 'login' && user ? homePath(user) : true;
+  }
+  if (!user) {
+    return { name: 'login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } };
+  }
+  if (user.mustChangePassword && to.name !== 'change-password') {
+    return { name: 'change-password' };
+  }
+  const area = to.matched[0]?.meta.area;
+  if (area === 'student' && !auth.isStudent) return '/';
+  if (area === 'staff' && auth.isStudent) return '/student';
+  return true;
+}
 
 export const router = createRouter({
   history: createWebHistory(),
   routes,
 });
+
+router.beforeEach(authGuard);
 
 router.afterEach((to) => {
   document.title = to.meta.title ? `${to.meta.title} — ${APP_SHORT_NAME}` : APP_SHORT_NAME;

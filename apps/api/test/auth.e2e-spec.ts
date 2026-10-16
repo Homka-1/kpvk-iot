@@ -156,6 +156,12 @@ describe('Авторизация (e2e)', () => {
       .expect(400);
     expect(weak.body.fields.newPassword).toMatch(/не менее 10 символов/);
 
+    const policy = await http()
+      .get('/api/auth/password-policy')
+      .auth(first.accessToken, { type: 'bearer' })
+      .expect(200);
+    expect(policy.body).toEqual({ minLength: 10, maxLength: 128 });
+
     await http()
       .post('/api/auth/change-password')
       .auth(first.accessToken, { type: 'bearer' })

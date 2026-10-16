@@ -32,6 +32,7 @@ import {
 } from '@iot/shared';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import type { CookieOptions, Request, Response } from 'express';
+import { SettingsService } from '../settings/settings.service.js';
 import { AuthService, type IssuedSession } from './auth.service.js';
 import { LoginRateLimitGuard } from './login-rate-limit.guard.js';
 import { AllowPendingPasswordChange, type AuthUser, Public, User } from './decorators.js';
@@ -73,6 +74,11 @@ class CurrentUserDto implements CurrentUser {
   @ApiProperty({ enum: Object.values(Permission), isArray: true }) permissions: Permission[];
   @ApiProperty({ description: 'Требуется сменить временный пароль' })
   mustChangePassword: boolean;
+}
+
+class PasswordPolicyDto {
+  @ApiProperty({ description: 'Минимальная длина пароля' }) minLength: number;
+  @ApiProperty({ description: 'Максимальная длина пароля' }) maxLength: number;
 }
 
 class SessionResponseDto implements SessionResponse {
@@ -132,7 +138,10 @@ function refreshTokenOf(req: Request): string | undefined {
 @ApiTags('Авторизация')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly settings: SettingsService,
+  ) {}
 
   @Post('login')
   @Public()
@@ -209,6 +218,18 @@ export class AuthController {
       roles: user.roles,
       permissions: user.permissions,
       mustChangePassword: user.mustChangePassword,
+    };
+  }
+
+  @Get('password-policy')
+  @ApiBearerAuth()
+  @AllowPendingPasswordChange()
+  @ApiOperation({ summary: 'Требования к паролю (для подсказок в форме смены пароля)' })
+  @ApiOkResponse({ type: PasswordPolicyDto })
+  async passwordPolicy(): Promise<PasswordPolicyDto> {
+    return {
+      minLength: await this.settings.get('auth.passwordMinLength'),
+      maxLength: PASSWORD_MAX_LENGTH,
     };
   }
 

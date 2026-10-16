@@ -6,12 +6,16 @@ import { RouterLink, RouterView, useRoute } from 'vue-router';
 import HeaderActions from '@/components/layout/HeaderActions.vue';
 import NavMenu from '@/components/layout/NavMenu.vue';
 import { isNavItemActive, STUDENT_BOTTOM_NAV_SIZE, STUDENT_NAV } from '@/navigation';
+import { useAuthStore } from '@/stores/auth';
+import ForbiddenView from '@/views/ForbiddenView.vue';
 
 /**
  * Оболочка кабинета студента (ТЗ, п. 3.2, 6.5). На смартфоне — нижняя панель с основными
  * пунктами и кнопка «Ещё», открывающая полное меню; на широком экране — боковое меню.
  */
 const route = useRoute();
+const auth = useAuthStore();
+const allowed = computed(() => auth.hasPermission(route.meta.permission));
 const menuOpen = ref(false);
 const bottomItems = STUDENT_NAV.slice(0, STUDENT_BOTTOM_NAV_SIZE);
 const moreActive = computed(() =>
@@ -36,7 +40,8 @@ const moreActive = computed(() =>
       </aside>
 
       <main id="main" class="student-main" tabindex="-1">
-        <RouterView />
+        <RouterView v-if="allowed" />
+        <ForbiddenView v-else />
       </main>
     </div>
 
