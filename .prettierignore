@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+dist/
+coverage/
+docs/spec/TZ.md
+docs/spec/TZ.pdf
+CLAUDE.md
+apps/api/prisma/migrations/

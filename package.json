@@ -1,0 +1,44 @@
+{
+  "name": "iot-college",
+  "private": true,
+  "description": "ИОТ — цифровое сопровождение индивидуальных образовательных траекторий студентов колледжа",
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "build:shared": "pnpm --filter @iot/shared build",
+    "dev": "pnpm build:shared && pnpm --parallel --filter @iot/api --filter @iot/web dev",
+    "build": "pnpm -r build",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm build:shared && pnpm -r typecheck",
+    "test": "pnpm build:shared && pnpm -r test",
+    "test:e2e": "pnpm --filter @iot/web test:e2e",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:migrate": "pnpm --filter @iot/api db:migrate",
+    "db:seed": "pnpm --filter @iot/api db:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.11.1",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2"
+  },
+  "lint-staged": {
+    "*.{ts,mts,vue,js,mjs}": [
+      "eslint --max-warnings=0 --no-warn-ignored",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": "prettier --write"
+  }
+}

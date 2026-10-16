@@ -1,0 +1,44 @@
+{
+  "name": "@iot/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm test:unit && pnpm test:api-e2e",
+    "test:unit": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --config jest.config.json",
+    "test:api-e2e": "node --experimental-vm-modules --disable-warning=ExperimentalWarning node_modules/jest/bin/jest.js --config test/jest-e2e.config.json --runInBand",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed"
+  },
+  "dependencies": {
+    "@iot/shared": "workspace:*",
+    "@nestjs/common": "^12.1.3",
+    "@nestjs/core": "^12.1.3",
+    "@nestjs/platform-express": "^12.1.3",
+    "@nestjs/swagger": "^12.0.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "dotenv": "^18.0.8",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.8",
+    "@nestjs/testing": "^12.1.3",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^7.2.1",
+    "jest": "^30.5.2",
+    "prisma": "~7.10.1",
+    "supertest": "^7.3.1",
+    "ts-jest": "^29.4.15",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  }
+}

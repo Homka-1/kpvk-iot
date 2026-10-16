@@ -1,0 +1,10 @@
+// Схема базы данных. Модели появляются на этапе 01 (см. CLAUDE.md, п. 4).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
