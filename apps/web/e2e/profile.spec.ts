@@ -74,6 +74,9 @@ test.describe('профиль студента', () => {
     await page.route(`**/api/students/${STUDENT_ID}/history`, (route) =>
       route.fulfill({ json: [] }),
     );
+    await page.route(`**/api/students/${STUDENT_ID}/diagnostics`, (route) =>
+      route.fulfill({ json: [] }),
+    );
     const observations: ObservationDto[] = [];
     let idempotencyKey: string | undefined;
     await page.route(`**/api/students/${STUDENT_ID}/observations`, async (route) => {

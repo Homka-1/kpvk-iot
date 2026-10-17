@@ -24,6 +24,7 @@ import { useContextStore } from '@/stores/context';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
 import ObservationDialog from './ObservationDialog.vue';
+import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
 
 /**
@@ -263,11 +264,7 @@ function onStudentChanged(): void {
           </TabPanel>
 
           <TabPanel value="diagnostics">
-            <EmptyState
-              icon="pi pi-list-check"
-              title="Диагностика ещё не проводилась"
-              description="Здесь появятся результаты методик с датами и динамикой между замерами."
-            />
+            <StudentDiagnosticsTab :student-id="studentId" @changed="history = null" />
           </TabPanel>
           <TabPanel value="motivation">
             <EmptyState

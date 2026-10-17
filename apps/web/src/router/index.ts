@@ -36,6 +36,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),
   admin: () => import('@/views/admin/AdminView.vue'),
+  'student-diagnostics': () => import('@/views/student/MyDiagnosticsView.vue'),
   'student-profile': () => import('@/views/student/MyProfileView.vue'),
 };
 
@@ -66,7 +67,16 @@ export const routes: RouteRecordRaw[] = [
     path: '/student',
     component: StudentLayout,
     meta: { area: 'student' },
-    children: STUDENT_NAV.map((item) => sectionRoute(item, '/student', Permission.CABINET_ACCESS)),
+    children: [
+      ...STUDENT_NAV.map((item) => sectionRoute(item, '/student', Permission.CABINET_ACCESS)),
+      // Прохождение методики — вложенная страница раздела «Диагностика» кабинета (огр. 7).
+      {
+        path: 'diagnostics/:id',
+        name: 'student-diagnostic-run',
+        component: () => import('@/views/student/DiagnosticRunView.vue'),
+        meta: { title: 'Прохождение диагностики', permission: Permission.CABINET_ACCESS },
+      },
+    ],
   },
   {
     path: '/',

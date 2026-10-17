@@ -20,3 +20,8 @@ if (!window.ResizeObserver) {
     disconnect(): void {}
   };
 }
+
+// jsdom не реализует прокрутку к элементу (прохождение диагностики прокручивает к первой ошибке).
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => undefined;
+}

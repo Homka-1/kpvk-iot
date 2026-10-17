@@ -99,6 +99,7 @@ describe('StudentProfileView', () => {
       [`/students/${STUDENT_ID}/profile`]: profile,
       [`/students/${STUDENT_ID}/observations`]: observations,
       [`/students/${STUDENT_ID}/history`]: history,
+      [`/students/${STUDENT_ID}/diagnostics`]: [],
     });
     const result = await mountWithApp(StudentProfileView, {
       path: `/students/${STUDENT_ID}`,

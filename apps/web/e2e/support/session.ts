@@ -51,6 +51,9 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
   // Шапка сотрудника загружает группы и дисциплины; без моков Vite проксирует их в незапущенный
   // API и засоряет вывод ошибками ECONNREFUSED. Тесты переопределяют их через mockDirectoryApi.
   await page.route(/\/api\/(groups|disciplines)(\?.*)?$/, (route) => route.fulfill({ json: [] }));
+  await page.route(/\/api\/(cabinet\/diagnostics|diagnostic-assignments)$/, (route) =>
+    route.fulfill({ json: [] }),
+  );
 }
 
 /** Пустые ответы API раздела «Администрирование» и «Настройки». */
