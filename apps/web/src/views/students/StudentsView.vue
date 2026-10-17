@@ -5,7 +5,6 @@ import {
   Permission,
   type ProfileFilterValue,
   type StudentPageDto,
-  type StudentSummaryDto,
   TRAJECTORY_STATUS_LABELS,
   TrajectoryStatus,
 } from '@iot/shared';
@@ -26,7 +25,6 @@ import { useContextStore } from '@/stores/context';
 import CreateStudentDialog from './CreateStudentDialog.vue';
 import ImportStudentsDialog from './ImportStudentsDialog.vue';
 import StudentCard from './StudentCard.vue';
-import StudentDialog from './StudentDialog.vue';
 
 /**
  * Раздел «Студенты» (п. 4.2 ТЗ): карточки студентов доступных групп (FR-002), поиск (FR-007),
@@ -51,8 +49,6 @@ const loading = ref(false);
 const loadError = ref<string | null>(null);
 const createOpen = ref(false);
 const importOpen = ref(false);
-const cardOpen = ref(false);
-const selectedId = ref<string | null>(null);
 
 const profileOptions = [
   { value: 'HIGH', label: MOTIVATION_LEVEL_LABELS.HIGH },
@@ -131,11 +127,6 @@ function resetFilters(): void {
   Object.assign(filters, { search: '', profile: null, trajectoryStatus: null, difficulties: null });
   context.groupId = null;
   context.disciplineId = null;
-}
-
-function open(student: StudentSummaryDto): void {
-  selectedId.value = student.id;
-  cardOpen.value = true;
 }
 
 function onChanged(): void {
@@ -259,7 +250,7 @@ onMounted(load);
             v-for="student in page.items"
             :key="student.id"
             :student="student"
-            @open="open(student)"
+            :to="`/students/${student.id}`"
           />
         </div>
         <Paginator
@@ -281,12 +272,6 @@ onMounted(load);
       @created="onChanged"
     />
     <ImportStudentsDialog v-model:visible="importOpen" @imported="onChanged" />
-    <StudentDialog
-      v-model:visible="cardOpen"
-      :student-id="selectedId"
-      :groups="context.groups"
-      @changed="onChanged"
-    />
   </div>
 </template>
 

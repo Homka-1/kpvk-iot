@@ -8,17 +8,21 @@ import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
  * Карточка студента в списке (п. 4.2 ТЗ). Показатели, по которым ещё нет данных, подписаны
  * «Нет данных» — без нулей (FR-005).
  */
-defineProps<{ student: StudentSummaryDto }>();
-defineEmits<{ open: [] }>();
+defineProps<{
+  student: StudentSummaryDto;
+  /** Адрес профиля студента; без него имя выводится обычным текстом. */
+  to?: string;
+}>();
 </script>
 
 <template>
   <article class="student-card iot-card">
     <header class="student-card__header">
       <div class="student-card__title">
-        <button type="button" class="student-card__name" @click="$emit('open')">
+        <RouterLink v-if="to" :to="to" class="student-card__name">
           {{ formatFullName(student) }}
-        </button>
+        </RouterLink>
+        <span v-else class="student-card__name">{{ formatFullName(student) }}</span>
         <span class="student-card__code">Код участника: {{ student.participantCode }}</span>
       </div>
       <StatusBadge v-if="student.archivedAt" label="В архиве" tone="neutral" icon="pi pi-box" />
@@ -106,19 +110,14 @@ defineEmits<{ open: [] }>();
 }
 
 .student-card__name {
-  padding: 0;
-  border: 0;
-  background: none;
   color: var(--iot-navy-700);
-  font: inherit;
   font-size: 1.0625rem;
   font-weight: 700;
-  text-align: left;
-  cursor: pointer;
+  text-decoration: none;
   overflow-wrap: anywhere;
 }
 
-.student-card__name:hover {
+a.student-card__name:hover {
   text-decoration: underline;
 }
 

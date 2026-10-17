@@ -26,7 +26,7 @@ import StudentCard from './StudentCard.vue';
 
 /**
  * Карточка студента (FR-009): показатели, история групп (FR-010) и действия — изменение ФИО,
- * перевод, архивирование (FR-011), новый временный пароль. Полный профиль — этап 05.
+ * перевод, архивирование (FR-011), новый временный пароль. Открывается из профиля студента.
  */
 const props = defineProps<{ studentId: string | null; groups: GroupDto[] }>();
 const visible = defineModel<boolean>('visible', { required: true });

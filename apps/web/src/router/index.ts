@@ -35,6 +35,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),
   admin: () => import('@/views/admin/AdminView.vue'),
+  'student-profile': () => import('@/views/student/MyProfileView.vue'),
 };
 
 function sectionRoute(item: NavItem, basePath: string, permission?: Permission): RouteRecordRaw {
@@ -70,7 +71,16 @@ export const routes: RouteRecordRaw[] = [
     path: '/',
     component: StaffLayout,
     meta: { area: 'staff' },
-    children: [...TEACHER_NAV, ...TEACHER_SERVICE_NAV].map((item) => sectionRoute(item, '/')),
+    children: [
+      ...[...TEACHER_NAV, ...TEACHER_SERVICE_NAV].map((item) => sectionRoute(item, '/')),
+      // Профиль студента — вложенная страница раздела «Студенты», а не пункт меню (огр. 7).
+      {
+        path: 'students/:id',
+        name: 'student-details',
+        component: () => import('@/views/students/StudentProfileView.vue'),
+        meta: { title: 'Профиль студента', permission: Permission.STUDENTS_READ },
+      },
+    ],
   },
   {
     path: '/:pathMatch(.*)*',

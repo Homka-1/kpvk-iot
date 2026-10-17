@@ -11,3 +11,12 @@ if (!window.matchMedia) {
     dispatchEvent: () => false,
   });
 }
+
+// jsdom не реализует ResizeObserver, а его использует TabList из PrimeVue.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
+}
