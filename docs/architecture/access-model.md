@@ -96,6 +96,19 @@
 
 В журнал аудита пишутся действия с методиками (`questionnaire.*`, `questionnaire_version.*`, `diagnostic_direction.*`) с номером версии и названием, без текстов вопросов.
 
+Применение на этапе 07 (проведение диагностики, ADR-013):
+
+| Данные                                                           | Кто получает                                      | Ограничения                                                                                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `GET`, `POST /api/diagnostic-assignments`, `GET /:id`, `/cancel` | `diagnostics.manage`                              | группы и студенты из области данных; в счётчиках и списке прохождений — только доступные студенты; чужое назначение — 404 |
+| `GET /api/diagnostic-sessions/:id/form`, `POST /:id/paper`       | `diagnostics.manage`                              | студент прохождения из области данных, иначе 404                                                                          |
+| `GET /api/diagnostic-sessions/:id/answers`                       | `diagnostics.answers.read`                        | исходные ответы и ревизии; у администратора разрешения нет (п. 2.1); студент из области данных                            |
+| `POST /api/diagnostic-sessions/:id/corrections`                  | `diagnostics.manage` и `diagnostics.answers.read` | только завершённое прохождение; причина обязательна                                                                       |
+| `GET /api/students/:id/diagnostics`                              | `students.read`                                   | баллы и уровни действующей ревизии; студент из области данных, иначе 404                                                  |
+| `/api/cabinet/diagnostics/**`                                    | `cabinet.access`                                  | только прохождения студента из сессии (чужое — 404); форма без значений и ключей; результат — только текст для студента   |
+
+Действия журнала аудита этапа 07: `diagnostic_assignment.created`, `diagnostic_assignment.cancelled` (с причиной), `diagnostic_session.completed`, `diagnostic_session.paper_entered`, `diagnostic_session.corrected` (с причиной). Содержание ответов в журнал не пишется.
+
 ## Сессия и вход
 
 | Механизм                          | Значение по умолчанию | Где задаётся                       |

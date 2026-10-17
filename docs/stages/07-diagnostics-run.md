@@ -1,55 +1,89 @@
 # Этап 07 — Проведение диагностики
 
-статус: in_progress дата: 2026-10-17 коммиты: см. git log ветки worktree-stage-07-diagnostics-run (worktree .claude/worktrees/stage-07-diagnostics-run), в main не сливал.
+статус: done дата: 2026-10-18 коммиты: 09df6fa (shared+api), 1dab1ea (web) + коммит docs. ветка worktree-stage-07-diagnostics-run (worktree .claude/worktrees/stage-07-diagnostics-run), в main не сливал.
 
-## сделано (сессия 1 — shared + api, остановился по лимиту)
+## сделано
 
-- shared packages/shared/src/diagnostic-sessions.ts: `FormQuestion` (в diagnostics.ts — вопрос без значений/ключей; answerError/isAnswered теперь принимают FormQuestion), `DiagnosticForm`, `toFormQuestion`/`toDiagnosticForm`, `answersIssues(questions, answers, complete)` → `{ 'answers.<id>': текст }`, `answeredOnly`, `AssignmentState` + `assignmentState(period)` (PLANNED/ACTIVE/FINISHED/CANCELLED, не в БД), DTO: DiagnosticAssignmentDto(+Detail, counts по статусам), DiagnosticSessionRowDto, StudentDiagnosticDto, ScaleResultDto, DiagnosticAnswersDto/RevisionDto, CabinetDiagnosticDto(+SessionDto с form, draft). zod `assignmentFormSchema` (questionnaireId, targetKind group|student, groupId, studentId, startsOn, endsOn YYYY-MM-DD), `localDayStart(date)`, `correctionReasonSchema`. ASSIGNMENT_MAX_DAYS 366. spec diagnostic-sessions.spec.ts (+6).
-- profile.ts STUDENT_HISTORY_LABELS: diagnostic_session.completed / paper_entered / corrected. profile.service history() берёт ещё entityType diagnostic_session по id сессий студента.
-- миграция 20261017200000_diagnostic_session_guard: триггер на diagnostic_sessions — у COMPLETED меняется только current_revision (только вверх), удалить нельзя. ответы/баллы/ревизии уже защищены миграцией 20261016171337.
-- api apps/api/src/diagnostics/sessions.service.ts (DiagnosticSessionsService), sessions.controller.ts, sessions.dto.ts; модуль обновлён.
-- эндпоинты:
-  - `diagnostic-assignments` (diagnostics.manage): GET список (scope), POST (Idempotency-Key; questionnaireId → действующая PUBLISHED версия ACTIVE-методики; groupId XOR studentId; startsAt/endsAt ISO, endsAt не включительно, >now, ≤366 дн), GET :id (+ sessions), POST :id/cancel {reason} (открытые → CANCELLED, завершённые остаются).
-  - `diagnostic-sessions/:id`: GET form (diagnostics.manage), POST paper {answers, completedAt} (diagnostics.manage, Idempotency-Key; статусы ASSIGNED/IN_PROGRESS/EXPIRED), GET answers (diagnostics.answers.read — у admin нет), POST corrections {answers, reason ≥5} (manage + answers.read, Idempotency-Key; новая ревизия CORRECTION, расчёт той же версией, одинаковые ответы → 400).
-  - `students/:id/diagnostics` (students.read): прохождения + баллы действующей ревизии.
-  - `cabinet/diagnostics` (cabinet.access): GET список (без CANCELLED), GET :id (form без значений вариантов, draft если allowDraft и открыт), POST :id/start (ASSIGNED→IN_PROGRESS, startedAt), PUT :id/draft {answers} (только IN_PROGRESS и allowDraft), POST :id/complete {answers} (Idempotency-Key; полнота → 400 fields; расчёт scoreQuestionnaire; durationSeconds). студенту — только studentText правил, без баллов.
-- при назначении: diagnostic_sessions для всех неархивных студентов группы; notifications type `diagnostic.assigned`, link /student/diagnostics (бейдж — этап 15).
-- expireOverdue(): при чтении списков/кабинета открытые сессии с прошедшим endsAt → EXPIRED (без фоновой задачи).
-- e2e apps/api/test/diagnostic-sessions.e2e-spec.ts — 10 тестов (AT-02 по контрольным примерам 01-high/02-low, UC-01, FR-013 триггеры+ревизия, FR-022, AT-12, NFR-006, отмена/истечение, история).
+- shared packages/shared/src/diagnostic-sessions.ts: `FormQuestion` (в diagnostics.ts — вопрос без значений/ключей; answerError/isAnswered принимают FormQuestion), `DiagnosticForm`, `toFormQuestion`/`toDiagnosticForm`, `answersIssues(questions, answers, complete)` → `{ 'answers.<id>': текст }`, `answeredOnly`, `AssignmentState` + `assignmentState(period)` (PLANNED/ACTIVE/FINISHED/CANCELLED, не в БД), DTO: DiagnosticAssignmentDto(+Detail, counts), DiagnosticSessionRowDto, StudentDiagnosticDto, ScaleResultDto, DiagnosticAnswersDto/RevisionDto, CabinetDiagnosticDto(+SessionDto с form, draft). zod `assignmentFormSchema`, `localDayStart`, `correctionReasonSchema`. ASSIGNMENT_MAX_DAYS 366.
+- profile.ts STUDENT_HISTORY_LABELS: diagnostic_session.completed / paper_entered / corrected. profile.service history() берёт entityType diagnostic_session по id сессий студента.
+- миграция 20261017200000_diagnostic_session_guard: триггер на diagnostic_sessions — у COMPLETED меняется только current_revision (вверх), удалить нельзя.
+- api apps/api/src/diagnostics/sessions.{service,controller,dto}.ts:
+  - `diagnostic-assignments` (diagnostics.manage): GET, POST (Idempotency-Key; действующая PUBLISHED версия ACTIVE-методики; groupId XOR studentId; endsAt не включительно, >now, ≤366 дн), GET :id (+sessions), POST :id/cancel {reason}.
+  - `diagnostic-sessions/:id`: GET form, POST paper {answers, completedAt} (manage), GET answers (diagnostics.answers.read), POST corrections {answers, reason} (manage + answers.read).
+  - `students/:id/diagnostics` (students.read).
+  - `cabinet/diagnostics` (cabinet.access): GET, GET :id, POST :id/start, PUT :id/draft, POST :id/complete.
+  - назначение → diagnostic_sessions всем неархивным студентам группы + notifications `diagnostic.assigned`. expireOverdue() лениво → EXPIRED.
+- web:
+  - components/QuestionField.vue — общий вопрос (5 типов); PreviewDialog переведён на него.
+  - views/diagnostics: AssignmentsPanel (вкладка «Назначения» в DiagnosticsView), AssignDialog, AssignmentDetailDialog (прохождения, «Ввести бланк», отмена), AnswersFormDialog (mode paper|correction), AnswersHistoryDialog (ревизии, ответы, «Исправить ошибочный ввод»), ScoresTable, sessions.ts (бейджи, periodText, formatDuration, formatAnswer).
+  - views/students/StudentDiagnosticsTab.vue — вкладка «Диагностика» профиля вместо EmptyState.
+  - views/student/MyDiagnosticsView.vue (SECTION_VIEWS student-diagnostics), DiagnosticRunView.vue (маршрут `/student/diagnostics/:id`, name student-diagnostic-run): инструкция → «Начать» → вопросы, автосохранение черновика 1,5 с, «Отвечено N из M», проверка полноты, подтверждение, результат.
+  - testing/setup.ts: заглушка scrollIntoView. e2e/support/session.ts: mockSession отдаёт [] для cabinet/diagnostics и diagnostic-assignments.
+- docs: ADR-013, access-model (таблица этапа 07 + коды аудита), data-model (триггер сессии), navigation (вложенная страница кабинета, вкладка «Назначения»), wireframes §2 (реализация вкладки) + §12 (назначения, кабинет), traceability.
 
-## требования (пока)
+## требования
 
-- FR-018, FR-019, FR-020, FR-022, FR-023, FR-013 ✅ на API; UI — нет
-- UC-01 ⚠️ API готов; Playwright UC-01 — нет
-- AT-02 ⚠️ e2e API зелёный; UI — нет
+- FR-013 ✅ триггеры + ревизия CORRECTION с причиной и аудитом, UI исправления
+- FR-018 ✅
+- FR-019 ✅
+- FR-020 ✅ расчёт при завершении/бланке/исправлении
+- FR-022 ✅
+- FR-023 ✅
+- UC-01 ✅ Playwright e2e/diagnostics-run.spec.ts (2 вьюпорта)
+- AT-02 ✅ API e2e по контрольным примерам + Playwright
+- FR-016 ⚠️ + студент видит только studentText, без баллов
+- FR-074 ⚠️ + «Нет данных (без ответа: N)» в профиле
+- NFR-006 ⚠️ + назначение, завершение, бланк, исправление
+- AT-12 ⚠️ + назначения/прохождения по scope, ответы только с answers.read, кабинет только свои
+- FR-012 ⚠️ + вкладка «Диагностика», события в «Истории»
 
 ## решения (почему)
 
-- версия при назначении — действующая на момент назначения; сохраняется в сессии (FR-023). новая публикация не трогает уже назначенные.
-- черновик — draft_answers JSON в сессии; при завершении очищается. ответы черновика проверяются answersIssues(complete=false).
-- ответы хранятся без пропусков (answeredOnly), пустой текст = пропуск. расчёт пропуск → null (ADR-012).
-- исправление — полный набор ответов новой ревизии, а не правка отдельных: проще аудит и расчёт.
-- текст ответов в аудит не пишется (admin читает журнал, п. 2.1).
-- бумажный бланк можно ввести и после истечения срока (EXPIRED) — бланки собирают позже.
-- статус EXPIRED выставляется лениво при чтении: в MVP нет планировщика; фоновая задача — этап 14 (FR-058).
+- версия фиксируется при назначении; новая публикация не трогает назначенные (FR-026).
+- черновик — draft_answers JSON в сессии; при завершении очищается; без allowDraft → 409.
+- ответы хранятся без пропусков (answeredOnly), пустой текст = пропуск; пропуск → балл null (ADR-012).
+- исправление — полный набор ответов новой ревизии; одинаковые ответы → 400.
+- текст ответов в аудит не пишется (п. 2.1).
+- бланк можно ввести и после истечения срока.
+- EXPIRED лениво при чтении: планировщика нет; фоновая задача — этап 14.
+- период в UI — даты; endsAt = начало дня после даты окончания (не включительно); бланк — полдень выбранного дня, не позже now.
+- студент результат — только studentText правил; если текста нет → «Результаты обсудит с вами преподаватель».
+- Select PrimeVue не берёт имя из `<label for>` → `aria-labelledby` на label id (нужно для доступности и Playwright).
+- Playwright проверка горизонтальной прокрутки — после закрытия listbox (иначе флак на 360 px из-за анимации оверлея).
+- живой прогон с реальным API вручную не делал: контракт общий (`@iot/shared`), API покрыт e2e, UI — Playwright с моками.
 
-## осталось (следующая сессия продолжает ЭТОТ этап)
+## файлы ключевые
 
-- web:
-  - DiagnosticsView: вкладка «Назначения» (value assignments): список + диалог «Назначить» (методика с published, группа/студент из scope, период датами → startsAt=localDayStart(startsOn), endsAt=localDayStart(endsOn)+1 день), карточка назначения со списком прохождений, кнопки «Ввести бланк» (форма как PreviewDialog), «Отменить назначение».
-  - StudentProfileView вкладка diagnostics: таблица прохождений (методика, версия, тип, статус StatusBadge, даты, время, баллы, «Нет данных» при null), «Ответы и исправление» (если право diagnostics.answers.read) → диалог с ревизиями + форма исправления с причиной.
-  - кабинет: SECTION_VIEWS 'student-diagnostics' → views/student/MyDiagnosticsView.vue (список) + вложенный маршрут /student/diagnostics/:id (инструкция → «Начать» → вопросы, автосохранение черновика debounce, «Завершить» с подтверждением, ошибки полей). рендер вопросов вынести из PreviewDialog в общий компонент QuestionField. мобильная вёрстка 360.
-  - vitest + Playwright e2e/diagnostics-run.spec.ts (UC-01, 2 вьюпорта).
-- docs: ADR-013 (проведение диагностики, решения выше), access-model (таблица этапа 07), data-model (триггер сессии), wireframes (кабинет «Диагностика», вкладка профиля), navigation (вложенная страница кабинета), traceability (FR-013, 018–020, 022, 023, UC-01, AT-02, NFR-006, AT-12), STATUS → done.
-- сид: назначить демо-методику демо-группе (по желанию, для ручной проверки).
+- packages/shared/src/diagnostic-sessions.ts — контракты, проверка ответов
+- apps/api/src/diagnostics/sessions.service.ts — вся логика назначений/прохождений/ревизий
+- apps/api/prisma/migrations/20261017200000_diagnostic_session_guard/migration.sql
+- apps/web/src/components/QuestionField.vue
+- apps/web/src/views/diagnostics/{AssignmentsPanel,AssignDialog,AssignmentDetailDialog,AnswersFormDialog,AnswersHistoryDialog}.vue
+- apps/web/src/views/students/StudentDiagnosticsTab.vue
+- apps/web/src/views/student/{MyDiagnosticsView,DiagnosticRunView}.vue
 
 ## проверить
 
 - `export PATH=$HOME/.npm-global/bin:$PATH`
-- worktree: `pnpm install` уже сделан; .env и .env.test скопированы из основной копии (не в git).
-- `pnpm lint && pnpm typecheck && pnpm --filter @iot/api test` — зелёные (api unit 44, e2e 74; shared 24).
-- миграция 20261017200000 применена к test-БД (test:api-e2e делает migrate deploy). к dev — нет: `pnpm db:deploy`.
+- `pnpm db:up && pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e`
+- `pnpm db:deploy && pnpm db:seed && pnpm dev` → teacher → «Диагностика» → «Назначения» → «Назначить диагностику» (демо-методика, группа) → student → «Диагностика» → пройти → teacher → профиль студента → «Диагностика» → баллы, «Ответы и ревизии» → «Исправить ошибочный ввод».
 
 ## тесты
 
-- shared 24 (+6); api unit 44; api e2e 74 (+10 diagnostic-sessions). web/playwright в этой сессии не гонял (web не менялся, кроме нет).
+- shared 24 (+6); api unit 44; api e2e 74 (+10 diagnostic-sessions); web vitest 62 (+7 sessions.spec); playwright 83 passed, 1 skipped (by design, как раньше; +2 diagnostics-run × 2 вьюпорта).
+- один полный прогон `pnpm test` дал 10 failed «Connection terminated» в diagnostic-sessions (обрыв соединения с общей test-БД, другой процесс); повтор — 74/74, ещё один полный прогон — зелёный. логику не трогал.
+
+## долги / TODO(этап NN)
+
+- TODO(этап 08): тип замера REPEATED/INTERMEDIATE при назначении, сравнение замеров и динамика во вкладке «Диагностика».
+- TODO(этап 14): фоновая задача истечения сроков вместо ленивого expireOverdue().
+- TODO(этап 15): бейдж уведомлений в шапке (уведомления `diagnostic.assigned` уже пишутся).
+- TODO(решение заказчика): процедура RECALCULATION (open-questions, вопрос 14) — по-прежнему нет.
+- TODO(этап 19): список назначений ограничен 200 без пагинации.
+
+## для след. этапа
+
+- прохождение: `diagnostic_sessions` (versionId, currentRevision), баллы — `diagnostic_scores` с revision = currentRevision. `StudentDiagnosticDto` — готовый формат для динамики.
+- `measurementType` в назначении и сессии сейчас всегда PRIMARY (default БД); поле уже в DTO.
+- общий компонент вопроса — `@/components/QuestionField.vue`; бейджи статусов — `@/views/diagnostics/sessions.ts`.
+- dev-БД: миграцию 20261017200000 применить `pnpm db:deploy` (test-БД уже применена).
