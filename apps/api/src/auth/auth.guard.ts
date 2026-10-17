@@ -16,6 +16,7 @@ import {
   ALLOW_PENDING_PASSWORD,
   type AuthUser,
   IS_PUBLIC,
+  REQUIRED_ANY_PERMISSIONS,
   REQUIRED_PERMISSIONS,
 } from './decorators.js';
 
@@ -60,6 +61,13 @@ export class AuthGuard implements CanActivate {
       targets,
     );
     if (required?.some((permission) => !user.permissions.includes(permission))) {
+      throw new ForbiddenException('Недостаточно прав для выполнения действия');
+    }
+    const anyOf = this.reflector.getAllAndOverride<Permission[] | undefined>(
+      REQUIRED_ANY_PERMISSIONS,
+      targets,
+    );
+    if (anyOf && !anyOf.some((permission) => user.permissions.includes(permission))) {
       throw new ForbiddenException('Недостаточно прав для выполнения действия');
     }
     return true;

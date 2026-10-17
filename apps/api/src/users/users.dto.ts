@@ -17,12 +17,9 @@ import {
   Min,
 } from 'class-validator';
 
-const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
-const emptyToNull = ({ value }: { value: unknown }) => {
-  if (typeof value !== 'string') return value;
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
-};
+import { emptyToNull, ReasonDto, trim } from '../common/dto.js';
+
+export { ReasonDto };
 
 export class UserListQueryDto {
   @ApiPropertyOptional({ description: 'Поиск по ФИО, логину и e-mail' })
@@ -120,15 +117,6 @@ export class SetRolesDto {
     message: 'Эту роль нельзя назначить в разделе «Администрирование»',
   })
   roles: RoleCode[];
-}
-
-export class ReasonDto {
-  @ApiProperty({ description: 'Причина действия (сохраняется в журнале аудита)' })
-  @Transform(trim)
-  @IsString({ message: 'Укажите причину' })
-  @IsNotEmpty({ message: 'Укажите причину' })
-  @MaxLength(500, { message: 'Не более 500 символов' })
-  reason: string;
 }
 
 export class GrantPermissionDto extends ReasonDto {

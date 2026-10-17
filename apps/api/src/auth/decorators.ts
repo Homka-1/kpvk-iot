@@ -8,6 +8,7 @@ export interface AuthUser extends CurrentUser {
 
 export const IS_PUBLIC = 'iot:isPublic';
 export const REQUIRED_PERMISSIONS = 'iot:requiredPermissions';
+export const REQUIRED_ANY_PERMISSIONS = 'iot:requiredAnyPermissions';
 export const ALLOW_PENDING_PASSWORD = 'iot:allowPendingPassword';
 
 /** Эндпоинт доступен без входа (вход, обновление сессии, health). */
@@ -16,6 +17,10 @@ export const Public = () => SetMetadata(IS_PUBLIC, true);
 /** Эндпоинт требует всех перечисленных разрешений. Проверяется на сервере глобальным guard. */
 export const RequirePermissions = (...permissions: Permission[]) =>
   SetMetadata(REQUIRED_PERMISSIONS, permissions);
+
+/** Эндпоинт требует хотя бы одного из перечисленных разрешений (проверяется на сервере). */
+export const RequireAnyPermission = (...permissions: Permission[]) =>
+  SetMetadata(REQUIRED_ANY_PERMISSIONS, permissions);
 
 /**
  * Эндпоинт доступен и до смены временного пароля. Остальные эндпоинты при

@@ -32,6 +32,8 @@
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^18.0.8",
+    "exceljs": "^4.4.0",
+    "papaparse": "^5.7.0",
     "pino": "^10.4.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
@@ -43,6 +45,7 @@
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/papaparse": "^5.5.2",
     "@types/supertest": "^7.2.1",
     "jest": "^30.5.2",
     "prisma": "~7.10.1",

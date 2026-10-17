@@ -90,9 +90,55 @@ async function main(): Promise<void> {
           : `Сид: создана учётная запись «${account.login}», пароль: ${password} (задайте ${envName}, чтобы выбрать свой).`,
       );
     }
+
+    await seedDirectory(prisma);
   } finally {
     await prisma.$disconnect();
   }
+}
+
+/**
+ * Демо-справочники (этап 04): группа, дисциплина, закрепление демо-преподавателя и зачисление
+ * демо-студента. Существующие записи не меняются.
+ */
+async function seedDirectory(prisma: PrismaClient): Promise<void> {
+  const group = await prisma.group.upsert({
+    where: { name: 'ДЕМО-21' },
+    update: {},
+    create: { name: 'ДЕМО-21', course: 2, specialty: 'Программное обеспечение (демо)' },
+  });
+  const discipline = await prisma.discipline.upsert({
+    where: { name: 'Математика (демо)' },
+    update: {},
+    create: { name: 'Математика (демо)', code: 'ДЕМО-МАТ' },
+  });
+  const teacher = await prisma.user.findUnique({ where: { login: 'teacher' } });
+  if (teacher) {
+    const assigned = await prisma.teacherAssignment.findFirst({
+      where: {
+        teacherId: teacher.id,
+        groupId: group.id,
+        disciplineId: discipline.id,
+        endsAt: null,
+      },
+    });
+    if (!assigned) {
+      await prisma.teacherAssignment.create({
+        data: { teacherId: teacher.id, groupId: group.id, disciplineId: discipline.id },
+      });
+    }
+  }
+  const student = await prisma.student.findUnique({ where: { participantCode: 'DEMO-0001' } });
+  if (student && !student.currentGroupId) {
+    await prisma.student.update({
+      where: { id: student.id },
+      data: {
+        currentGroupId: group.id,
+        enrollments: { create: { groupId: group.id, reason: 'Демо-данные' } },
+      },
+    });
+  }
+  console.log('Сид: демо-группа «ДЕМО-21» и дисциплина «Математика (демо)» готовы.');
 }
 
 await main();

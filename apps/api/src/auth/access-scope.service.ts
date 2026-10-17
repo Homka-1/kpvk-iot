@@ -17,6 +17,11 @@ export type AccessScope =
       pairs: { groupId: string; disciplineId: string }[];
     };
 
+/** Действующие закрепления преподавателей на момент `now`. */
+export function activeAssignmentWhere(now = new Date()): Prisma.TeacherAssignmentWhereInput {
+  return { startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
+}
+
 @Injectable()
 export class AccessScopeService {
   constructor(private readonly prisma: PrismaService) {}
@@ -24,11 +29,7 @@ export class AccessScopeService {
   async forUser(user: CurrentUser, now = new Date()): Promise<AccessScope> {
     if (user.permissions.includes(Permission.GROUPS_MANAGE)) return { kind: 'all' };
     const assignments = await this.prisma.teacherAssignment.findMany({
-      where: {
-        teacherId: user.id,
-        startsAt: { lte: now },
-        OR: [{ endsAt: null }, { endsAt: { gt: now } }],
-      },
+      where: { teacherId: user.id, ...activeAssignmentWhere(now) },
       select: { groupId: true, disciplineId: true },
     });
     return {
