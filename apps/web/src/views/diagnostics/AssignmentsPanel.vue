@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { DiagnosticAssignmentDetailDto, DiagnosticAssignmentDto } from '@iot/shared';
+import {
+  type DiagnosticAssignmentDetailDto,
+  type DiagnosticAssignmentDto,
+  MEASUREMENT_TYPE_LABELS,
+} from '@iot/shared';
 import Button from 'primevue/button';
 import { onMounted, ref } from 'vue';
 import EmptyState from '@/components/EmptyState.vue';
@@ -65,6 +69,8 @@ function targetText(item: DiagnosticAssignmentDto): string {
         <dl class="assignment__facts">
           <dt>Кому</dt>
           <dd>{{ targetText(item) }}</dd>
+          <dt>Замер</dt>
+          <dd>{{ MEASUREMENT_TYPE_LABELS[item.measurementType] }}</dd>
           <dt>Версия</dt>
           <dd>{{ item.questionnaire.versionNumber }}</dd>
           <dt>Период</dt>

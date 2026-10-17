@@ -62,8 +62,8 @@ describe('StaffLayout', () => {
   });
 
   it('раздел открывает заглушку «Раздел в разработке» с заголовком пункта', async () => {
-    const { wrapper } = await mountWithApp(StaffLayout, { path: '/analytics' });
-    expect(wrapper.find('main h1').text()).toBe('Аналитика');
+    const { wrapper } = await mountWithApp(StaffLayout, { path: '/reports' });
+    expect(wrapper.find('main h1').text()).toBe('Отчёты');
     expect(wrapper.find('main').text()).toContain('Раздел в разработке');
   });
 });

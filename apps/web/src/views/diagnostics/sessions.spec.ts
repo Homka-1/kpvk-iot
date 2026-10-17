@@ -203,7 +203,10 @@ describe('вкладка «Диагностика» профиля', () => {
   };
 
   it('FR-023, FR-074: версия, способ, баллы; пропуск — «Нет данных»; ответы — по праву', async () => {
-    mockApi({ [`GET /students/${STUDENT_ID}/diagnostics`]: [result] });
+    mockApi({
+      [`GET /students/${STUDENT_ID}/diagnostics`]: [result],
+      [`GET /students/${STUDENT_ID}/diagnostics/comparison`]: [],
+    });
     const { wrapper } = await mountWithApp(StudentDiagnosticsTab, {
       props: { studentId: STUDENT_ID },
     });
@@ -219,7 +222,10 @@ describe('вкладка «Диагностика» профиля', () => {
   });
 
   it('п. 2.1: без разрешения на ответы кнопки просмотра ответов нет', async () => {
-    mockApi({ [`GET /students/${STUDENT_ID}/diagnostics`]: [result] });
+    mockApi({
+      [`GET /students/${STUDENT_ID}/diagnostics`]: [result],
+      [`GET /students/${STUDENT_ID}/diagnostics/comparison`]: [],
+    });
     const user = testUser(['teacher']);
     user.permissions = user.permissions.filter((item) => item !== 'diagnostics.answers.read');
     const { wrapper } = await mountWithApp(StudentDiagnosticsTab, {

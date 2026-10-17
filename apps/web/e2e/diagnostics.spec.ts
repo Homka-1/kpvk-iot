@@ -44,6 +44,7 @@ async function mockQuestionnairesApi(page: import('@playwright/test').Page) {
     copiedFrom: null,
     archivedAt: null,
     versions: [versionInfo()],
+    comparabilities: [],
   });
   const version = (): QuestionnaireVersionDto => ({
     ...versionInfo(),

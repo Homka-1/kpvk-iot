@@ -10,7 +10,14 @@ import {
 } from './support/session';
 
 /** Разделы, которые уже реализованы (остальные пока открывают заглушку). */
-const IMPLEMENTED = new Set(['settings', 'admin', 'students', 'disciplines', 'diagnostics']);
+const IMPLEMENTED = new Set([
+  'settings',
+  'admin',
+  'students',
+  'disciplines',
+  'diagnostics',
+  'analytics',
+]);
 /** Служебные разделы администратора; остальные пункты открываются под преподавателем. */
 const ADMIN_SECTIONS = new Set(['settings', 'admin']);
 

@@ -4,6 +4,9 @@ import {
   type DiagnosticAssignmentDetailDto,
   formatFullName,
   localDayStart,
+  MEASUREMENT_TYPE_LABELS,
+  MeasurementType,
+  type QuestionnaireDetailDto,
   type QuestionnaireSummaryDto,
   type StudentPageDto,
   todayIsoDate,
@@ -22,13 +25,15 @@ import { useContextStore } from '@/stores/context';
 
 /**
  * Назначение диагностики (UC-01, шаги 2–4; FR-018, FR-019): методика с действующей версией,
- * группа или студент из доступных пользователю, период прохождения по датам.
+ * группа или студент из доступных пользователю, период прохождения по датам. Промежуточный
+ * и повторный замер можно провести по прежней версии, чтобы сравнить с первичным (UC-06).
  */
 const visible = defineModel<boolean>('visible', { required: true });
 const emit = defineEmits<{ created: [assignment: DiagnosticAssignmentDetailDto] }>();
 const context = useContextStore();
 
 const questionnaires = ref<QuestionnaireSummaryDto[]>([]);
+const detail = ref<QuestionnaireDetailDto | null>(null);
 const students = ref<{ id: string; label: string }[]>([]);
 const loadError = ref<string | null>(null);
 const error = ref<string | null>(null);
@@ -37,6 +42,8 @@ let idempotencyKey = newIdempotencyKey();
 
 const form = useForm({ validationSchema: toTypedSchema(assignmentFormSchema) });
 const [questionnaireId] = form.defineField('questionnaireId');
+const [measurementType] = form.defineField('measurementType');
+const [versionId] = form.defineField('versionId');
 const [targetKind] = form.defineField('targetKind');
 const [groupId] = form.defineField('groupId');
 const [studentId] = form.defineField('studentId');
@@ -45,6 +52,36 @@ const [endsOn, endsOnAttrs] = form.defineField('endsOn');
 
 const groups = computed(() => context.groups.filter((group) => !group.archivedAt));
 const published = computed(() => questionnaires.value.filter((item) => item.published));
+const measurementTypes = Object.values(MeasurementType).map((value) => ({
+  value,
+  label: MEASUREMENT_TYPE_LABELS[value],
+}));
+const isPrimary = computed(() => measurementType.value === MeasurementType.PRIMARY);
+
+/** Опубликованные ранее версии с отметкой действующей и сопоставимых (UC-06). */
+const versions = computed(() => {
+  const info = detail.value;
+  if (!info) return [];
+  const published = info.versions.filter((version) => version.status !== 'DRAFT');
+  const number = new Map(published.map((version) => [version.id, version.versionNumber]));
+  return published.map((version) => {
+    const comparable = info.comparabilities
+      .flatMap((pair) =>
+        pair.versionAId === version.id
+          ? [pair.versionBId]
+          : pair.versionBId === version.id
+            ? [pair.versionAId]
+            : [],
+      )
+      .map((id) => number.get(id))
+      .filter((value): value is number => value !== undefined)
+      .sort((a, b) => a - b);
+    const parts = [`Версия ${version.versionNumber}`];
+    if (version.status === 'PUBLISHED') parts.push('действующая');
+    if (comparable.length > 0) parts.push(`сопоставима с ${comparable.join(', ')}`);
+    return { id: version.id, label: parts.join(' · ') };
+  });
+});
 
 watch(visible, async (open) => {
   if (!open) return;
@@ -56,6 +93,8 @@ watch(visible, async (open) => {
   form.resetForm({
     values: {
       questionnaireId: '',
+      measurementType: MeasurementType.PRIMARY,
+      versionId: null,
       targetKind: 'group',
       groupId: context.groupId,
       studentId: null,
@@ -67,6 +106,21 @@ watch(visible, async (open) => {
     questionnaires.value = await api<QuestionnaireSummaryDto[]>('/questionnaires');
   } catch (caught) {
     loadError.value = caught instanceof ApiError ? caught.message : 'Не удалось загрузить методики';
+  }
+});
+
+watch([questionnaireId, isPrimary], async ([id, primary]) => {
+  versionId.value = null;
+  detail.value = null;
+  if (!id || primary) return;
+  try {
+    const loaded = await api<QuestionnaireDetailDto>(`/questionnaires/${id}`);
+    if (questionnaireId.value !== id) return;
+    detail.value = loaded;
+    versionId.value = loaded.versions.find((version) => version.status === 'PUBLISHED')?.id ?? null;
+  } catch (caught) {
+    loadError.value =
+      caught instanceof ApiError ? caught.message : 'Не удалось загрузить версии методики';
   }
 });
 
@@ -99,6 +153,8 @@ const submit = form.handleSubmit(async (values) => {
       headers: { 'Idempotency-Key': idempotencyKey },
       body: {
         questionnaireId: values.questionnaireId,
+        measurementType: values.measurementType,
+        versionId: values.measurementType === MeasurementType.PRIMARY ? null : values.versionId,
         groupId: values.targetKind === 'group' ? values.groupId : null,
         studentId: values.targetKind === 'student' ? values.studentId : null,
         startsAt: localDayStart(values.startsOn).toISOString(),
@@ -143,9 +199,45 @@ const submit = form.handleSubmit(async (values) => {
           :invalid="!!form.errors.value.questionnaireId"
           fluid
         />
-        <small class="iot-field-hint">Назначается действующая (опубликованная) версия.</small>
+        <small v-if="isPrimary" class="iot-field-hint">
+          Первичный замер проводится по действующей (опубликованной) версии.
+        </small>
         <small v-if="form.errors.value.questionnaireId" class="iot-field-error">
           {{ form.errors.value.questionnaireId }}
+        </small>
+      </div>
+      <div class="iot-field">
+        <label id="assign-measurement-label" for="assign-measurement">Замер</label>
+        <Select
+          v-model="measurementType"
+          input-id="assign-measurement"
+          aria-labelledby="assign-measurement-label"
+          :options="measurementTypes"
+          option-label="label"
+          option-value="value"
+          fluid
+        />
+      </div>
+      <div v-if="!isPrimary && questionnaireId" class="iot-field">
+        <label id="assign-version-label" for="assign-version">Версия методики</label>
+        <Select
+          v-model="versionId"
+          input-id="assign-version"
+          aria-labelledby="assign-version-label"
+          :options="versions"
+          option-label="label"
+          option-value="id"
+          placeholder="Выберите версию"
+          empty-message="Нет опубликованных версий"
+          :invalid="!!form.errors.value.versionId"
+          fluid
+        />
+        <small class="iot-field-hint">
+          Для сравнения с первичным замером выберите ту же версию или версию, сопоставимость которой
+          утвердил исследователь.
+        </small>
+        <small v-if="form.errors.value.versionId" class="iot-field-error">
+          {{ form.errors.value.versionId }}
         </small>
       </div>
       <fieldset class="iot-field assign__target">

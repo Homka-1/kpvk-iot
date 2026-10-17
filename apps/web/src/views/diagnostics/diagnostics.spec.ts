@@ -94,6 +94,7 @@ function detail(versions: QuestionnaireVersionDto[]): QuestionnaireDetailDto {
     copiedFrom: null,
     archivedAt: null,
     versions: versions.map(({ content: _content, questionnaireId: _q, ...info }) => info),
+    comparabilities: [],
   };
 }
 

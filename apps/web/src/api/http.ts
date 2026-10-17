@@ -61,6 +61,25 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   return parse<T>(response);
 }
 
+/**
+ * Скачивание файла из API (выгрузки): ответ сохраняется под именем из Content-Disposition.
+ * Ошибки — как у `api`: ApiError с сообщением на русском.
+ */
+export async function apiDownload(path: string, options: RequestOptions = {}): Promise<void> {
+  let response = await send(path, options);
+  if (response.status === 401 && !options.noRefresh && (await hooks.refresh())) {
+    response = await send(path, options);
+  }
+  if (!response.ok) return parse<void>(response);
+  const name = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1];
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name ?? 'export';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 async function send(path: string, options: RequestOptions): Promise<Response> {
   const isForm = options.body instanceof FormData;
   const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };

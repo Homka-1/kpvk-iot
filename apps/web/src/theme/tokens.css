@@ -31,6 +31,14 @@
   --iot-tone-danger-text: #8f1d1d;
   --iot-tone-danger-border: #f0c4c4;
 
+  /* Серии графиков: контраст с белым фоном не ниже 3:1; серии различаются и формой точек. */
+  --iot-chart-1: var(--iot-navy-700);
+  --iot-chart-2: #0f766e;
+  --iot-chart-3: #b45309;
+  --iot-chart-4: #7e22ce;
+  --iot-chart-5: #be123c;
+  --iot-chart-6: #4d7c0f;
+
   /* Текст и иконки на основном (тёмно-синем) фоне. */
   --iot-color-on-primary: #ffffff;
 
