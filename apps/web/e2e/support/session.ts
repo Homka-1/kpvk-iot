@@ -1,5 +1,12 @@
 import { expect, type Page } from '@playwright/test';
-import { type CurrentUser, ROLE_PERMISSIONS, type RoleCode } from '@iot/shared';
+import {
+  type CurrentUser,
+  type DisciplineDto,
+  type GroupDto,
+  ROLE_PERMISSIONS,
+  type RoleCode,
+  type StudentSummaryDto,
+} from '@iot/shared';
 
 export const isMobile = (page: Page) => (page.viewportSize()?.width ?? 0) < 1024;
 
@@ -68,5 +75,21 @@ export async function mockAdminApi(page: Page): Promise<void> {
         },
       ],
     }),
+  );
+}
+
+/** Справочники и студенты: по умолчанию пустые ответы. */
+export async function mockDirectoryApi(
+  page: Page,
+  data: { groups?: GroupDto[]; disciplines?: DisciplineDto[]; students?: StudentSummaryDto[] } = {},
+): Promise<void> {
+  const students = data.students ?? [];
+  await page.route(/\/api\/groups(\?.*)?$/, (route) => route.fulfill({ json: data.groups ?? [] }));
+  await page.route(/\/api\/disciplines(\?.*)?$/, (route) =>
+    route.fulfill({ json: data.disciplines ?? [] }),
+  );
+  await page.route(/\/api\/teacher-assignments.*/, (route) => route.fulfill({ json: [] }));
+  await page.route(/\/api\/students(\?.*)?$/, (route) =>
+    route.fulfill({ json: { items: students, total: students.length, page: 1, pageSize: 20 } }),
   );
 }

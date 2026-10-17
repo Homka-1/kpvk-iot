@@ -110,6 +110,44 @@ a {
   padding: var(--iot-space-4);
 }
 
+/* Формы в диалогах: поле — подпись, элемент ввода, ошибка; кнопки справа. */
+.iot-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iot-space-3);
+}
+
+.iot-form p {
+  margin: 0;
+}
+
+.iot-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iot-space-1);
+  min-width: 0;
+}
+
+.iot-field > label {
+  font-weight: 600;
+}
+
+.iot-field-hint {
+  color: var(--iot-color-muted);
+  font-size: 0.8125rem;
+}
+
+.iot-field-error {
+  color: var(--iot-tone-danger-text);
+}
+
+.iot-form-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--iot-space-2);
+}
+
 .iot-skip-link {
   position: absolute;
   left: var(--iot-space-2);

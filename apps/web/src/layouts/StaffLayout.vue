@@ -3,18 +3,20 @@ import { APP_SHORT_NAME } from '@iot/shared';
 import Button from 'primevue/button';
 import Drawer from 'primevue/drawer';
 import Select from 'primevue/select';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterLink, RouterView, useRoute } from 'vue-router';
 import HeaderActions from '@/components/layout/HeaderActions.vue';
 import NavMenu from '@/components/layout/NavMenu.vue';
 import { TEACHER_NAV, TEACHER_SERVICE_NAV, visibleNavItems } from '@/navigation';
 import { useAuthStore } from '@/stores/auth';
+import { useContextStore } from '@/stores/context';
 import ForbiddenView from '@/views/ForbiddenView.vue';
 
 /**
  * Оболочка рабочего места преподавателя (ТЗ, п. 4.1, 6.2): шапка с названием, группой,
  * дисциплиной, уведомлениями и профилем; слева постоянное меню. На узких экранах меню
- * открывается в выдвижной панели. Списки групп и дисциплин подключаются на этапах 04 и 16.
+ * открывается в выдвижной панели. Выбранные группа и дисциплина — рабочий контекст разделов
+ * (список студентов; главная панель — этап 16).
  * Пункты меню без нужного разрешения скрыты; раздел без прав показывает «Нет доступа».
  */
 const auth = useAuthStore();
@@ -23,10 +25,16 @@ const mainNav = computed(() => visibleNavItems(TEACHER_NAV, auth.hasPermission))
 const serviceNav = computed(() => visibleNavItems(TEACHER_SERVICE_NAV, auth.hasPermission));
 const allowed = computed(() => auth.hasPermission(route.meta.permission));
 const menuOpen = ref(false);
-const selectedGroup = ref<string | null>(null);
-const selectedDiscipline = ref<string | null>(null);
-const groups: { label: string; value: string }[] = [];
-const disciplines: { label: string; value: string }[] = [];
+const context = useContextStore();
+const groups = computed(() =>
+  context.groups.map((group) => ({ label: group.name, value: group.id })),
+);
+const disciplines = computed(() =>
+  context.disciplines.map((discipline) => ({ label: discipline.name, value: discipline.id })),
+);
+
+// Шапка не должна ломать раздел: при ошибке загрузки списки остаются пустыми.
+onMounted(() => context.load().catch(() => undefined));
 </script>
 
 <template>
@@ -50,23 +58,25 @@ const disciplines: { label: string; value: string }[] = [];
       </div>
       <div class="staff-header__context">
         <Select
-          v-model="selectedGroup"
+          v-model="context.groupId"
           :options="groups"
           option-label="label"
           option-value="value"
           placeholder="Группа"
           empty-message="Нет доступных групп"
           aria-label="Учебная группа"
+          show-clear
           class="staff-header__select"
         />
         <Select
-          v-model="selectedDiscipline"
+          v-model="context.disciplineId"
           :options="disciplines"
           option-label="label"
           option-value="value"
           placeholder="Дисциплина"
           empty-message="Нет доступных дисциплин"
           aria-label="Дисциплина"
+          show-clear
           class="staff-header__select"
         />
       </div>

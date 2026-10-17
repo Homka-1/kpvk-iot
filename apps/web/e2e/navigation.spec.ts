@@ -5,11 +5,12 @@ import {
   fakeUser,
   isMobile,
   mockAdminApi,
+  mockDirectoryApi,
   mockSession,
 } from './support/session';
 
 /** Разделы, которые уже реализованы (остальные пока открывают заглушку). */
-const IMPLEMENTED = new Set(['settings', 'admin']);
+const IMPLEMENTED = new Set(['settings', 'admin', 'students', 'disciplines']);
 /** Служебные разделы администратора; остальные пункты открываются под преподавателем. */
 const ADMIN_SECTIONS = new Set(['settings', 'admin']);
 
@@ -19,6 +20,7 @@ test.describe('навигация сотрудника', () => {
       const role = ADMIN_SECTIONS.has(item.name) ? 'admin' : 'teacher';
       await mockSession(page, fakeUser([role]));
       await mockAdminApi(page);
+      await mockDirectoryApi(page);
       await page.goto(item.path === '/' ? '/disciplines' : '/');
       if (isMobile(page)) {
         await page.getByRole('button', { name: 'Открыть меню' }).click();

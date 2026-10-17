@@ -21,8 +21,8 @@ import ErrorState from '@/components/ErrorState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@/utils/format';
-import ActionDialog from './ActionDialog.vue';
-import TemporaryPassword from './TemporaryPassword.vue';
+import ActionDialog from '@/components/ActionDialog.vue';
+import TemporaryPassword from '@/components/TemporaryPassword.vue';
 import {
   type PermissionInfo,
   type TemporaryPasswordResult,

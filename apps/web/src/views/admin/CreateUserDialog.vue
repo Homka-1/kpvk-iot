@@ -9,7 +9,7 @@ import Message from 'primevue/message';
 import { useForm } from 'vee-validate';
 import { ref, watch } from 'vue';
 import { api, ApiError } from '@/api/http';
-import TemporaryPassword from './TemporaryPassword.vue';
+import TemporaryPassword from '@/components/TemporaryPassword.vue';
 import type { TemporaryPasswordResult } from './types';
 
 /** Создание учётной записи сотрудника. Студенты добавляются в разделе «Студенты». */

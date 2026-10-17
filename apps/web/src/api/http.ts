@@ -40,6 +40,8 @@ export interface RequestOptions {
   cookieAuth?: boolean;
   /** Не обновлять сессию при 401 (например, для входа: 401 означает неверный пароль). */
   noRefresh?: boolean;
+  /** Дополнительные заголовки, например `Idempotency-Key`. */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -60,8 +62,9 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 }
 
 async function send(path: string, options: RequestOptions): Promise<Response> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const isForm = options.body instanceof FormData;
+  const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const token = hooks.getAccessToken();
   if (token && !options.cookieAuth) headers.Authorization = `Bearer ${token}`;
   if (options.cookieAuth) headers[CSRF_HEADER] = readCookie(CSRF_COOKIE) ?? '';
@@ -76,7 +79,12 @@ async function send(path: string, options: RequestOptions): Promise<Response> {
       method: options.method ?? 'GET',
       headers,
       credentials: 'same-origin',
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body:
+        options.body === undefined
+          ? undefined
+          : isForm
+            ? (options.body as FormData)
+            : JSON.stringify(options.body),
     });
   } catch {
     throw new ApiError(0, NETWORK_ERROR);
@@ -93,4 +101,9 @@ async function parse<T>(response: Response): Promise<T> {
     body?.message ?? 'Не удалось выполнить запрос. Повторите попытку позже',
     body?.fields,
   );
+}
+
+/** Ключ формы для защиты от повторной отправки (NFR-006): один ключ на одно заполнение формы. */
+export function newIdempotencyKey(): string {
+  return crypto.randomUUID();
 }

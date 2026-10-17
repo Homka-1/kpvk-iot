@@ -31,6 +31,8 @@ declare module 'vue-router' {
 
 /** Реализованные разделы. Остальные пункты меню пока открывают заглушку. */
 const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<RouteComponent>)>> = {
+  students: () => import('@/views/students/StudentsView.vue'),
+  disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),
   admin: () => import('@/views/admin/AdminView.vue'),
 };
