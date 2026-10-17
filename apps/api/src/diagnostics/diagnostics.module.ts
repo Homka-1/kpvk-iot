@@ -6,6 +6,12 @@ import {
 } from './questionnaires.controller.js';
 import { QuestionnairesService } from './questionnaires.service.js';
 import {
+  ComparabilitiesController,
+  DiagnosticResultsExportController,
+  StudentDiagnosticComparisonController,
+} from './results.controller.js';
+import { DiagnosticResultsService } from './results.service.js';
+import {
   CabinetDiagnosticsController,
   DiagnosticAssignmentsController,
   DiagnosticSessionsController,
@@ -21,7 +27,15 @@ import { DiagnosticSessionsService } from './sessions.service.js';
     DiagnosticSessionsController,
     StudentDiagnosticsController,
     CabinetDiagnosticsController,
+    StudentDiagnosticComparisonController,
+    ComparabilitiesController,
+    DiagnosticResultsExportController,
   ],
-  providers: [QuestionnairesService, DiagnosticSessionsService, IdempotencyService],
+  providers: [
+    QuestionnairesService,
+    DiagnosticSessionsService,
+    DiagnosticResultsService,
+    IdempotencyService,
+  ],
 })
 export class DiagnosticsModule {}

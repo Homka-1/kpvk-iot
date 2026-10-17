@@ -220,7 +220,10 @@ export class QuestionnairesService {
             versions: { select: { title: true }, orderBy: { versionNumber: 'desc' }, take: 1 },
           },
         },
-        versions: { select: versionInfoSelect, orderBy: { versionNumber: 'desc' } },
+        versions: {
+          select: { ...versionInfoSelect, comparableAsA: { select: { versionBId: true } } },
+          orderBy: { versionNumber: 'desc' },
+        },
       },
     });
     if (!row) throw new NotFoundException('Методика не найдена');
@@ -234,6 +237,12 @@ export class QuestionnairesService {
         : null,
       archivedAt: row.archivedAt?.toISOString() ?? null,
       versions: row.versions.map(toVersionInfo),
+      comparabilities: row.versions.flatMap((version) =>
+        version.comparableAsA.map((pair) => ({
+          versionAId: version.id,
+          versionBId: pair.versionBId,
+        })),
+      ),
     };
   }
 

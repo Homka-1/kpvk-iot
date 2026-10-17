@@ -54,19 +54,24 @@ const OPEN_STATUSES: DiagnosticSessionStatus[] = ['ASSIGNED', 'IN_PROGRESS'];
 /** Статусы, в которых можно ввести бумажный бланк (FR-022): в том числе после окончания срока. */
 const PAPER_STATUSES: DiagnosticSessionStatus[] = ['ASSIGNED', 'IN_PROGRESS', 'EXPIRED'];
 
-const personSelect = { id: true, lastName: true, firstName: true, middleName: true } as const;
+export const personSelect = {
+  id: true,
+  lastName: true,
+  firstName: true,
+  middleName: true,
+} as const;
 const studentSelect = {
   ...personSelect,
   participantCode: true,
   currentGroup: { select: { id: true, name: true } },
 } as const;
-const versionLabelSelect = {
+export const versionLabelSelect = {
   id: true,
   versionNumber: true,
   title: true,
   questionnaire: { select: { id: true, isDemo: true } },
 } as const;
-const scoreInclude = {
+export const scoreInclude = {
   scale: { select: { code: true, name: true, sortOrder: true } },
   interpretationRule: { select: { levelCode: true, levelLabel: true, studentText: true } },
 } as const;
@@ -80,7 +85,7 @@ type StudentRow = Prisma.StudentGetPayload<{ select: typeof studentSelect }>;
 
 const iso = (value: Date | null | undefined) => value?.toISOString() ?? null;
 
-function toVersionLabel(version: VersionLabelRow): QuestionnaireVersionLabel {
+export function toVersionLabel(version: VersionLabelRow): QuestionnaireVersionLabel {
   return {
     questionnaireId: version.questionnaire.id,
     versionId: version.id,
@@ -98,7 +103,7 @@ function toStudentRef(student: StudentRow): StudentRef {
   };
 }
 
-function toScaleResults(rows: ScoreRow[], revision: number): ScaleResultDto[] {
+export function toScaleResults(rows: ScoreRow[], revision: number): ScaleResultDto[] {
   return rows
     .filter((row) => row.revision === revision)
     .sort((a, b) => a.scale.sortOrder - b.scale.sortOrder)
@@ -207,19 +212,8 @@ export class DiagnosticSessionsService {
       async () => {
         const scope = await this.scopes.forUser(user);
         const period = this.validatePeriod(dto);
-        const version = await this.prisma.questionnaireVersion.findFirst({
-          where: {
-            questionnaireId: dto.questionnaireId,
-            status: 'PUBLISHED',
-            questionnaire: { status: 'ACTIVE' },
-          },
-          select: { id: true, title: true },
-        });
-        if (!version) {
-          throw fieldsException('Методику нельзя назначить', {
-            questionnaireId: 'Выберите методику с опубликованной версией',
-          });
-        }
+        const measurementType = dto.measurementType ?? 'PRIMARY';
+        const version = await this.assignableVersion(dto, measurementType);
         const students = await this.targetStudents(scope, dto);
         const id = await this.prisma.$transaction(async (tx) => {
           const assignment = await tx.diagnosticAssignment.create({
@@ -227,6 +221,7 @@ export class DiagnosticSessionsService {
               versionId: version.id,
               groupId: dto.groupId ?? null,
               studentId: dto.studentId ?? null,
+              measurementType,
               startsAt: period.startsAt,
               endsAt: period.endsAt,
               assignedById: user.id,
@@ -237,6 +232,7 @@ export class DiagnosticSessionsService {
               assignmentId: assignment.id,
               studentId: student.id,
               versionId: version.id,
+              measurementType,
             })),
           });
           // Уведомление студенту (UC-01, шаг 5). Показ в шапке — этап 15 (FR-065).
@@ -260,6 +256,7 @@ export class DiagnosticSessionsService {
               entityId: assignment.id,
               after: {
                 versionId: version.id,
+                measurementType,
                 groupId: assignment.groupId,
                 studentId: assignment.studentId,
                 startsAt: assignment.startsAt.toISOString(),
@@ -699,6 +696,40 @@ export class DiagnosticSessionsService {
       createdAt: row.createdAt.toISOString(),
       counts,
     };
+  }
+
+  /**
+   * Версия для назначения. Первичный замер — только действующая версия. Промежуточный и повторный
+   * замер можно провести по той же версии, что и первичный, даже если она уже заменена новой
+   * (UC-06): допускается любая опубликованная ранее версия методики.
+   */
+  private async assignableVersion(
+    dto: CreateAssignmentDto,
+    measurementType: MeasurementType,
+  ): Promise<{ id: string; title: string }> {
+    if (dto.versionId && measurementType === 'PRIMARY') {
+      throw fieldsException('Версию нельзя выбрать', {
+        versionId: 'Первичный замер проводится по действующей версии методики',
+      });
+    }
+    const version = await this.prisma.questionnaireVersion.findFirst({
+      where: {
+        questionnaireId: dto.questionnaireId,
+        questionnaire: { status: 'ACTIVE' },
+        ...(dto.versionId
+          ? { id: dto.versionId, status: { in: ['PUBLISHED', 'RETIRED'] } }
+          : { status: 'PUBLISHED' }),
+      },
+      select: { id: true, title: true },
+    });
+    if (version) return version;
+    throw dto.versionId
+      ? fieldsException('Версию нельзя назначить', {
+          versionId: 'Выберите опубликованную ранее версию этой методики',
+        })
+      : fieldsException('Методику нельзя назначить', {
+          questionnaireId: 'Выберите методику с опубликованной версией',
+        });
   }
 
   private validatePeriod(dto: CreateAssignmentDto): { startsAt: Date; endsAt: Date } {

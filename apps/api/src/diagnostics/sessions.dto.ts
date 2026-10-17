@@ -12,6 +12,7 @@ import {
 } from '@iot/shared';
 import { Transform } from 'class-transformer';
 import {
+  IsIn,
   IsISO8601,
   IsObject,
   IsOptional,
@@ -36,9 +37,33 @@ const answersProperty = {
 // ── Запросы ──
 
 export class CreateAssignmentDto {
-  @ApiProperty({ format: 'uuid', description: 'Методика: назначается её действующая версия' })
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Методика: назначается её действующая версия либо выбранная версия (versionId)',
+  })
   @IsUUID('7', { message: 'Выберите методику' })
   questionnaireId: string;
+
+  @ApiPropertyOptional({
+    enum: Object.values(MeasurementType),
+    default: MeasurementType.PRIMARY,
+    description: 'Тип замера (UC-06): первичный, промежуточный или повторный',
+  })
+  @IsOptional()
+  @IsIn(Object.values(MeasurementType), { message: 'Неизвестный тип замера' })
+  measurementType?: MeasurementType;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    format: 'uuid',
+    description:
+      'Версия методики для промежуточного или повторного замера: любая опубликованная ранее версия (UC-06). Не указана — действующая версия',
+  })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsUUID('7', { message: 'Неизвестная версия методики' })
+  versionId?: string | null;
 
   @ApiPropertyOptional({
     nullable: true,
@@ -198,7 +223,7 @@ class LevelResponseDto {
   @ApiProperty() label: string;
 }
 
-class ScaleResultResponseDto {
+export class ScaleResultResponseDto {
   @ApiProperty() scaleId: string;
   @ApiProperty() code: string;
   @ApiProperty() name: string;

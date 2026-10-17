@@ -51,6 +51,7 @@ export const Permission = {
   ANALYTICS_READ: 'analytics.read',
   REPORTS_READ: 'reports.read',
   RESEARCH_READ: 'research.read',
+  RESEARCH_MANAGE: 'research.manage',
   RESEARCH_EXPORT: 'research.export',
   RESEARCH_PERSONAL_DATA_READ: 'research.personal_data.read',
   CABINET_ACCESS: 'cabinet.access',
@@ -80,6 +81,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'analytics.read': 'Просмотр аналитики',
   'reports.read': 'Формирование отчётов',
   'research.read': 'Обезличенные исследовательские данные',
+  'research.manage': 'Ведение исследований: утверждение сопоставимости версий методик',
   'research.export': 'Экспорт исследовательских данных',
   'research.personal_data.read': 'Просмотр персональных данных участников исследования',
   'cabinet.access': 'Личный кабинет студента',
@@ -127,6 +129,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
     Permission.ANALYTICS_READ,
     Permission.REPORTS_READ,
     Permission.RESEARCH_READ,
+    Permission.RESEARCH_MANAGE,
     Permission.RESEARCH_EXPORT,
   ],
 };

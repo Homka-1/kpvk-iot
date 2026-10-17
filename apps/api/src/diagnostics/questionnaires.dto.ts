@@ -375,6 +375,11 @@ class CopiedFromResponseDto {
   @ApiProperty() title: string;
 }
 
+class ComparablePairResponseDto {
+  @ApiProperty() versionAId: string;
+  @ApiProperty() versionBId: string;
+}
+
 export class QuestionnaireDetailResponseDto {
   @ApiProperty() id: string;
   @ApiProperty({ enum: Object.values(QuestionnaireStatus) }) status: QuestionnaireStatus;
@@ -385,6 +390,11 @@ export class QuestionnaireDetailResponseDto {
   @ApiProperty({ nullable: true, type: String, format: 'date-time' }) archivedAt: string | null;
   @ApiProperty({ type: [VersionInfoResponseDto], description: 'От новой версии к старой' })
   versions: VersionInfoResponseDto[];
+  @ApiProperty({
+    type: [ComparablePairResponseDto],
+    description: 'Пары версий, сопоставимость которых утвердил исследователь (UC-06)',
+  })
+  comparabilities: ComparablePairResponseDto[];
 }
 
 export class QuestionnaireVersionResponseDto extends VersionInfoResponseDto {

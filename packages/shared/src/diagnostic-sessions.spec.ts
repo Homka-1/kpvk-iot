@@ -77,6 +77,8 @@ describe('назначение диагностики', () => {
   it('FR-018: группа или студент обязательны, окончание не раньше начала', () => {
     const base = {
       questionnaireId: 'q',
+      measurementType: 'PRIMARY' as const,
+      versionId: null,
       targetKind: 'group' as const,
       groupId: null,
       studentId: null,

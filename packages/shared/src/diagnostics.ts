@@ -224,6 +224,8 @@ export interface QuestionnaireDetailDto {
   archivedAt: string | null;
   /** Версии от новой к старой. */
   versions: QuestionnaireVersionInfoDto[];
+  /** Пары версий, сопоставимость которых утвердил исследователь (UC-06). */
+  comparabilities: { versionAId: string; versionBId: string }[];
 }
 
 export interface QuestionnaireVersionDto extends QuestionnaireVersionInfoDto {

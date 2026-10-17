@@ -12,10 +12,10 @@ import {
   type QuestionContent,
   type QuestionnaireContent,
 } from './diagnostics.js';
-import type {
-  DiagnosticRevisionKind,
-  DiagnosticSessionStatus,
-  DiagnosticSource,
+import {
+  type DiagnosticRevisionKind,
+  type DiagnosticSessionStatus,
+  type DiagnosticSource,
   MeasurementType,
 } from './enums.js';
 import type { GroupRef, PersonRef } from './students.js';
@@ -255,6 +255,9 @@ export function localDayStart(date: string): Date {
 export const assignmentFormSchema = z
   .object({
     questionnaireId: z.string({ message: 'Выберите методику' }).min(1, 'Выберите методику'),
+    measurementType: z.nativeEnum(MeasurementType),
+    /** Версия методики для промежуточного или повторного замера; null — действующая версия. */
+    versionId: z.string().nullable(),
     targetKind: z.enum(['group', 'student']),
     groupId: z.string().nullable(),
     studentId: z.string().nullable(),
