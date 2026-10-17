@@ -3,6 +3,7 @@
 // редактирует конструктор, сохраняет API и читает движок расчёта. Движок и проверки — чистые
 // функции: одни и те же правила работают в предпросмотре интерфейса, на сервере и в тестах
 // контрольных примеров.
+import { z } from 'zod';
 import type {
   MotivationLevel,
   QuestionnaireStatus,
@@ -134,6 +135,27 @@ export function emptyQuestionnaireContent(title: string): QuestionnaireContent {
     scales: [],
   };
 }
+
+// ── Формы (интерфейс; сервер проверяет те же правила своими DTO) ──
+
+export const questionnaireCreateFormSchema = z.object({
+  title: z.string().trim().min(1, 'Укажите название методики').max(300, 'Не более 300 символов'),
+  directionId: z.string().nullable().optional(),
+});
+export type QuestionnaireCreateFormValues = z.infer<typeof questionnaireCreateFormSchema>;
+
+export const directionFormSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(
+      /^[A-Z][A-Z0-9_]{1,49}$/,
+      'Код: 2–50 латинских заглавных букв, цифр и «_», начинается с буквы',
+    ),
+  name: z.string().trim().min(1, 'Укажите название направления').max(200, 'Не более 200 символов'),
+  sortOrder: z.number().int('Порядок — целое число').min(0).max(10_000),
+});
+export type DirectionFormValues = z.infer<typeof directionFormSchema>;
 
 export function isChoiceQuestion(type: QuestionType): boolean {
   return type === 'SINGLE_CHOICE' || type === 'MULTIPLE_CHOICE';

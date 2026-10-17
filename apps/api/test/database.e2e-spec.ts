@@ -115,6 +115,24 @@ describe('База данных (e2e)', () => {
       expect(rows.map((row) => row.table_name).sort()).toEqual(IMMUTABLE_TABLES);
     });
 
+    it('FR-026: версии методик и их содержимое защищены триггерами; направления п. 4.4 заполнены', async () => {
+      const rows = await temp!.$queryRaw<{ table_name: string }[]>`
+        SELECT c.relname AS table_name FROM pg_trigger t
+        JOIN pg_class c ON c.oid = t.tgrelid
+        JOIN pg_proc p ON p.oid = t.tgfoid
+        WHERE p.proname IN ('questionnaire_version_guard', 'questionnaire_content_guard')
+          AND NOT t.tgisinternal`;
+      expect(rows.map((row) => row.table_name).sort()).toEqual([
+        'answer_options',
+        'interpretation_rules',
+        'questionnaire_scales',
+        'questionnaire_versions',
+        'questions',
+        'scoring_keys',
+      ]);
+      expect(await temp!.diagnosticDirection.count()).toBe(5);
+    });
+
     it('п. 8.3: запись журнала аудита нельзя изменить или удалить', async () => {
       const entry = await temp!.auditLog.create({
         data: { action: 'test.created', entityType: 'test' },

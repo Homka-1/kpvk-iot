@@ -32,6 +32,7 @@ declare module 'vue-router' {
 /** Реализованные разделы. Остальные пункты меню пока открывают заглушку. */
 const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<RouteComponent>)>> = {
   students: () => import('@/views/students/StudentsView.vue'),
+  diagnostics: () => import('@/views/diagnostics/DiagnosticsView.vue'),
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),
   admin: () => import('@/views/admin/AdminView.vue'),
@@ -79,6 +80,13 @@ export const routes: RouteRecordRaw[] = [
         name: 'student-details',
         component: () => import('@/views/students/StudentProfileView.vue'),
         meta: { title: 'Профиль студента', permission: Permission.STUDENTS_READ },
+      },
+      // Конструктор методики — вложенная страница раздела «Диагностика».
+      {
+        path: 'diagnostics/questionnaires/:id',
+        name: 'questionnaire-editor',
+        component: () => import('@/views/diagnostics/QuestionnaireEditorView.vue'),
+        meta: { title: 'Конструктор методики', permission: Permission.DIAGNOSTICS_MANAGE },
       },
     ],
   },

@@ -92,6 +92,8 @@ export async function mockDirectoryApi(
     route.fulfill({ json: data.disciplines ?? [] }),
   );
   await page.route(/\/api\/teacher-assignments.*/, (route) => route.fulfill({ json: [] }));
+  await page.route(/\/api\/questionnaires(\?.*)?$/, (route) => route.fulfill({ json: [] }));
+  await page.route(/\/api\/diagnostic-directions$/, (route) => route.fulfill({ json: [] }));
   await page.route(/\/api\/students(\?.*)?$/, (route) =>
     route.fulfill({ json: { items: students, total: students.length, page: 1, pageSize: 20 } }),
   );
