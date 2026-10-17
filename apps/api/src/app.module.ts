@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { DiagnosticsModule } from './diagnostics/diagnostics.module.js';
 import { DisciplinesModule } from './disciplines/disciplines.module.js';
 import { GroupsModule } from './groups/groups.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -19,6 +20,7 @@ import { UsersModule } from './users/users.module.js';
     GroupsModule,
     DisciplinesModule,
     StudentsModule,
+    DiagnosticsModule,
     HealthModule,
   ],
 })

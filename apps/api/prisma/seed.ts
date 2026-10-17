@@ -5,11 +5,13 @@
 // Пароли учётных записей берутся из переменных окружения SEED_<РОЛЬ>_PASSWORD (.env).
 // Если переменная не задана, пароль генерируется и один раз выводится в консоль.
 import { PrismaPg } from '@prisma/adapter-pg';
-import { RoleCode } from '@iot/shared';
+import { publishIssues, RoleCode } from '@iot/shared';
 import { loadEnv } from '../src/config/load-env.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { generateTemporaryPassword, hashPassword } from '../src/auth/passwords.js';
 import { syncRbacCatalog } from '../src/auth/rbac-catalog.js';
+import { loadDefinitions } from '../src/diagnostics/questionnaire-definitions.js';
+import { passportData, replaceContent } from '../src/diagnostics/questionnaire-content.js';
 
 loadEnv();
 
@@ -92,6 +94,7 @@ async function main(): Promise<void> {
     }
 
     await seedDirectory(prisma);
+    await seedQuestionnaires(prisma);
   } finally {
     await prisma.$disconnect();
   }
@@ -139,6 +142,64 @@ async function seedDirectory(prisma: PrismaClient): Promise<void> {
     });
   }
   console.log('Сид: демо-группа «ДЕМО-21» и дисциплина «Математика (демо)» готовы.');
+}
+
+/**
+ * Методики из файлов `prisma/questionnaires/<методика>/v<N>.json` (этап 06). Пока заказчик не
+ * передал реальные методики, это только демо-методика с пометкой «ДЕМО — не для исследования»
+ * (огр. 1, ADR-003). Методика ищется по названию версии 1; существующие не меняются.
+ * Каждая версия публикуется, предыдущая выводится из использования.
+ */
+async function seedQuestionnaires(prisma: PrismaClient): Promise<void> {
+  const definitions = loadDefinitions();
+  for (const slug of new Set(definitions.map((definition) => definition.slug))) {
+    const versions = definitions
+      .filter((definition) => definition.slug === slug)
+      .sort((a, b) => a.version - b.version);
+    const first = versions[0]!;
+    const exists = await prisma.questionnaireVersion.findFirst({
+      where: { versionNumber: 1, title: first.content.title },
+    });
+    if (exists) {
+      console.log(`Сид: методика «${first.content.title}» уже есть — пропущена.`);
+      continue;
+    }
+    for (const definition of versions) {
+      const issues = publishIssues(definition.content, definition.isDemo);
+      if (issues.length > 0) {
+        throw new Error(
+          `Методика ${slug} v${definition.version}: ${issues.map((issue) => issue.message).join('; ')}`,
+        );
+      }
+    }
+    const direction = first.directionCode
+      ? await prisma.diagnosticDirection.findUnique({ where: { code: first.directionCode } })
+      : null;
+    await prisma.$transaction(async (tx) => {
+      const questionnaire = await tx.questionnaire.create({
+        data: { directionId: direction?.id ?? null, isDemo: first.isDemo },
+      });
+      for (const definition of versions) {
+        await tx.questionnaireVersion.updateMany({
+          where: { questionnaireId: questionnaire.id, status: 'PUBLISHED' },
+          data: { status: 'RETIRED' },
+        });
+        const version = await tx.questionnaireVersion.create({
+          data: {
+            questionnaireId: questionnaire.id,
+            versionNumber: definition.version,
+            ...passportData(definition.content),
+          },
+        });
+        await replaceContent(tx, version.id, definition.content);
+        await tx.questionnaireVersion.update({
+          where: { id: version.id },
+          data: { status: 'PUBLISHED', publishedAt: new Date() },
+        });
+      }
+    });
+    console.log(`Сид: методика «${first.content.title}» опубликована.`);
+  }
 }
 
 await main();

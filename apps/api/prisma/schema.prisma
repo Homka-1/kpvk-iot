@@ -605,6 +605,8 @@ model ScoringKey {
   points         Decimal? @db.Decimal(10, 3)
   isReverse      Boolean  @default(false) @map("is_reverse")
   weight         Decimal  @default(1) @db.Decimal(10, 3)
+  /// Порядок ключа внутри шкалы (как в конструкторе); на расчёт не влияет.
+  sortOrder      Int      @default(0) @map("sort_order")
 
   scale        QuestionnaireScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
   question     Question           @relation(fields: [questionId], references: [id], onDelete: Cascade)

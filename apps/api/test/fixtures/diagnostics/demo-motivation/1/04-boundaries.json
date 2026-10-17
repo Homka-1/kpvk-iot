@@ -1,0 +1,8 @@
+{
+  "description": "Границы диапазонов: 10 — ещё средний уровень, 9 — уже высокий",
+  "answers": { "q1": 4, "q2": 2, "q3": 4, "q4": 1, "q5": "q5-o2", "q6": ["q6-o1", "q6-o3"] },
+  "expected": {
+    "COGNITIVE": { "rawScore": 10, "missingAnswers": 0, "levelCode": "MEDIUM" },
+    "ACHIEVEMENT": { "rawScore": 9, "missingAnswers": 0, "levelCode": "HIGH" }
+  }
+}

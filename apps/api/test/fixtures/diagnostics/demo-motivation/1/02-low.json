@@ -1,0 +1,8 @@
+{
+  "description": "Низкие значения: обратные вопросы отмечены максимумом, выбран вариант «Ничего из перечисленного»",
+  "answers": { "q1": 1, "q2": 5, "q3": 2, "q4": 4, "q5": "q5-o3", "q6": ["q6-o4"], "q7": 0 },
+  "expected": {
+    "COGNITIVE": { "rawScore": 2, "missingAnswers": 0, "levelCode": "LOW" },
+    "ACHIEVEMENT": { "rawScore": 4, "missingAnswers": 0, "levelCode": "LOW" }
+  }
+}

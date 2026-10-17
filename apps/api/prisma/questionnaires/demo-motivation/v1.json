@@ -1,0 +1,245 @@
+{
+  "directionCode": "LEARNING_MOTIVATION",
+  "isDemo": true,
+  "content": {
+    "title": "ДЕМО — не для исследования: Учебная мотивация (пример)",
+    "author": "Разработчики системы ИОТ (демонстрационный пример)",
+    "purpose": "Показать работу конструктора и движка расчёта: прямые и обратные ключи, несколько шкал, все типы вопросов. Не является валидированной методикой.",
+    "instruction": "Прочитайте утверждения и отметьте, насколько каждое из них подходит вам. Правильных и неправильных ответов нет.",
+    "ageRestrictions": "Студенты колледжа, 15 лет и старше",
+    "source": "ДЕМО — не для исследования. Пример составлен разработчиками; реальные методики (Т. А. Ильина, А. А. Реан, В. И. Моросанова) вносятся после передачи заказчиком.",
+    "termsOfUse": "Только для демонстрации и тестирования системы. Не использовать для исследования и педагогических решений.",
+    "allowDraft": true,
+    "changeNote": "Первая версия демо-методики",
+    "questions": [
+      {
+        "key": "q1",
+        "text": "Мне интересно узнавать новое на занятиях.",
+        "type": "LIKERT",
+        "isRequired": true,
+        "minValue": 1,
+        "maxValue": 5,
+        "minLabel": "Совсем не согласен",
+        "maxLabel": "Полностью согласен",
+        "options": []
+      },
+      {
+        "key": "q2",
+        "text": "На занятиях мне чаще всего скучно.",
+        "type": "LIKERT",
+        "isRequired": true,
+        "minValue": 1,
+        "maxValue": 5,
+        "minLabel": "Совсем не согласен",
+        "maxLabel": "Полностью согласен",
+        "options": []
+      },
+      {
+        "key": "q3",
+        "text": "Я стараюсь выполнить задание лучше, чем требуется.",
+        "type": "LIKERT",
+        "isRequired": true,
+        "minValue": 1,
+        "maxValue": 5,
+        "minLabel": "Совсем не согласен",
+        "maxLabel": "Полностью согласен",
+        "options": []
+      },
+      {
+        "key": "q4",
+        "text": "Если задание трудное, я быстро бросаю его.",
+        "type": "LIKERT",
+        "isRequired": true,
+        "minValue": 1,
+        "maxValue": 5,
+        "minLabel": "Совсем не согласен",
+        "maxLabel": "Полностью согласен",
+        "options": []
+      },
+      {
+        "key": "q5",
+        "text": "Почему вы выбрали свою специальность?",
+        "type": "SINGLE_CHOICE",
+        "isRequired": true,
+        "minValue": null,
+        "maxValue": null,
+        "minLabel": null,
+        "maxLabel": null,
+        "options": [
+          { "key": "q5-o1", "text": "Мне интересна эта профессия", "value": 2 },
+          { "key": "q5-o2", "text": "Посоветовали родители или знакомые", "value": 1 },
+          { "key": "q5-o3", "text": "Выбор был случайным", "value": 0 }
+        ]
+      },
+      {
+        "key": "q6",
+        "text": "Что помогает вам учиться? Отметьте всё подходящее.",
+        "type": "MULTIPLE_CHOICE",
+        "isRequired": true,
+        "minValue": null,
+        "maxValue": null,
+        "minLabel": null,
+        "maxLabel": null,
+        "options": [
+          { "key": "q6-o1", "text": "Интерес к предмету", "value": 1 },
+          { "key": "q6-o2", "text": "Желание получить высокую оценку", "value": 1 },
+          { "key": "q6-o3", "text": "Похвала преподавателя", "value": 1 },
+          { "key": "q6-o4", "text": "Ничего из перечисленного", "value": 0 }
+        ]
+      },
+      {
+        "key": "q7",
+        "text": "Сколько часов в неделю вы занимаетесь самостоятельно?",
+        "type": "NUMBER",
+        "isRequired": false,
+        "minValue": 0,
+        "maxValue": 80,
+        "minLabel": null,
+        "maxLabel": null,
+        "options": []
+      },
+      {
+        "key": "q8",
+        "text": "Что бы вы хотели изменить в занятиях?",
+        "type": "SHORT_TEXT",
+        "isRequired": false,
+        "minValue": null,
+        "maxValue": null,
+        "minLabel": null,
+        "maxLabel": null,
+        "options": []
+      }
+    ],
+    "scales": [
+      {
+        "key": "s-cognitive",
+        "code": "COGNITIVE",
+        "name": "Познавательный интерес",
+        "description": "Демонстрационная шкала: вопросы 1, 2 (обратный), 5 и вариант «Интерес к предмету» вопроса 6. Диапазон 2–13.",
+        "keys": [
+          {
+            "questionKey": "q1",
+            "optionKey": null,
+            "points": null,
+            "isReverse": false,
+            "weight": 1
+          },
+          {
+            "questionKey": "q2",
+            "optionKey": null,
+            "points": null,
+            "isReverse": true,
+            "weight": 1
+          },
+          {
+            "questionKey": "q5",
+            "optionKey": null,
+            "points": null,
+            "isReverse": false,
+            "weight": 1
+          },
+          {
+            "questionKey": "q6",
+            "optionKey": "q6-o1",
+            "points": 1,
+            "isReverse": false,
+            "weight": 1
+          }
+        ],
+        "rules": [
+          {
+            "key": "r-cog-low",
+            "minScore": 2,
+            "maxScore": 6,
+            "levelCode": "LOW",
+            "levelLabel": "Низкий",
+            "motivationLevel": "LOW",
+            "description": "Познавательный интерес выражен слабо.",
+            "studentText": "Пока учёба нечасто вызывает у вас интерес. Попробуйте задания, связанные с вашими увлечениями."
+          },
+          {
+            "key": "r-cog-medium",
+            "minScore": 7,
+            "maxScore": 10,
+            "levelCode": "MEDIUM",
+            "levelLabel": "Средний",
+            "motivationLevel": "MEDIUM",
+            "description": "Познавательный интерес выражен умеренно.",
+            "studentText": "Учёба вам в целом интересна. Выбирайте задания, которые помогут узнать что-то новое."
+          },
+          {
+            "key": "r-cog-high",
+            "minScore": 11,
+            "maxScore": 13,
+            "levelCode": "HIGH",
+            "levelLabel": "Высокий",
+            "motivationLevel": "HIGH",
+            "description": "Выраженный познавательный интерес.",
+            "studentText": "Вам интересно учиться. Попробуйте исследовательские задания и проекты."
+          }
+        ]
+      },
+      {
+        "key": "s-achievement",
+        "code": "ACHIEVEMENT",
+        "name": "Мотивация достижения",
+        "description": "Демонстрационная шкала: вопросы 3, 4 (обратный) и вариант «Желание получить высокую оценку» вопроса 6. Диапазон 2–11.",
+        "keys": [
+          {
+            "questionKey": "q3",
+            "optionKey": null,
+            "points": null,
+            "isReverse": false,
+            "weight": 1
+          },
+          {
+            "questionKey": "q4",
+            "optionKey": null,
+            "points": null,
+            "isReverse": true,
+            "weight": 1
+          },
+          {
+            "questionKey": "q6",
+            "optionKey": "q6-o2",
+            "points": 1,
+            "isReverse": false,
+            "weight": 1
+          }
+        ],
+        "rules": [
+          {
+            "key": "r-ach-low",
+            "minScore": 2,
+            "maxScore": 5,
+            "levelCode": "LOW",
+            "levelLabel": "Низкий",
+            "motivationLevel": "LOW",
+            "description": "Стремление к достижению выражено слабо.",
+            "studentText": "Ставьте небольшие достижимые цели и отмечайте каждый успех."
+          },
+          {
+            "key": "r-ach-medium",
+            "minScore": 6,
+            "maxScore": 8,
+            "levelCode": "MEDIUM",
+            "levelLabel": "Средний",
+            "motivationLevel": "MEDIUM",
+            "description": "Стремление к достижению выражено умеренно.",
+            "studentText": "Вы стремитесь к результату. Постепенно усложняйте задания."
+          },
+          {
+            "key": "r-ach-high",
+            "minScore": 9,
+            "maxScore": 11,
+            "levelCode": "HIGH",
+            "levelLabel": "Высокий",
+            "motivationLevel": "HIGH",
+            "description": "Выраженное стремление к достижению.",
+            "studentText": "Вы настойчиво добиваетесь результата. Попробуйте задания повышенной сложности и конкурсы."
+          }
+        ]
+      }
+    ]
+  }
+}

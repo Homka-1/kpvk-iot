@@ -1,0 +1,8 @@
+{
+  "description": "Средний познавательный интерес; на вопрос 3 нет ответа — балл мотивации достижения не рассчитывается",
+  "answers": { "q1": 3, "q2": 3, "q4": 2, "q5": "q5-o2", "q6": ["q6-o2"] },
+  "expected": {
+    "COGNITIVE": { "rawScore": 7, "missingAnswers": 0, "levelCode": "MEDIUM" },
+    "ACHIEVEMENT": { "rawScore": null, "missingAnswers": 1, "levelCode": null }
+  }
+}

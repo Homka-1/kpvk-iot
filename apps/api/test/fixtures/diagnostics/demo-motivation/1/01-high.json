@@ -1,0 +1,17 @@
+{
+  "description": "Высокие значения по обеим шкалам: обратные вопросы 2 и 4 отмечены минимумом",
+  "answers": {
+    "q1": 5,
+    "q2": 1,
+    "q3": 5,
+    "q4": 1,
+    "q5": "q5-o1",
+    "q6": ["q6-o1", "q6-o2"],
+    "q7": 10,
+    "q8": "Больше практики"
+  },
+  "expected": {
+    "COGNITIVE": { "rawScore": 13, "missingAnswers": 0, "levelCode": "HIGH" },
+    "ACHIEVEMENT": { "rawScore": 11, "missingAnswers": 0, "levelCode": "HIGH" }
+  }
+}
