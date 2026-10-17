@@ -66,7 +66,7 @@
 
 - `export PATH=$HOME/.npm-global/bin:$PATH`
 - `pnpm db:up && pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e`
-- `pnpm db:deploy && pnpm db:seed && pnpm dev` → teacher → «Диагностика» → «Назначения» → «Назначить диагностику» (демо-методика, группа) → student → «Диагностика» → пройти → teacher → профиль студента → «Диагностика» → баллы, «Ответы и ревизии» → «Исправить ошибочный ввод».
+- `pnpm db:migrate && pnpm db:seed && pnpm dev` → teacher → «Диагностика» → «Назначения» → «Назначить диагностику» (демо-методика, группа) → student → «Диагностика» → пройти → teacher → профиль студента → «Диагностика» → баллы, «Ответы и ревизии» → «Исправить ошибочный ввод».
 
 ## тесты
 
@@ -86,7 +86,7 @@
 - прохождение: `diagnostic_sessions` (versionId, currentRevision), баллы — `diagnostic_scores` с revision = currentRevision. `StudentDiagnosticDto` — готовый формат для динамики.
 - `measurementType` в назначении и сессии сейчас всегда PRIMARY (default БД); поле уже в DTO.
 - общий компонент вопроса — `@/components/QuestionField.vue`; бейджи статусов — `@/views/diagnostics/sessions.ts`.
-- dev-БД: миграцию 20261017200000 применить `pnpm db:deploy` (test-БД уже применена).
+- dev-БД: миграцию 20261017200000 применить `pnpm db:migrate` из корня (или `pnpm --filter @iot/api db:deploy`) (test-БД уже применена).
 
 ## исправления после закрытия
 
