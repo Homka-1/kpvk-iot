@@ -36,7 +36,7 @@ pnpm dev                        # API на http://localhost:3000, web на http:
 
 ### Демо-учётные записи
 
-`pnpm db:seed` создаёт учётные записи `admin`, `teacher`, `student`, `researcher` (по одной на роль). Пароли берутся из переменных `SEED_ADMIN_PASSWORD`, `SEED_TEACHER_PASSWORD`, `SEED_STUDENT_PASSWORD`, `SEED_RESEARCHER_PASSWORD` в `.env`; если переменная не задана, пароль генерируется и выводится в консоль один раз. Повторный запуск сида не меняет существующие учётные записи. Модель прав — `docs/architecture/access-model.md`.
+`pnpm db:seed` создаёт учётные записи `admin`, `teacher`, `student`, `researcher` (по одной на роль). Пароли берутся из переменных `SEED_ADMIN_PASSWORD`, `SEED_TEACHER_PASSWORD`, `SEED_STUDENT_PASSWORD`, `SEED_RESEARCHER_PASSWORD` в `.env`; если переменная не задана, пароль генерируется и выводится в консоль один раз. Сид также создаёт демо-группу «ДЕМО-21» и дисциплину «Математика (демо)», закрепляет за ними преподавателя `teacher` и зачисляет в группу студента `student`. Повторный запуск сида не меняет существующие записи. Модель прав — `docs/architecture/access-model.md`.
 
 ## Команды
 
