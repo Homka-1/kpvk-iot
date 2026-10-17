@@ -386,6 +386,7 @@ erDiagram
     Decimal points "null"
     Boolean is_reverse
     Decimal weight
+    Int sort_order
   }
   interpretation_rules {
     String id PK
