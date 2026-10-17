@@ -1,6 +1,7 @@
 // Профиль студента и педагогические наблюдения (ТЗ, п. 4.3, 6.3; FR-009, FR-012, FR-014, FR-016).
 import { z } from 'zod';
 import type { Visibility } from './enums.js';
+import type { OwnMotivationProfileDto } from './motivation-profiles.js';
 import type { GroupRef, PersonRef, StudentDetailsDto } from './students.js';
 
 /** Максимальная длина текста наблюдения. */
@@ -65,6 +66,8 @@ export interface OwnProfileDto {
   disciplines: ProfileDisciplineDto[];
   interests: string | null;
   observations: StudentVisibleObservationDto[];
+  /** Последний утверждённый профиль: только интерпретация для студента (FR-016). */
+  motivationProfile: OwnMotivationProfileDto | null;
 }
 
 /**
@@ -84,6 +87,11 @@ export const STUDENT_HISTORY_LABELS: Record<string, string> = {
   'diagnostic_session.completed': 'Пройдена диагностика',
   'diagnostic_session.paper_entered': 'Введены результаты бумажной диагностики',
   'diagnostic_session.corrected': 'Исправлен ошибочный ввод результатов диагностики',
+  'motivation_profile.proposed': 'Сформирован предварительный мотивационный профиль',
+  'motivation_profile.needs_more_diagnostics':
+    'Профиль не сформирован: требуется дополнительная диагностика',
+  'motivation_profile.confirmed': 'Мотивационный профиль подтверждён',
+  'motivation_profile.corrected': 'Мотивационный профиль скорректирован',
 };
 
 // ── Схемы форм (zod) ──

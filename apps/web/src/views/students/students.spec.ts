@@ -77,7 +77,7 @@ describe('StudentCard', () => {
       props: {
         student: student({
           supportStatus: 'NEEDS_ATTENTION',
-          motivationProfile: { status: 'CONFIRMED', level: 'MEDIUM' },
+          motivationProfile: { status: 'CONFIRMED', level: 'MEDIUM', proposedLevel: 'LOW' },
           currentTrajectory: {
             id: 't1',
             status: 'ACTIVE',
@@ -98,8 +98,12 @@ describe('StudentCard', () => {
   });
 
   it('п. 4.5: профиль без уровня — «Требуется дополнительная диагностика»', () => {
-    expect(profileBadge({ status: 'NEEDS_MORE_DIAGNOSTICS', level: null }).label).toBe(
-      'Требуется дополнительная диагностика',
+    expect(
+      profileBadge({ status: 'NEEDS_MORE_DIAGNOSTICS', level: null, proposedLevel: null }).label,
+    ).toBe('Требуется дополнительная диагностика');
+    // Предложение системы — не утверждённый уровень (решает преподаватель).
+    expect(profileBadge({ status: 'PROPOSED', level: null, proposedLevel: 'HIGH' }).label).toBe(
+      'Ждёт решения: высокий уровень',
     );
   });
 });

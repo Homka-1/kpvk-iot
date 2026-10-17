@@ -197,6 +197,7 @@ describe('MyProfileView', () => {
     lastName: 'Петров',
     firstName: 'Иван',
     middleName: null,
+    motivationProfile: null,
     group,
     disciplines: profile.disciplines,
     interests: null,

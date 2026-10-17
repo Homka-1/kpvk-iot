@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import {
   type CurrentUser,
+  DEFAULT_MOTIVATION_STRATEGIES,
   type DisciplineDto,
   type GroupDto,
   ROLE_PERMISSIONS,
@@ -64,6 +65,22 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
   await page.route(
     /\/api\/(cabinet\/diagnostics|diagnostic-assignments|questionnaire-comparabilities)$/,
     (route) => route.fulfill({ json: [] }),
+  );
+  await page.route('**/api/motivation-strategies', (route) =>
+    route.fulfill({ json: DEFAULT_MOTIVATION_STRATEGIES }),
+  );
+  await page.route(/\/api\/motivation-profiles\/distribution(\?.*)?$/, (route) =>
+    route.fulfill({
+      json: {
+        total: 0,
+        HIGH: 0,
+        MEDIUM: 0,
+        LOW: 0,
+        PROPOSED: 0,
+        NEEDS_MORE_DIAGNOSTICS: 0,
+        NONE: 0,
+      },
+    }),
   );
 }
 

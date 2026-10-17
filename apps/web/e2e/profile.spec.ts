@@ -140,6 +140,7 @@ test.describe('«Мой профиль» студента', () => {
       lastName: 'Петров',
       firstName: 'Иван',
       middleName: null,
+      motivationProfile: null,
       group,
       disciplines,
       interests: null,

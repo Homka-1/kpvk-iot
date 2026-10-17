@@ -169,9 +169,10 @@ export class StudentProfileService {
   /** Значимые изменения по студенту из журнала аудита (вкладка «История»). */
   async history(user: CurrentUser, studentId: string): Promise<StudentHistoryItemDto[]> {
     await this.assertStudentInScope(await this.scopes.forUser(user), studentId);
-    const [observations, sessions] = await Promise.all([
+    const [observations, sessions, profiles] = await Promise.all([
       this.prisma.pedagogicalObservation.findMany({ where: { studentId }, select: { id: true } }),
       this.prisma.diagnosticSession.findMany({ where: { studentId }, select: { id: true } }),
+      this.prisma.motivationProfile.findMany({ where: { studentId }, select: { id: true } }),
     ]);
     const logs = await this.prisma.auditLog.findMany({
       where: {
@@ -183,6 +184,7 @@ export class StudentProfileService {
             entityId: { in: observations.map((item) => item.id) },
           },
           { entityType: 'diagnostic_session', entityId: { in: sessions.map((item) => item.id) } },
+          { entityType: 'motivation_profile', entityId: { in: profiles.map((item) => item.id) } },
         ],
       },
       orderBy: { createdAt: 'desc' },
@@ -204,11 +206,19 @@ export class StudentProfileService {
   /** «Мой профиль»: только данные студента, связанного с текущей учётной записью. */
   async getOwn(user: CurrentUser): Promise<OwnProfileDto> {
     const student = await this.ownStudent(user);
-    const rows = await this.prisma.pedagogicalObservation.findMany({
-      where: { studentId: student.id, visibility: Visibility.STUDENT_VISIBLE },
-      orderBy: [{ observedAt: 'desc' }, { createdAt: 'desc' }],
-      include: observationInclude,
-    });
+    const [rows, decided] = await Promise.all([
+      this.prisma.pedagogicalObservation.findMany({
+        where: { studentId: student.id, visibility: Visibility.STUDENT_VISIBLE },
+        orderBy: [{ observedAt: 'desc' }, { createdAt: 'desc' }],
+        include: observationInclude,
+      }),
+      // Студенту — только утверждённая интерпретация: без уровня, оснований и причин (FR-016).
+      this.prisma.motivationProfile.findFirst({
+        where: { studentId: student.id, status: { in: ['CONFIRMED', 'CORRECTED'] } },
+        orderBy: { decidedAt: 'desc' },
+        select: { studentSummary: true, decidedAt: true },
+      }),
+    ]);
     const authors = await this.people(rows.map((row) => row.authorId));
     return {
       participantCode: student.participantCode,
@@ -225,6 +235,9 @@ export class StudentProfileService {
         discipline: row.discipline,
         author: authors.get(row.authorId) ?? unknownPerson(row.authorId),
       })),
+      motivationProfile: decided?.decidedAt
+        ? { studentSummary: decided.studentSummary, decidedAt: decided.decidedAt.toISOString() }
+        : null,
     };
   }
 

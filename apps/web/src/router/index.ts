@@ -33,6 +33,7 @@ declare module 'vue-router' {
 const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<RouteComponent>)>> = {
   students: () => import('@/views/students/StudentsView.vue'),
   diagnostics: () => import('@/views/diagnostics/DiagnosticsView.vue'),
+  'motivation-profiles': () => import('@/views/profiles/MotivationProfilesView.vue'),
   analytics: () => import('@/views/analytics/AnalyticsView.vue'),
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),

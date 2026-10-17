@@ -24,6 +24,7 @@ import { useContextStore } from '@/stores/context';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
 import ObservationDialog from './ObservationDialog.vue';
+import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
 import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
 
@@ -39,7 +40,21 @@ const studentId = computed(() => String(route.params.id));
 const canObserve = computed(() => auth.hasPermission(Permission.OBSERVATIONS_MANAGE));
 const canManage = computed(() => auth.hasPermission(Permission.STUDENTS_MANAGE));
 
-const tab = ref('general');
+const TABS = [
+  'general',
+  'diagnostics',
+  'motivation',
+  'trajectory',
+  'assignments',
+  'support',
+  'history',
+];
+/** Вкладка из адреса (`?tab=motivation`) — переход из других разделов. */
+const initialTab = () => {
+  const value = String(route.query.tab ?? '');
+  return TABS.includes(value) ? value : 'general';
+};
+const tab = ref(initialTab());
 const profile = ref<StudentProfileDto | null>(null);
 const loadError = ref<string | null>(null);
 const observations = ref<ObservationDto[] | null>(null);
@@ -94,7 +109,7 @@ watch(
     profile.value = null;
     observations.value = null;
     history.value = null;
-    tab.value = 'general';
+    tab.value = initialTab();
     void loadProfile();
     void loadObservations();
   },
@@ -118,6 +133,11 @@ function editObservation(item: ObservationDto): void {
 function onObservationSaved(): void {
   tab.value = 'support';
   void loadObservations();
+  history.value = null;
+}
+
+function onMotivationChanged(): void {
+  void loadProfile();
   history.value = null;
 }
 
@@ -267,10 +287,10 @@ function onStudentChanged(): void {
             <StudentDiagnosticsTab :student-id="studentId" @changed="history = null" />
           </TabPanel>
           <TabPanel value="motivation">
-            <EmptyState
-              icon="pi pi-id-card"
-              title="Мотивационный профиль не сформирован"
-              description="Профиль формируется по результатам диагностики и утверждается преподавателем."
+            <StudentMotivationTab
+              :student-id="studentId"
+              :archived="!!profile.archivedAt"
+              @changed="onMotivationChanged"
             />
           </TabPanel>
           <TabPanel value="trajectory">

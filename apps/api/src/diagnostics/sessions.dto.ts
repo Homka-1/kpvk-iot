@@ -161,7 +161,7 @@ class SessionStudentResponseDto extends StudentRefResponseDto {
   @ApiProperty({ nullable: true, type: RefDto }) group: RefDto | null;
 }
 
-class VersionLabelResponseDto {
+export class VersionLabelResponseDto {
   @ApiProperty() questionnaireId: string;
   @ApiProperty() versionId: string;
   @ApiProperty() versionNumber: number;

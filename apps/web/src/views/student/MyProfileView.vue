@@ -137,6 +137,23 @@ onMounted(load);
         </form>
       </section>
 
+      <section class="iot-card" aria-labelledby="my-profile-motivation">
+        <h2 id="my-profile-motivation" class="my-profile__title">Рекомендации по учёбе</h2>
+        <template v-if="profile.motivationProfile">
+          <p class="my-profile__text">
+            {{
+              profile.motivationProfile.studentSummary ?? 'Преподаватель пока не добавил пояснение.'
+            }}
+          </p>
+          <span class="my-profile__muted">
+            Обновлено {{ formatDate(profile.motivationProfile.decidedAt) }}
+          </span>
+        </template>
+        <p v-else class="my-profile__muted">
+          Рекомендации появятся после диагностики, когда преподаватель их подготовит.
+        </p>
+      </section>
+
       <section aria-labelledby="my-profile-observations">
         <h2 id="my-profile-observations" class="my-profile__title">Отзывы преподавателей</h2>
         <EmptyState

@@ -107,6 +107,16 @@ export class StudentHistoryItemResponseDto {
   @ApiProperty({ nullable: true, type: String }) reason: string | null;
 }
 
+class OwnMotivationProfileResponseDto {
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Пояснение, утверждённое преподавателем',
+  })
+  studentSummary: string | null;
+  @ApiProperty({ format: 'date-time' }) decidedAt: string;
+}
+
 export class OwnProfileResponseDto {
   @ApiProperty() participantCode: string;
   @ApiProperty() lastName: string;
@@ -121,4 +131,11 @@ export class OwnProfileResponseDto {
     description: 'Только наблюдения, открытые студенту; служебные заметки не передаются (FR-016)',
   })
   observations: StudentVisibleObservationResponseDto[];
+  @ApiProperty({
+    nullable: true,
+    type: OwnMotivationProfileResponseDto,
+    description:
+      'Последний утверждённый профиль: только интерпретация для студента, без уровня и оснований (FR-016)',
+  })
+  motivationProfile: OwnMotivationProfileResponseDto | null;
 }

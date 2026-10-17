@@ -67,7 +67,8 @@ export class StudentListQueryDto {
 
   @ApiPropertyOptional({
     enum: PROFILE_FILTER_VALUES,
-    description: 'Мотивационный профиль (FR-008)',
+    description:
+      'Текущий мотивационный профиль (FR-008): утверждённый уровень, PROPOSED — ждёт решения преподавателя',
   })
   @IsOptional()
   @IsIn(PROFILE_FILTER_VALUES, { message: 'Неизвестное значение профиля' })
@@ -216,8 +217,18 @@ export class ImportCommitDto {
 
 class StudentProfileRefDto {
   @ApiProperty({ enum: Object.values(MotivationProfileStatus) }) status: MotivationProfileStatus;
-  @ApiProperty({ enum: Object.values(MotivationLevel), nullable: true })
+  @ApiProperty({
+    enum: Object.values(MotivationLevel),
+    nullable: true,
+    description: 'Уровень, утверждённый преподавателем',
+  })
   level: MotivationLevel | null;
+  @ApiProperty({
+    enum: Object.values(MotivationLevel),
+    nullable: true,
+    description: 'Уровень, предложенный системой',
+  })
+  proposedLevel: MotivationLevel | null;
 }
 
 class StudentTrajectoryRefDto {

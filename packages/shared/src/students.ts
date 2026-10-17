@@ -32,8 +32,17 @@ export const STUDENT_IMPORT_COLUMNS = [
 ] as const;
 export type StudentImportField = (typeof STUDENT_IMPORT_COLUMNS)[number]['key'];
 
-/** Значения фильтра «Мотивационный профиль» (FR-008): уровень или «требуется дополнительная диагностика». */
-export const PROFILE_FILTER_VALUES = ['HIGH', 'MEDIUM', 'LOW', 'NEEDS_MORE_DIAGNOSTICS'] as const;
+/**
+ * Значения фильтра «Мотивационный профиль» (FR-008) по текущему профилю студента: утверждённый
+ * уровень, «ожидает решения преподавателя» или «требуется дополнительная диагностика».
+ */
+export const PROFILE_FILTER_VALUES = [
+  'HIGH',
+  'MEDIUM',
+  'LOW',
+  'PROPOSED',
+  'NEEDS_MORE_DIAGNOSTICS',
+] as const;
 export type ProfileFilterValue = (typeof PROFILE_FILTER_VALUES)[number];
 
 // ── Контракты API ──
@@ -87,7 +96,12 @@ export interface StudentSummaryDto {
   group: GroupRef | null;
   supportStatus: SupportStatus;
   archivedAt: string | null;
-  motivationProfile: { status: MotivationProfileStatus; level: MotivationLevel | null } | null;
+  /** Текущий профиль: `level` — утверждённый уровень, `proposedLevel` — предложение системы. */
+  motivationProfile: {
+    status: MotivationProfileStatus;
+    level: MotivationLevel | null;
+    proposedLevel: MotivationLevel | null;
+  } | null;
   currentTrajectory: {
     id: string;
     status: TrajectoryStatus;

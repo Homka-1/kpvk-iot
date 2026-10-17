@@ -13,6 +13,7 @@ import {
   type MotivationProfileStatus,
   PARTICIPANT_CODE_HINT,
   PARTICIPANT_CODE_PATTERN,
+  type ProfileFilterValue,
   RoleCode,
   type StudentCreatedDto,
   type StudentDetailsDto,
@@ -56,11 +57,7 @@ const NAME_MAX = 100;
 const summaryInclude = {
   currentGroup: { select: { id: true, name: true, course: true, specialty: true } },
   user: { select: { login: true } },
-  motivationProfiles: {
-    orderBy: { createdAt: 'desc' },
-    take: 1,
-    select: { status: true, level: true },
-  },
+  currentMotivationProfile: { select: { status: true, level: true, proposedLevel: true } },
   trajectories: {
     where: { status: { in: CURRENT_TRAJECTORY_STATUSES } },
     orderBy: { createdAt: 'desc' },
@@ -68,6 +65,43 @@ const summaryInclude = {
     select: { id: true, status: true, discipline: { select: { name: true } } },
   },
 } satisfies Prisma.StudentInclude;
+
+/**
+ * Рабочий контекст из шапки (группа, дисциплина): студенты группы и студенты групп, где ведётся
+ * дисциплина — для преподавателя только по его собственным закреплениям.
+ */
+export function contextWhere(
+  scope: AccessScope,
+  userId: string,
+  filter: { groupId?: string; disciplineId?: string },
+): Prisma.StudentWhereInput[] {
+  const conditions: Prisma.StudentWhereInput[] = [];
+  if (filter.groupId) conditions.push({ currentGroupId: filter.groupId });
+  if (filter.disciplineId) {
+    conditions.push({
+      currentGroup: {
+        teacherAssignments: {
+          some: {
+            disciplineId: filter.disciplineId,
+            teacherId: scope.kind === 'assigned' ? userId : undefined,
+            ...activeAssignmentWhere(),
+          },
+        },
+      },
+    });
+  }
+  return conditions;
+}
+
+/** Отбор по текущему профилю (FR-008): утверждённый уровень или статус без уровня. */
+export function currentProfileWhere(filter: ProfileFilterValue): Prisma.StudentWhereInput {
+  if (filter === 'PROPOSED' || filter === 'NEEDS_MORE_DIAGNOSTICS') {
+    return { currentMotivationProfile: { is: { status: filter } } };
+  }
+  return {
+    currentMotivationProfile: { is: { level: filter, status: { in: ['CONFIRMED', 'CORRECTED'] } } },
+  };
+}
 
 const detailsInclude = {
   ...summaryInclude,
@@ -81,7 +115,7 @@ type SummaryRow = Prisma.StudentGetPayload<{ include: typeof summaryInclude }>;
 type DetailsRow = Prisma.StudentGetPayload<{ include: typeof detailsInclude }>;
 
 function toSummary(row: SummaryRow): StudentSummaryDto {
-  const profile = row.motivationProfiles[0];
+  const profile = row.currentMotivationProfile;
   const trajectory = row.trajectories[0];
   return {
     id: row.id,
@@ -97,6 +131,7 @@ function toSummary(row: SummaryRow): StudentSummaryDto {
       ? {
           status: profile.status as MotivationProfileStatus,
           level: profile.level as MotivationLevel | null,
+          proposedLevel: profile.proposedLevel as MotivationLevel | null,
         }
       : null,
     // TODO(этап 13): прогресс, успеваемость, выполненные задания и активность — из результатов
@@ -193,30 +228,8 @@ export class StudentsService {
         ],
       });
     }
-    if (query.groupId) conditions.push({ currentGroupId: query.groupId });
-    if (query.disciplineId) {
-      conditions.push({
-        currentGroup: {
-          teacherAssignments: {
-            some: {
-              disciplineId: query.disciplineId,
-              teacherId: scope.kind === 'assigned' ? user.id : undefined,
-              ...activeAssignmentWhere(),
-            },
-          },
-        },
-      });
-    }
-    // TODO(этап 09): фильтровать по текущему (последнему) профилю, когда появится его жизненный цикл.
-    if (query.profile === 'NEEDS_MORE_DIAGNOSTICS') {
-      conditions.push({ motivationProfiles: { some: { status: 'NEEDS_MORE_DIAGNOSTICS' } } });
-    } else if (query.profile) {
-      conditions.push({
-        motivationProfiles: {
-          some: { level: query.profile, status: { in: ['CONFIRMED', 'CORRECTED'] } },
-        },
-      });
-    }
+    conditions.push(...contextWhere(scope, user.id, query));
+    if (query.profile) conditions.push(currentProfileWhere(query.profile));
     if (query.trajectoryStatus) {
       conditions.push({ trajectories: { some: { status: query.trajectoryStatus } } });
     }

@@ -3,6 +3,8 @@
 
 export interface NumberSettingDefinition {
   key: string;
+  /** Раздел страницы «Настройки». */
+  group: string;
   label: string;
   description: string;
   /** Единица измерения для подписи поля. */
@@ -13,11 +15,13 @@ export interface NumberSettingDefinition {
 }
 
 /**
- * Политика входа. Значения по умолчанию приняты до ответа заказчика (open-questions, вопрос 8).
+ * Политика входа и формирование профилей. Значения по умолчанию приняты до ответа заказчика
+ * (open-questions, вопросы 8 и 3).
  */
 export const SYSTEM_SETTINGS = [
   {
     key: 'auth.maxFailedAttempts',
+    group: 'Вход в систему',
     label: 'Неудачных попыток входа до блокировки',
     description: 'После указанного числа неверных паролей подряд вход временно блокируется.',
     unit: 'попыток',
@@ -27,6 +31,7 @@ export const SYSTEM_SETTINGS = [
   },
   {
     key: 'auth.lockoutMinutes',
+    group: 'Вход в систему',
     label: 'Длительность временной блокировки входа',
     description: 'Через это время пользователь снова может войти.',
     unit: 'мин',
@@ -36,6 +41,7 @@ export const SYSTEM_SETTINGS = [
   },
   {
     key: 'auth.passwordMinLength',
+    group: 'Вход в систему',
     label: 'Минимальная длина пароля',
     description: 'Применяется при смене пароля. Пароль также должен содержать буквы и цифры.',
     unit: 'символов',
@@ -45,12 +51,24 @@ export const SYSTEM_SETTINGS = [
   },
   {
     key: 'auth.sessionDays',
+    group: 'Вход в систему',
     label: 'Срок действия сессии',
     description: 'Сколько дней пользователь остаётся в системе без повторного ввода пароля.',
     unit: 'дн.',
     min: 1,
     max: 30,
     defaultValue: 7,
+  },
+  {
+    key: 'profiles.minScales',
+    group: 'Мотивационные профили',
+    label: 'Минимум шкал для предварительного профиля',
+    description:
+      'Сколько шкал с определённым уровнем нужно, чтобы система предложила профиль. Иначе — «Требуется дополнительная диагностика».',
+    unit: 'шкал',
+    min: 1,
+    max: 10,
+    defaultValue: 1,
   },
 ] as const satisfies readonly NumberSettingDefinition[];
 

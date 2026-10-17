@@ -375,38 +375,41 @@ model TeacherAssignment {
 
 /// Профили студентов. ФИО — ПДн; в исследовательских выборках используется код участника.
 model Student {
-  id              String        @id @default(uuid(7)) @db.Uuid
-  userId          String?       @unique @map("user_id") @db.Uuid
-  participantCode String        @unique @map("participant_code")
-  lastName        String        @map("last_name")
-  firstName       String        @map("first_name")
-  middleName      String?       @map("middle_name")
+  id                         String        @id @default(uuid(7)) @db.Uuid
+  userId                     String?       @unique @map("user_id") @db.Uuid
+  participantCode            String        @unique @map("participant_code")
+  lastName                   String        @map("last_name")
+  firstName                  String        @map("first_name")
+  middleName                 String?       @map("middle_name")
   /// Текущая группа (денормализация для фильтров); история — в enrollments (FR-010).
-  currentGroupId  String?       @map("current_group_id") @db.Uuid
-  supportStatus   SupportStatus @default(STANDARD) @map("support_status")
+  currentGroupId             String?       @map("current_group_id") @db.Uuid
+  supportStatus              SupportStatus @default(STANDARD) @map("support_status")
   /// Интересы, которые указывает сам студент (п. 2.3).
-  interests       String?
-  archivedAt      DateTime?     @map("archived_at")
-  archiveReason   String?       @map("archive_reason")
-  createdById     String?       @map("created_by") @db.Uuid
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  interests                  String?
+  /// Текущий мотивационный профиль: последняя запись профилирования (этап 09).
+  currentMotivationProfileId String?       @unique @map("current_motivation_profile_id") @db.Uuid
+  archivedAt                 DateTime?     @map("archived_at")
+  archiveReason              String?       @map("archive_reason")
+  createdById                String?       @map("created_by") @db.Uuid
+  createdAt                  DateTime      @default(now()) @map("created_at")
+  updatedAt                  DateTime      @updatedAt @map("updated_at")
 
-  user                  User?                    @relation("StudentUser", fields: [userId], references: [id], onDelete: SetNull)
-  currentGroup          Group?                   @relation(fields: [currentGroupId], references: [id], onDelete: SetNull)
-  enrollments           Enrollment[]
-  observations          PedagogicalObservation[]
-  diagnosticAssignments DiagnosticAssignment[]
-  diagnosticSessions    DiagnosticSession[]
-  motivationProfiles    MotivationProfile[]
-  trajectories          Trajectory[]
-  trajectoryAssignments TrajectoryAssignment[]
-  choiceGroups          AssignmentChoiceGroup[]
-  feedback              Feedback[]
-  consultations         Consultation[]
-  reflections           Reflection[]
-  academicResults       AcademicResult[]
-  researchParticipants  ResearchParticipant[]
+  user                     User?                    @relation("StudentUser", fields: [userId], references: [id], onDelete: SetNull)
+  currentGroup             Group?                   @relation(fields: [currentGroupId], references: [id], onDelete: SetNull)
+  enrollments              Enrollment[]
+  observations             PedagogicalObservation[]
+  diagnosticAssignments    DiagnosticAssignment[]
+  diagnosticSessions       DiagnosticSession[]
+  motivationProfiles       MotivationProfile[]      @relation("StudentProfiles")
+  currentMotivationProfile MotivationProfile?       @relation("CurrentProfile", fields: [currentMotivationProfileId], references: [id], onDelete: Restrict)
+  trajectories             Trajectory[]
+  trajectoryAssignments    TrajectoryAssignment[]
+  choiceGroups             AssignmentChoiceGroup[]
+  feedback                 Feedback[]
+  consultations            Consultation[]
+  reflections              Reflection[]
+  academicResults          AcademicResult[]
+  researchParticipants     ResearchParticipant[]
 
   @@index([lastName])
   @@index([currentGroupId])
@@ -772,7 +775,8 @@ model MotivationProfile {
   createdAt        DateTime                @default(now()) @map("created_at")
   updatedAt        DateTime                @updatedAt @map("updated_at")
 
-  student      Student                    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  student      Student                    @relation("StudentProfiles", fields: [studentId], references: [id], onDelete: Restrict)
+  currentFor   Student?                   @relation("CurrentProfile")
   sources      MotivationProfileSource[]
   history      MotivationProfileHistory[]
   trajectories Trajectory[]

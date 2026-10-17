@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import {
-  MOTIVATION_LEVEL_LABELS,
-  MOTIVATION_PROFILE_STATUS_LABELS,
   Permission,
+  PROFILE_FILTER_VALUES,
   type ProfileFilterValue,
   type StudentPageDto,
   TRAJECTORY_STATUS_LABELS,
@@ -24,6 +23,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useContextStore } from '@/stores/context';
 import CreateStudentDialog from './CreateStudentDialog.vue';
 import ImportStudentsDialog from './ImportStudentsDialog.vue';
+import { PROFILE_FILTER_LABELS } from './labels';
 import StudentCard from './StudentCard.vue';
 
 /**
@@ -50,15 +50,15 @@ const loadError = ref<string | null>(null);
 const createOpen = ref(false);
 const importOpen = ref(false);
 
-const profileOptions = [
-  { value: 'HIGH', label: MOTIVATION_LEVEL_LABELS.HIGH },
-  { value: 'MEDIUM', label: MOTIVATION_LEVEL_LABELS.MEDIUM },
-  { value: 'LOW', label: MOTIVATION_LEVEL_LABELS.LOW },
-  {
-    value: 'NEEDS_MORE_DIAGNOSTICS',
-    label: MOTIVATION_PROFILE_STATUS_LABELS.NEEDS_MORE_DIAGNOSTICS,
-  },
-];
+const profileOptions = PROFILE_FILTER_VALUES.map((value) => ({
+  value,
+  label: PROFILE_FILTER_LABELS[value],
+}));
+// Переход из раздела «Мотивационные профили»: список уже отфильтрован по профилю (FR-003).
+const queryProfile = route.query.profile;
+if (PROFILE_FILTER_VALUES.includes(queryProfile as ProfileFilterValue)) {
+  filters.profile = queryProfile as ProfileFilterValue;
+}
 const trajectoryOptions = Object.values(TrajectoryStatus).map((value) => ({
   value,
   label: TRAJECTORY_STATUS_LABELS[value],
