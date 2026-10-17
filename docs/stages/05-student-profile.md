@@ -70,3 +70,7 @@
 - проверка доступа к студенту в новом модуле: `scopes.forUser(user)` + `prisma.student.findFirst({ where: { id, ...scopes.studentsWhere(scope) } })` → 404 (см. assertStudentInScope в profile.service.ts).
 - кабинет студента: студент по `prisma.student.findUnique({ where: { userId: user.id } })`, эндпоинты под `cabinet/*` с cabinet.access.
 - vitest с Tabs PrimeVue — нужен attachTo: document.body не обязателен, ResizeObserver уже заглушен в setup.ts.
+
+## исправления после закрытия
+
+- fix(web): e2e профиля падал на desktop у пользователя: клик по имени → URL остаётся /students. причина — старый кэш Vite в основной копии (apps/web/node_modules/.vite, lockfile не менялся → нет пересканирования). ленивая страница профиля тянет новый импорт primevue/radiobutton, Vite находит его во время теста, пересобирает deps и перезагружает страницу. воспроизведено: удалил primevue/radiobutton из \_metadata.json → тот же фейл. фикс: playwright webServer `pnpm dev --force` (заново собрать deps при старте). `pnpm dev` для разработки не трогал. playwright 73 passed, 1 skipped.

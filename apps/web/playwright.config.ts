@@ -4,7 +4,9 @@ export default defineConfig({
   testDir: './e2e',
   use: { baseURL: 'http://localhost:5173' },
   webServer: {
-    command: 'pnpm dev',
+    // --force: заново собрать зависимости при старте. Иначе Vite берёт старый кэш (lockfile не менялся),
+    // находит новый импорт ленивой страницы во время теста и перезагружает её посреди сценария.
+    command: 'pnpm dev --force',
     url: 'http://localhost:5173',
     reuseExistingServer: true,
   },
