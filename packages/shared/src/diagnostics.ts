@@ -49,6 +49,22 @@ export interface AnswerOptionContent {
   value: number;
 }
 
+/**
+ * Вопрос в том виде, в каком его получает отвечающий: без значений вариантов, ключей и
+ * правил интерпретации. Проверка ответов (`answerError`) опирается только на эти поля.
+ */
+export interface FormQuestion {
+  key: string;
+  text: string;
+  type: QuestionType;
+  isRequired: boolean;
+  minValue: number | null;
+  maxValue: number | null;
+  minLabel: string | null;
+  maxLabel: string | null;
+  options: { key: string; text: string }[];
+}
+
 export interface QuestionContent {
   key: string;
   text: string;
@@ -228,10 +244,7 @@ export type AnswerMap = Readonly<Record<string, AnswerValue | undefined>>;
 const TEXT_ANSWER_MAX = 500;
 
 /** Сообщение об ошибке ответа или null, если ответ допустим. Пропуск ответа здесь не ошибка. */
-export function answerError(
-  question: QuestionContent,
-  value: AnswerValue | undefined,
-): string | null {
+export function answerError(question: FormQuestion, value: AnswerValue | undefined): string | null {
   if (value === null || value === undefined) return null;
   const optionKeys = new Set(question.options.map((option) => option.key));
   switch (question.type) {
@@ -261,20 +274,20 @@ export function answerError(
 }
 
 /** Есть ли ответ: пустая строка и пустой ответ считаются пропуском, пустой список выбора — нет. */
-export function isAnswered(question: QuestionContent, value: AnswerValue | undefined): boolean {
+export function isAnswered(question: FormQuestion, value: AnswerValue | undefined): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string' && question.type === 'SHORT_TEXT') return value.trim() !== '';
   return answerError(question, value) === null;
 }
 
-function inBounds(value: number, question: QuestionContent): boolean {
+function inBounds(value: number, question: FormQuestion): boolean {
   return (
     (question.minValue === null || value >= question.minValue) &&
     (question.maxValue === null || value <= question.maxValue)
   );
 }
 
-function boundsText(question: QuestionContent): string {
+function boundsText(question: FormQuestion): string {
   if (question.minValue !== null && question.maxValue !== null) {
     return `от ${question.minValue} до ${question.maxValue}`;
   }

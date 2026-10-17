@@ -5,9 +5,23 @@ import {
   QuestionnairesController,
 } from './questionnaires.controller.js';
 import { QuestionnairesService } from './questionnaires.service.js';
+import {
+  CabinetDiagnosticsController,
+  DiagnosticAssignmentsController,
+  DiagnosticSessionsController,
+  StudentDiagnosticsController,
+} from './sessions.controller.js';
+import { DiagnosticSessionsService } from './sessions.service.js';
 
 @Module({
-  controllers: [DiagnosticDirectionsController, QuestionnairesController],
-  providers: [QuestionnairesService, IdempotencyService],
+  controllers: [
+    DiagnosticDirectionsController,
+    QuestionnairesController,
+    DiagnosticAssignmentsController,
+    DiagnosticSessionsController,
+    StudentDiagnosticsController,
+    CabinetDiagnosticsController,
+  ],
+  providers: [QuestionnairesService, DiagnosticSessionsService, IdempotencyService],
 })
 export class DiagnosticsModule {}

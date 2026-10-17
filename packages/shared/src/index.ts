@@ -5,3 +5,4 @@ export * from './settings.js';
 export * from './students.js';
 export * from './profile.js';
 export * from './diagnostics.js';
+export * from './diagnostic-sessions.js';

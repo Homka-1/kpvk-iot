@@ -169,10 +169,10 @@ export class StudentProfileService {
   /** Значимые изменения по студенту из журнала аудита (вкладка «История»). */
   async history(user: CurrentUser, studentId: string): Promise<StudentHistoryItemDto[]> {
     await this.assertStudentInScope(await this.scopes.forUser(user), studentId);
-    const observations = await this.prisma.pedagogicalObservation.findMany({
-      where: { studentId },
-      select: { id: true },
-    });
+    const [observations, sessions] = await Promise.all([
+      this.prisma.pedagogicalObservation.findMany({ where: { studentId }, select: { id: true } }),
+      this.prisma.diagnosticSession.findMany({ where: { studentId }, select: { id: true } }),
+    ]);
     const logs = await this.prisma.auditLog.findMany({
       where: {
         action: { in: HISTORY_ACTIONS },
@@ -182,6 +182,7 @@ export class StudentProfileService {
             entityType: 'pedagogical_observation',
             entityId: { in: observations.map((item) => item.id) },
           },
+          { entityType: 'diagnostic_session', entityId: { in: sessions.map((item) => item.id) } },
         ],
       },
       orderBy: { createdAt: 'desc' },

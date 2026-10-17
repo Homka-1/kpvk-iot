@@ -81,6 +81,9 @@ export const STUDENT_HISTORY_LABELS: Record<string, string> = {
   'student.interests_updated': 'Студент изменил свои интересы',
   'observation.created': 'Добавлено педагогическое наблюдение',
   'observation.updated': 'Изменено педагогическое наблюдение',
+  'diagnostic_session.completed': 'Пройдена диагностика',
+  'diagnostic_session.paper_entered': 'Введены результаты бумажной диагностики',
+  'diagnostic_session.corrected': 'Исправлен ошибочный ввод результатов диагностики',
 };
 
 // ── Схемы форм (zod) ──
