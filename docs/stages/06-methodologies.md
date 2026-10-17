@@ -76,3 +76,7 @@
 - версия для назначения: `questionnaireVersion` со status PUBLISHED и questionnaire.status ACTIVE. содержимое для расчёта: `readContent(version)` с include `versionContentInclude`; ключи документа = id вопросов/вариантов/правил в БД, ответы студента хранить по id вопроса, выбор — по id варианта (тип AnswerValue).
 - опубликованную версию менять нельзя ни в коде, ни в БД (триггер бросит restrict_violation → Prisma ошибка → 409/500). DiagnosticSession/Score ссылаются на версию — это ок, триггеры на них не влияют.
 - вкладки DiagnosticsView: value questionnaires, directions — добавить assignments.
+
+## исправления после закрытия
+
+- fix(api): `pnpm dev` у пользователя после слияния — 11 ошибок TS (`sortOrder` нет в `ScoringKeyOrderByWithRelationInput`). причина — сгенерированный Prisma-клиент `apps/api/src/generated` не в git, а скрипт `dev` не вызывал `prisma generate` (build/typecheck/test вызывают). новая колонка `scoring_keys.sort_order` → старый клиент. фикс: `"dev": "prisma generate && nest start --watch"` в apps/api/package.json. проверено: dev в worktree — Generated Prisma Client, Found 0 errors, Nest started.
