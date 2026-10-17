@@ -48,6 +48,9 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
       : route.fulfill({ status: 401, json: { statusCode: 401, message: 'Сессия завершена' } }),
   );
   await page.route('**/api/auth/logout', (route) => route.fulfill({ status: 204 }));
+  // Шапка сотрудника загружает группы и дисциплины; без моков Vite проксирует их в незапущенный
+  // API и засоряет вывод ошибками ECONNREFUSED. Тесты переопределяют их через mockDirectoryApi.
+  await page.route(/\/api\/(groups|disciplines)(\?.*)?$/, (route) => route.fulfill({ json: [] }));
 }
 
 /** Пустые ответы API раздела «Администрирование» и «Настройки». */

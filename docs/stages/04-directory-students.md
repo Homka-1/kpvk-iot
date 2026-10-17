@@ -83,3 +83,8 @@
 - новые формы создания: `@IdempotencyKey() key` + `IdempotencyService.run(user.id, '<действие>:'+key, body, action, toStored)`; на клиенте `newIdempotencyKey()` при открытии формы и заголовок `Idempotency-Key`.
 - web: контекст шапки — useContextStore() (groups, disciplines, groupId, disciplineId, load()). после изменения справочников звать context.load().
 - e2e UI: mockDirectoryApi(page, { groups, disciplines, students }).
+
+## исправления после закрытия
+
+- fix(web): e2e засорял вывод `[vite] http proxy error: /api/groups|/api/disciplines ECONNREFUSED` — шапка грузит списки, а тесты без mockDirectoryApi их не мокали. теперь mockSession отдаёт пустые списки по умолчанию. тесты и раньше зелёные, это был только шум.
+- шум `DeprecationWarning: client.query()` в api e2e — изнутри prisma adapter-pg (см. этап 03), не наш код, не трогаем.
