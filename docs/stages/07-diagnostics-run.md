@@ -87,3 +87,7 @@
 - `measurementType` в назначении и сессии сейчас всегда PRIMARY (default БД); поле уже в DTO.
 - общий компонент вопроса — `@/components/QuestionField.vue`; бейджи статусов — `@/views/diagnostics/sessions.ts`.
 - dev-БД: миграцию 20261017200000 применить `pnpm db:deploy` (test-БД уже применена).
+
+## исправления после закрытия
+
+- fix(web): в выводе Playwright `[vite] http proxy error: /api/cabinet/profile` ECONNREFUSED (тесты проходили). причина — тесты навигации студента и входа открывают «Мой профиль», запрос не подменён и уходит через прокси Vite на незапущенный API. фикс: `mockSession` (apps/web/e2e/support/session.ts) первым регистрирует перехват всех `/api/*` → 404 «Ответ API не задан в тесте»; подмены тестов, заданные позже, приоритетнее. playwright 83 passed, 1 skipped, ошибок прокси нет.

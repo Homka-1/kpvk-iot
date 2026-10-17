@@ -42,6 +42,16 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
       .context()
       .addCookies([{ name: 'iot_csrf', value: 'test-csrf', url: 'http://localhost:5173' }]);
   }
+  // API в интерфейсных тестах не запущен: запрос без подмены получает 404, а не уходит через
+  // прокси Vite (ECONNREFUSED в логе). Подмены, заданные позже, имеют приоритет.
+  await page.route(
+    (url) => url.pathname.startsWith('/api/'),
+    (route) =>
+      route.fulfill({
+        status: 404,
+        json: { statusCode: 404, message: 'Ответ API не задан в тесте' },
+      }),
+  );
   await page.route('**/api/auth/refresh', (route) =>
     user
       ? route.fulfill({ json: { accessToken: 'test-token', expiresIn: 900, user } })
