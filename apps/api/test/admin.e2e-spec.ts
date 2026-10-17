@@ -196,9 +196,12 @@ describe('Администрирование и права (e2e)', () => {
   });
 
   it('список пользователей: поиск, фильтр по роли, 404 для несуществующего', async () => {
-    const user = await createUser(app, { role: RoleCode.RESEARCHER, lastName: 'Уникальнова' });
+    // Тестовая БД общая для прогонов: фамилия уникальна в каждом прогоне, иначе найденные
+    // пользователи прежних прогонов вытесняют нового с первой страницы списка.
+    const lastName = `Уникальнова${Array.from({ length: 6 }, () => 'абвгдежзик'[Math.floor(Math.random() * 10)]).join('')}`;
+    const user = await createUser(app, { role: RoleCode.RESEARCHER, lastName });
     const res = await asAdmin(http().get('/api/admin/users'))
-      .query({ search: 'уникальнова', role: 'researcher' })
+      .query({ search: lastName.toLowerCase(), role: 'researcher' })
       .expect(200);
     expect(res.body.items.map((item: { id: string }) => item.id)).toContain(user.id);
     await asAdmin(http().get('/api/admin/users/00000000-0000-7000-8000-000000000000')).expect(404);
