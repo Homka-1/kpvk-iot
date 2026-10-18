@@ -37,6 +37,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   trajectories: () => import('@/views/trajectories/TrajectoriesView.vue'),
   assignments: () => import('@/views/assignments/AssignmentsView.vue'),
   monitoring: () => import('@/views/monitoring/MonitoringView.vue'),
+  feedback: () => import('@/views/feedback/FeedbackView.vue'),
   library: () => import('@/views/library/LibraryView.vue'),
   analytics: () => import('@/views/analytics/AnalyticsView.vue'),
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
@@ -45,6 +46,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   'student-trajectory': () => import('@/views/student/MyTrajectoryView.vue'),
   'student-assignments': () => import('@/views/student/MyAssignmentsView.vue'),
   'student-diagnostics': () => import('@/views/student/MyDiagnosticsView.vue'),
+  'student-feedback': () => import('@/views/student/MyFeedbackView.vue'),
   'student-profile': () => import('@/views/student/MyProfileView.vue'),
 };
 

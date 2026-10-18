@@ -16,6 +16,7 @@ import ErrorState from '@/components/ErrorState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { formatDateTime, formatNumber } from '@/utils/format';
 import SubmissionHistory from '@/views/assignments/SubmissionHistory.vue';
+import AssignmentComments from '@/views/feedback/AssignmentComments.vue';
 import { assignmentBadge, dueText, overdueBadge, scoreText } from '@/views/assignments/status';
 import SubmissionForm from './SubmissionForm.vue';
 
@@ -233,6 +234,14 @@ watch(id, load, { immediate: true });
         <SubmissionHistory
           :submissions="item.submissions"
           :file-path="(file) => `/cabinet/files/${file.id}`"
+        />
+      </section>
+
+      <section class="iot-card">
+        <AssignmentComments
+          mode="student"
+          :assignment-id="item.id"
+          :assignment-title="item.assignment.title"
         />
       </section>
     </template>

@@ -22,6 +22,7 @@ import StatusBadge from '@/components/StatusBadge.vue';
 import { useAuthStore } from '@/stores/auth';
 import { formatDate, formatDateTime, formatNumber } from '@/utils/format';
 import DiagnosticComparison from '@/views/diagnostics/DiagnosticComparison.vue';
+import ConsultationDialog from '@/views/feedback/ConsultationDialog.vue';
 import { supportBadge, trajectoryBadge } from '@/views/students/labels';
 import { checkpointBadge, stageBadge } from '@/views/trajectories/content';
 import { rowFacts, warningBadge, warningDue } from './content';
@@ -44,6 +45,13 @@ const canCorrect = computed(
     auth.hasPermission(Permission.TRAJECTORIES_APPROVE),
 );
 const canManage = computed(() => auth.hasPermission(Permission.TRAJECTORIES_MANAGE));
+const canFeedback = computed(() => auth.hasPermission(Permission.FEEDBACK_MANAGE));
+const consultationOpen = ref(false);
+
+/** Консультация из мониторинга — шаг UC-05 перед корректировкой маршрута. */
+function onConsultationSaved(): void {
+  notice.value = 'Консультация назначена. Студент получил уведомление.';
+}
 
 const data = ref<MonitoringDetailDto | null>(null);
 const comparisons = ref<DiagnosticComparisonDto[] | null>(null);
@@ -190,6 +198,14 @@ const percent = (value: number) => `${formatNumber(value)} %`;
           severity="secondary"
           outlined
           @click="supportOpen = true"
+        />
+        <Button
+          v-if="canFeedback && open"
+          label="Назначить консультацию"
+          icon="pi pi-calendar-plus"
+          severity="secondary"
+          outlined
+          @click="consultationOpen = true"
         />
         <RouterLink :to="`/trajectories/${id}`" class="p-button p-button-text"
           >Карта ИОТ</RouterLink
@@ -390,6 +406,12 @@ const percent = (value: number) => `${formatNumber(value)} %`;
         </ul>
       </section>
 
+      <ConsultationDialog
+        v-model:visible="consultationOpen"
+        :student-id="data.row.student.id"
+        :trajectory-id="id"
+        @saved="onConsultationSaved"
+      />
       <SupportStatusDialog
         v-model:visible="supportOpen"
         :student-id="data.row.student.id"

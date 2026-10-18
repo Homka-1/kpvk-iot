@@ -20,6 +20,7 @@ const IMPLEMENTED = new Set([
   'trajectories',
   'assignments',
   'monitoring',
+  'feedback',
   'library',
   'analytics',
 ]);

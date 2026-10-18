@@ -130,9 +130,11 @@ describe('задания студента', () => {
     const posted: RequestInit[] = [];
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         if (init?.method === 'POST') posted.push(init);
-        return new Response(JSON.stringify(review), {
+        // Комментарии к заданию (этап 15) — пустой список.
+        const body = String(input).startsWith('/api/feedback') ? [] : review;
+        return new Response(JSON.stringify(body), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         });

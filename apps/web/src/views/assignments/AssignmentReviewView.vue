@@ -7,6 +7,7 @@ import {
   DIFFICULTY_LEVEL_LABELS,
   type FileDto,
   formatFileSize,
+  Permission,
   SUBMISSION_FORMAT_LABELS,
 } from '@iot/shared';
 import Button from 'primevue/button';
@@ -20,7 +21,9 @@ import { useRoute } from 'vue-router';
 import { api, apiDownload, ApiError, newIdempotencyKey } from '@/api/http';
 import ErrorState from '@/components/ErrorState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
+import { useAuthStore } from '@/stores/auth';
 import { formatDateTime, formatNumber } from '@/utils/format';
+import AssignmentComments from '@/views/feedback/AssignmentComments.vue';
 import SubmissionHistory from './SubmissionHistory.vue';
 import { assignmentBadge, dueText, overdueBadge } from './status';
 
@@ -30,6 +33,8 @@ import { assignmentBadge, dueText, overdueBadge } from './status';
  * или возвращает на доработку с комментарием для студента. Решение — за преподавателем.
  */
 const route = useRoute();
+const auth = useAuthStore();
+const canFeedback = computed(() => auth.hasPermission(Permission.FEEDBACK_MANAGE));
 const id = computed(() => String(route.params.id));
 const item = ref<AssignmentReviewDto | null>(null);
 const error = ref<string | null>(null);
@@ -247,6 +252,15 @@ watch(id, load, { immediate: true });
         <SubmissionHistory
           :submissions="item.submissions"
           :file-path="(file) => `/student-assignments/files/${file.id}`"
+        />
+      </section>
+
+      <section v-if="canFeedback" class="iot-card">
+        <AssignmentComments
+          mode="staff"
+          :assignment-id="item.id"
+          :assignment-title="item.assignment.title"
+          :student-id="item.student.id"
         />
       </section>
 

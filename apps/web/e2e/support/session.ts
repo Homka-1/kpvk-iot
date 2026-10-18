@@ -75,6 +75,24 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
   await page.route(/\/api\/cabinet\/assignments$/, (route) =>
     route.fulfill({ json: { choices: [], items: [] } }),
   );
+  // Уведомления в шапке и обратная связь (этап 15): по умолчанию пусто.
+  await page.route('**/api/notifications', (route) =>
+    route.fulfill({ json: { items: [], unread: 0 } }),
+  );
+  await page.route(/\/api\/(feedback|consultations)(\?.*)?$/, (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route(/\/api\/cabinet\/feedback$/, (route) =>
+    route.fulfill({
+      json: {
+        feedback: [],
+        consultations: [],
+        reflections: [],
+        pendingReflections: [],
+        trajectories: [],
+      },
+    }),
+  );
   await page.route('**/api/motivation-strategies', (route) =>
     route.fulfill({ json: DEFAULT_MOTIVATION_STRATEGIES }),
   );

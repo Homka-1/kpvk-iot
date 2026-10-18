@@ -27,6 +27,7 @@ import ObservationDialog from './ObservationDialog.vue';
 import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
 import StudentAssignmentsTab from '@/views/assignments/StudentAssignmentsTab.vue';
 import StudentTrajectoriesTab from '@/views/trajectories/StudentTrajectoriesTab.vue';
+import StudentSupportTab from '@/views/feedback/StudentSupportTab.vue';
 import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
 
@@ -42,6 +43,7 @@ const studentId = computed(() => String(route.params.id));
 const canObserve = computed(() => auth.hasPermission(Permission.OBSERVATIONS_MANAGE));
 const canManage = computed(() => auth.hasPermission(Permission.STUDENTS_MANAGE));
 const canTrajectories = computed(() => auth.hasPermission(Permission.TRAJECTORIES_MANAGE));
+const canFeedback = computed(() => auth.hasPermission(Permission.FEEDBACK_MANAGE));
 
 const TABS = [
   'general',
@@ -364,10 +366,11 @@ function onStudentChanged(): void {
                   </li>
                 </ul>
               </section>
-              <EmptyState
-                icon="pi pi-comments"
-                title="Консультаций и комментариев пока нет"
-                description="Здесь появятся консультации, рекомендации и комментарии по заданиям."
+              <StudentSupportTab
+                v-if="canFeedback"
+                :student-id="studentId"
+                :archived="!!profile.archivedAt"
+                @changed="history = null"
               />
             </div>
           </TabPanel>
