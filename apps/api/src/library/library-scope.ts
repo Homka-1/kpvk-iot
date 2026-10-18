@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { ASSIGNMENT_INACTIVE_STATUSES, STUDENT_VISIBLE_TRAJECTORY_STATUSES } from '@iot/shared';
 import type { AccessScope } from '../auth/access-scope.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -20,6 +21,25 @@ export function materialScopeWhere(scope: AccessScope): Prisma.MaterialWhereInpu
 
 export function assignmentScopeWhere(scope: AccessScope): Prisma.AssignmentWhereInput {
   return scope.kind === 'all' ? {} : { disciplineId: { in: scope.disciplineIds } };
+}
+
+/**
+ * Действующие назначения (не отменённые и не отклонённые при выборе) — вне маршрута или в
+ * утверждённой ИОТ. Задания черновика ИОТ ещё не назначены студенту.
+ */
+export function publishedAssignmentWhere(): Prisma.TrajectoryAssignmentWhereInput {
+  return {
+    status: { notIn: [...ASSIGNMENT_INACTIVE_STATUSES] },
+    OR: [
+      { trajectoryId: null },
+      { trajectory: { status: { in: [...STUDENT_VISIBLE_TRAJECTORY_STATUSES] } } },
+    ],
+  };
+}
+
+/** Задания, которые видит студент (AT-06, AT-12): только свои действующие назначения. */
+export function cabinetAssignmentWhere(userId: string): Prisma.TrajectoryAssignmentWhereInput {
+  return { ...publishedAssignmentWhere(), student: { userId, archivedAt: null } };
 }
 
 /** Дисциплина для новой записи библиотеки: существует, не в архиве и доступна пользователю. */

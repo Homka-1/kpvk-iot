@@ -5,6 +5,7 @@ import { LibraryAssignmentsService } from './assignments.service.js';
 import { FilesService } from './files.service.js';
 import {
   AssignmentTypesController,
+  CabinetFilesController,
   FilesController,
   LibraryAssignmentsController,
   MaterialsController,
@@ -17,6 +18,7 @@ import { MaterialsService } from './materials.service.js';
     MaterialsController,
     AssignmentTypesController,
     LibraryAssignmentsController,
+    CabinetFilesController,
   ],
   providers: [
     AssignmentTypesCatalogSync,

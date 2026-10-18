@@ -1,10 +1,11 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import {
   AssignmentStatus,
   CheckpointStatus,
   DifficultyLevel,
   MaterialKind,
   MotivationLevel,
+  ROUTE_PROPOSAL_MAX,
   STAGE_ASSIGNMENTS_MAX,
   STAGE_CHECKPOINTS_MAX,
   STAGE_MATERIALS_MAX,
@@ -32,6 +33,7 @@ import {
 import { emptyToNull, OptionalText, OptionalUuid, RequiredTitle } from '../common/dto.js';
 import { PersonRefDto, RefDto } from '../disciplines/disciplines.dto.js';
 import { GroupRefDto } from '../groups/groups.dto.js';
+import { FileResponseDto } from '../library/library.dto.js';
 
 const STATUSES = Object.values(TrajectoryStatus);
 
@@ -395,6 +397,11 @@ export class TrajectoryResponseDto {
   @ApiProperty({ description: 'Метка редакции для сохранения и утверждения' }) updatedAt: string;
   @ApiProperty({ type: [StageResponseDto] }) stages: StageResponseDto[];
   @ApiProperty({ type: [VersionSummaryResponseDto] }) versions: VersionSummaryResponseDto[];
+  @ApiProperty({
+    type: () => [RouteProposalResponseDto],
+    description: 'Предложения студента изменить маршрут (п. 2.3)',
+  })
+  proposals: RouteProposalResponseDto[];
 }
 
 class TrajectorySummaryResponseDto {
@@ -408,6 +415,66 @@ class TrajectorySummaryResponseDto {
   @ApiProperty({ nullable: true, type: String, format: 'date' }) plannedEndDate: string | null;
   @ApiProperty() stageCount: number;
   @ApiProperty() updatedAt: string;
+}
+
+// ── Кабинет студента (FR-040, FR-041; п. 2.3) ──
+
+export class RouteProposalInputDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    type: String,
+    description: 'Этап, к которому относится предложение',
+  })
+  @OptionalUuid('Некорректный этап')
+  stageId?: string | null;
+
+  @ApiProperty({ description: 'Что студент предлагает изменить в маршруте' })
+  @RequiredTitle('Опишите предложение', ROUTE_PROPOSAL_MAX)
+  body: string;
+}
+
+class StageRefResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() title: string;
+}
+
+export class RouteProposalResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ type: StageRefResponseDto, nullable: true }) stage: StageRefResponseDto | null;
+  @ApiProperty() body: string;
+  @ApiProperty({ type: PersonRefDto, nullable: true }) author: PersonRefDto | null;
+  @ApiProperty() createdAt: string;
+}
+
+class CabinetStageMaterialResponseDto extends StageMaterialResponseDto {
+  @ApiProperty({ nullable: true, type: String }) description: string | null;
+  @ApiProperty({ type: FileResponseDto, nullable: true }) file: FileResponseDto | null;
+  @ApiProperty({ nullable: true, type: String }) url: string | null;
+  @ApiProperty({ nullable: true, type: String }) body: string | null;
+}
+
+class CabinetStageResponseDto extends OmitType(StageResponseDto, ['materials'] as const) {
+  @ApiProperty({ type: [CabinetStageMaterialResponseDto] })
+  materials: CabinetStageMaterialResponseDto[];
+}
+
+export class CabinetTrajectoryResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty({ enum: STATUSES }) status: TrajectoryStatus;
+  @ApiProperty() version: number;
+  @ApiProperty({ type: RefDto }) discipline: RefDto;
+  @ApiProperty({ type: PersonRefDto, nullable: true }) teacher: PersonRefDto | null;
+  @ApiProperty({ nullable: true, type: String }) goals: string | null;
+  @ApiProperty({ nullable: true, type: String }) plannedResults: string | null;
+  @ApiProperty({ nullable: true, type: String }) supportMethods: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date' }) startDate: string | null;
+  @ApiProperty({ nullable: true, type: String, format: 'date' }) plannedEndDate: string | null;
+  @ApiProperty({ nullable: true, type: String }) currentStageId: string | null;
+  @ApiProperty({ nullable: true, type: String }) approvedAt: string | null;
+  @ApiProperty({ type: [CabinetStageResponseDto] }) stages: CabinetStageResponseDto[];
+  @ApiProperty({ type: [RouteProposalResponseDto], description: 'Свои предложения по маршруту' })
+  proposals: RouteProposalResponseDto[];
 }
 
 export class TrajectoryPageResponseDto {

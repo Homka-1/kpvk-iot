@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { type CurrentUser, Permission } from '@iot/shared';
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -43,5 +43,20 @@ export class AccessScopeService {
   /** Условие отбора студентов, доступных в рамках области. */
   studentsWhere(scope: AccessScope): Prisma.StudentWhereInput {
     return scope.kind === 'all' ? {} : { currentGroupId: { in: scope.groupIds } };
+  }
+
+  /**
+   * Карточка студента текущей учётной записи для кабинета (AT-12: студент работает только со
+   * своими данными). Нет карточки или она в архиве — 404.
+   */
+  async ownStudent(user: CurrentUser): Promise<{ id: string }> {
+    const student = await this.prisma.student.findUnique({
+      where: { userId: user.id },
+      select: { id: true, archivedAt: true },
+    });
+    if (!student || student.archivedAt) {
+      throw new NotFoundException('Карточка студента для этой учётной записи не найдена');
+    }
+    return { id: student.id };
   }
 }

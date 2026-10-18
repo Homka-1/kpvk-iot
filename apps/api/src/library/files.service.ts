@@ -13,12 +13,18 @@ import {
   FILE_UPLOAD_MAX_BYTES,
   type FileDto,
   formatFileSize,
+  STUDENT_VISIBLE_TRAJECTORY_STATUSES,
 } from '@iot/shared';
 import { AccessScopeService } from '../auth/access-scope.service.js';
 import { findWorkspaceRoot } from '../config/load-env.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { checkFile } from './file-signature.js';
-import { assignmentScopeWhere, materialScopeWhere } from './library-scope.js';
+import type { File as FileRow } from '../generated/prisma/client.js';
+import {
+  assignmentScopeWhere,
+  cabinetAssignmentWhere,
+  materialScopeWhere,
+} from './library-scope.js';
 
 export interface UploadedFileInput {
   buffer: Buffer;
@@ -137,6 +143,48 @@ export class FilesService {
         ],
       },
     });
+    return this.content(row);
+  }
+
+  /**
+   * Файл для студента (AT-12): материал этапа его утверждённой ИОТ или вложение назначенного ему
+   * задания. Остальные файлы — 404.
+   */
+  async readForStudent(user: CurrentUser, id: string): Promise<StoredFileContent> {
+    const row = await this.prisma.file.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        OR: [
+          {
+            materials: {
+              some: {
+                stages: {
+                  some: {
+                    stage: {
+                      archivedAt: null,
+                      trajectory: {
+                        student: { userId: user.id, archivedAt: null },
+                        status: { in: [...STUDENT_VISIBLE_TRAJECTORY_STATUSES] },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          {
+            assignmentAttachments: {
+              some: { assignment: { assigned: { some: cabinetAssignmentWhere(user.id) } } },
+            },
+          },
+        ],
+      },
+    });
+    return this.content(row);
+  }
+
+  private async content(row: FileRow | null): Promise<StoredFileContent> {
     if (!row) throw new NotFoundException('Файл не найден');
     const content = await readFile(join(this.dir, row.storageKey)).catch(() => {
       throw new NotFoundException('Файл не найден в хранилище. Обратитесь к администратору');

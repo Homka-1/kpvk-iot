@@ -10,3 +10,4 @@ export * from './diagnostic-results.js';
 export * from './motivation-profiles.js';
 export * from './library.js';
 export * from './trajectories.js';
+export * from './student-assignments.js';

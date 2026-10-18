@@ -513,7 +513,7 @@ export class DiagnosticSessionsService {
 
   async cabinetList(user: CurrentUser): Promise<CabinetDiagnosticDto[]> {
     await this.expireOverdue();
-    const student = await this.ownStudent(user);
+    const student = await this.scopes.ownStudent(user);
     const rows = await this.prisma.diagnosticSession.findMany({
       where: { studentId: student.id, status: { not: 'CANCELLED' } },
       include: {
@@ -785,20 +785,9 @@ export class DiagnosticSessionsService {
     return { row, content: readContent(row.version) };
   }
 
-  private async ownStudent(user: CurrentUser) {
-    const student = await this.prisma.student.findUnique({
-      where: { userId: user.id },
-      select: { id: true, archivedAt: true },
-    });
-    if (!student || student.archivedAt) {
-      throw new NotFoundException('Карточка студента для этой учётной записи не найдена');
-    }
-    return student;
-  }
-
   /** Прохождение текущего студента (чужое — 404, AT-12). */
   private async ownSession(user: CurrentUser, sessionId: string) {
-    const student = await this.ownStudent(user);
+    const student = await this.scopes.ownStudent(user);
     const row = await this.prisma.diagnosticSession.findFirst({
       where: { id: sessionId, studentId: student.id, status: { not: 'CANCELLED' } },
       include: {

@@ -46,7 +46,7 @@ import {
   IdempotencyService,
 } from '../common/idempotency.service.js';
 import { LibraryAssignmentsService } from './assignments.service.js';
-import { FilesService, type UploadedFileInput } from './files.service.js';
+import { FilesService, type StoredFileContent, type UploadedFileInput } from './files.service.js';
 import {
   AssignmentTypeInputDto,
   AssignmentTypeResponseDto,
@@ -128,14 +128,38 @@ export class FilesController {
   @ApiProduces('application/octet-stream')
   @ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
   async download(@Param('id', uuid) id: string, @User() user: AuthUser): Promise<StreamableFile> {
-    const { file, content } = await this.files.read(user, id);
-    const ascii = file.originalName.replace(/[^\x20-\x7e]/g, '_');
-    return new StreamableFile(content, {
-      type: file.mimeType,
-      length: content.length,
-      disposition: `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
-    });
+    return attachment(await this.files.read(user, id));
   }
+}
+
+@ApiTags('Кабинет студента')
+@ApiBearerAuth()
+@Controller('cabinet/files')
+@RequirePermissions(Permission.CABINET_ACCESS)
+export class CabinetFilesController {
+  constructor(private readonly files: FilesService) {}
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Скачивание файла материала или задания студентом',
+    description:
+      'Только материалы этапов своей утверждённой ИОТ и вложения назначенных студенту заданий (AT-12). Остальные файлы — 404.',
+  })
+  @ApiProduces('application/octet-stream')
+  @ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
+  async download(@Param('id', uuid) id: string, @User() user: AuthUser): Promise<StreamableFile> {
+    return attachment(await this.files.readForStudent(user, id));
+  }
+}
+
+/** Файл всегда отдаётся как вложение: браузер не исполняет содержимое на странице приложения. */
+function attachment({ file, content }: StoredFileContent): StreamableFile {
+  const ascii = file.originalName.replace(/[^\x20-\x7e]/g, '_');
+  return new StreamableFile(content, {
+    type: file.mimeType,
+    length: content.length,
+    disposition: `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+  });
 }
 
 @ApiTags('Библиотека')

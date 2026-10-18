@@ -17,7 +17,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  type CabinetTrajectoryDto,
   Permission,
+  type RouteProposalDto,
   type TrajectoryDto,
   type TrajectoryOptionsDto,
   type TrajectoryPageDto,
@@ -25,7 +27,10 @@ import {
 import { type AuthUser, RequirePermissions, User } from '../auth/decorators.js';
 import { ApiIdempotencyHeader, IdempotencyKey } from '../common/idempotency.service.js';
 import {
+  CabinetTrajectoryResponseDto,
   CreateTrajectoryDto,
+  RouteProposalInputDto,
+  RouteProposalResponseDto,
   TrajectoryReasonDto,
   RevisionTokenDto,
   TrajectoryContentDto,
@@ -54,6 +59,42 @@ export class TrajectoryOptionsController {
   @ApiOkResponse({ type: TrajectoryOptionsResponseDto })
   options(@Param('id', uuid) id: string, @User() user: AuthUser): Promise<TrajectoryOptionsDto> {
     return this.trajectories.options(user, id);
+  }
+}
+
+@ApiTags('Кабинет студента')
+@ApiBearerAuth()
+@Controller('cabinet/trajectories')
+@RequirePermissions(Permission.CABINET_ACCESS)
+export class CabinetTrajectoriesController {
+  constructor(private readonly trajectories: TrajectoriesService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: '«Моя траектория»: утверждённые ИОТ студента с картой этапов (FR-040, FR-041, AT-06)',
+    description:
+      'Только свои маршруты в статусах «Активна», «Требует корректировки», «Завершена». Черновики и маршруты на согласовании не показываются; история версий и служебные поля не передаются. Материалы этапов — с содержимым.',
+  })
+  @ApiOkResponse({ type: [CabinetTrajectoryResponseDto] })
+  list(@User() user: AuthUser): Promise<CabinetTrajectoryDto[]> {
+    return this.trajectories.cabinetList(user);
+  }
+
+  @Post(':id/proposals')
+  @ApiIdempotencyHeader()
+  @ApiOperation({
+    summary: 'Предложение изменить маршрут (п. 2.3)',
+    description:
+      'Студент описывает, что хотел бы изменить (при необходимости — в каком этапе). Маршрут не меняется: предложение получает преподаватель, решение за ним. Завершённый маршрут — 409.',
+  })
+  @ApiCreatedResponse({ type: RouteProposalResponseDto })
+  propose(
+    @Param('id', uuid) id: string,
+    @Body() dto: RouteProposalInputDto,
+    @User() user: AuthUser,
+    @IdempotencyKey() key: string,
+  ): Promise<RouteProposalDto> {
+    return this.trajectories.propose(user, id, dto, key);
   }
 }
 

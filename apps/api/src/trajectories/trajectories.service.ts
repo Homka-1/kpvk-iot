@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import {
   type AssignmentStatus,
+  type CabinetStageMaterialDto,
+  type CabinetTrajectoryDto,
   canTransition,
   type CheckpointStatus,
   type CurrentUser,
@@ -14,7 +16,11 @@ import {
   formatFullName,
   type MaterialKind,
   type MotivationLevel,
+  type PersonRef,
+  ROUTE_PROPOSAL_STATUSES,
+  type RouteProposalDto,
   type StageStatus,
+  STUDENT_VISIBLE_TRAJECTORY_STATUSES,
   suggestTemplate,
   TRAJECTORY_CURRENT_STATUSES,
   TRAJECTORY_EDITABLE_STATUSES,
@@ -26,6 +32,7 @@ import {
   type TrajectoryOptionsDto,
   type TrajectoryPageDto,
   type TrajectorySnapshot,
+  type TrajectoryStageDto,
   TrajectoryStatus,
   type TrajectoryStudentRef,
   type TrajectorySummaryDto,
@@ -39,6 +46,7 @@ import {
 import { AuditService } from '../audit/audit.service.js';
 import { IdempotencyService } from '../common/idempotency.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
+import { toFileDto } from '../library/files.service.js';
 import { assignmentScopeWhere, materialScopeWhere } from '../library/library-scope.js';
 import { loadPeople } from '../library/materials.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -47,6 +55,7 @@ import type {
   CreateTrajectoryDto,
   TrajectoryReasonDto,
   RevisionTokenDto,
+  RouteProposalInputDto,
   TrajectoryContentDto,
   TrajectoryListQueryDto,
 } from './trajectories.dto.js';
@@ -79,7 +88,20 @@ const detailInclude = {
       },
       materials: {
         orderBy: { sortOrder: 'asc' },
-        include: { material: { select: { id: true, title: true, kind: true, archivedAt: true } } },
+        include: {
+          material: {
+            select: {
+              id: true,
+              title: true,
+              kind: true,
+              archivedAt: true,
+              description: true,
+              url: true,
+              body: true,
+              file: true,
+            },
+          },
+        },
       },
       assignments: {
         where: { status: { not: 'CANCELLED' } },
@@ -99,6 +121,11 @@ const detailInclude = {
     },
   },
   versions: { orderBy: { versionNumber: 'desc' } },
+  feedback: {
+    where: { kind: 'ROUTE_CHANGE_PROPOSAL' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    include: { stage: { select: { id: true, title: true } } },
+  },
 } satisfies Prisma.TrajectoryInclude;
 
 type DetailRow = Prisma.TrajectoryGetPayload<{ include: typeof detailInclude }>;
@@ -149,11 +176,79 @@ function toContent(dto: TrajectoryDto): TrajectoryContent {
   };
 }
 
-/** Снимок версии: паспорт и этапы без списка версий. */
+/** Снимок версии: паспорт и этапы без списка версий и предложений студента. */
 function toSnapshot(dto: TrajectoryDto): TrajectorySnapshot {
   const snapshot: Partial<TrajectoryDto> = { ...dto };
   delete snapshot.versions;
+  delete snapshot.proposals;
   return snapshot as TrajectorySnapshot;
+}
+
+type StageRow = DetailRow['stages'][number];
+type StageMaterialRow = StageRow['materials'][number]['material'];
+
+/** Этап маршрута без материалов: у преподавателя и в кабинете студента материалы разные. */
+function toStageBase(stage: StageRow): Omit<TrajectoryStageDto, 'materials'> {
+  return {
+    id: stage.id,
+    sortOrder: stage.sortOrder,
+    title: stage.title,
+    goal: stage.goal,
+    description: stage.description,
+    plannedResults: stage.plannedResults,
+    startDate: isoDate(stage.startDate),
+    endDate: isoDate(stage.endDate),
+    status: stage.status as StageStatus,
+    checkpoints: stage.checkpoints.map((checkpoint) => ({
+      id: checkpoint.id,
+      title: checkpoint.title,
+      description: checkpoint.description,
+      dueDate: isoDate(checkpoint.dueDate),
+      status: checkpoint.status as CheckpointStatus,
+    })),
+    assignments: stage.assignments.map((item) => ({
+      id: item.id,
+      assignment: {
+        id: item.assignment.id,
+        title: item.assignment.title,
+        typeName: item.assignment.type.name,
+        difficulty: item.assignment.difficulty as DifficultyLevel,
+        archived: item.assignment.archivedAt !== null,
+      },
+      dueAt: item.dueAt?.toISOString() ?? null,
+      status: item.status as AssignmentStatus,
+    })),
+  };
+}
+
+function toStageMaterial(material: StageMaterialRow): TrajectoryStageDto['materials'][number] {
+  return {
+    id: material.id,
+    title: material.title,
+    kind: material.kind as MaterialKind,
+    archived: material.archivedAt !== null,
+  };
+}
+
+/** Материал этапа для студента — с содержимым, чтобы открыть его из карты маршрута. */
+function toCabinetMaterial(material: StageMaterialRow): CabinetStageMaterialDto {
+  return {
+    ...toStageMaterial(material),
+    description: material.description,
+    url: material.url,
+    body: material.body,
+    file: material.file ? toFileDto(material.file) : null,
+  };
+}
+
+function toProposals(row: DetailRow, people: Map<string, PersonRef>): RouteProposalDto[] {
+  return row.feedback.map((item) => ({
+    id: item.id,
+    stage: item.stage,
+    body: item.body,
+    author: people.get(item.authorId) ?? null,
+    createdAt: item.createdAt.toISOString(),
+  }));
 }
 
 function issuesException(message: string, issues: TrajectoryIssue[]): BadRequestException {
@@ -645,6 +740,131 @@ export class TrajectoriesService {
     return this.load(this.prisma, id);
   }
 
+  // ── Кабинет студента (FR-040, FR-041) ──
+
+  /**
+   * Утверждённые маршруты студента (FR-040): «Активна», «Требует корректировки», «Завершена».
+   * Черновики и маршруты на согласовании студент не видит. Служебные поля не передаются.
+   */
+  async cabinetList(user: CurrentUser): Promise<CabinetTrajectoryDto[]> {
+    const student = await this.scopes.ownStudent(user);
+    const rows = await this.prisma.trajectory.findMany({
+      where: { studentId: student.id, status: { in: [...STUDENT_VISIBLE_TRAJECTORY_STATUSES] } },
+      include: {
+        ...detailInclude,
+        feedback: {
+          ...detailInclude.feedback,
+          where: { kind: 'ROUTE_CHANGE_PROPOSAL', authorId: user.id },
+        },
+      },
+      orderBy: [{ discipline: { name: 'asc' } }, { id: 'asc' }],
+    });
+    const people = await loadPeople(this.prisma, [user.id, ...rows.map((row) => row.teacherId)]);
+    return rows.map((row) => ({
+      id: row.id,
+      status: row.status as TrajectoryStatus,
+      version: row.currentVersion,
+      discipline: row.discipline,
+      teacher: people.get(row.teacherId) ?? null,
+      goals: row.goals,
+      plannedResults: row.plannedResults,
+      supportMethods: row.supportMethods,
+      startDate: isoDate(row.startDate),
+      plannedEndDate: isoDate(row.plannedEndDate),
+      currentStageId: row.currentStageId,
+      approvedAt: row.approvedAt?.toISOString() ?? null,
+      stages: row.stages.map((stage) => ({
+        ...toStageBase(stage),
+        materials: stage.materials.map(({ material }) => toCabinetMaterial(material)),
+      })),
+      proposals: toProposals(row, people),
+    }));
+  }
+
+  /**
+   * Предложение студента изменить маршрут (п. 2.3): записывается для преподавателя, сам маршрут
+   * не меняется — обязательные этапы студент не изменяет, решение за преподавателем.
+   */
+  async propose(
+    user: CurrentUser,
+    id: string,
+    dto: RouteProposalInputDto,
+    key: string,
+  ): Promise<RouteProposalDto> {
+    const { response } = await this.idempotency.run(
+      user.id,
+      `trajectory.propose:${key}`,
+      { id, ...dto },
+      async () => {
+        const student = await this.scopes.ownStudent(user);
+        const trajectory = await this.prisma.trajectory.findFirst({
+          where: {
+            id,
+            studentId: student.id,
+            status: { in: [...STUDENT_VISIBLE_TRAJECTORY_STATUSES] },
+          },
+          include: { stages: { where: { archivedAt: null }, select: { id: true, title: true } } },
+        });
+        if (!trajectory) throw new NotFoundException('ИОТ не найдена');
+        if (!ROUTE_PROPOSAL_STATUSES.includes(trajectory.status as TrajectoryStatus)) {
+          throw new ConflictException('Маршрут завершён: предложения по нему не принимаются');
+        }
+        const stage = dto.stageId
+          ? trajectory.stages.find((item) => item.id === dto.stageId)
+          : null;
+        if (dto.stageId && !stage) {
+          throw new BadRequestException({
+            message: 'Этап не относится к этой ИОТ',
+            fields: { stageId: 'Выберите этап из списка' },
+          });
+        }
+        const row = await this.prisma.$transaction(async (tx) => {
+          const created = await tx.feedback.create({
+            data: {
+              studentId: student.id,
+              authorId: user.id,
+              kind: 'ROUTE_CHANGE_PROPOSAL',
+              visibility: 'STUDENT_VISIBLE',
+              trajectoryId: id,
+              stageId: stage?.id ?? null,
+              body: dto.body,
+            },
+          });
+          await tx.notification.create({
+            data: {
+              userId: trajectory.teacherId,
+              type: 'trajectory.change_proposed',
+              title: 'Студент предложил изменить маршрут',
+              body: stage ? `Этап «${stage.title}»` : null,
+              link: `/trajectories/${id}`,
+              entityType: 'trajectory',
+              entityId: id,
+            },
+          });
+          await this.audit.log(
+            {
+              action: 'trajectory.change_proposed',
+              entityType: 'trajectory',
+              entityId: id,
+              after: { feedbackId: created.id, stageId: stage?.id ?? null },
+            },
+            tx,
+          );
+          return created;
+        });
+        const people = await loadPeople(this.prisma, [user.id]);
+        return {
+          id: row.id,
+          stage: stage ?? null,
+          body: row.body,
+          author: people.get(user.id) ?? null,
+          createdAt: row.createdAt.toISOString(),
+        };
+      },
+    );
+    return response;
+  }
+
   // ── Вспомогательное ──
 
   private async templates(): Promise<TrajectoryTemplateDto[]> {
@@ -870,6 +1090,7 @@ export class TrajectoriesService {
       row.teacherId,
       row.approvedById,
       ...row.versions.map((version) => version.createdById),
+      ...row.feedback.map((item) => item.authorId),
     ]);
     return {
       id: row.id,
@@ -892,40 +1113,8 @@ export class TrajectoriesService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       stages: row.stages.map((stage) => ({
-        id: stage.id,
-        sortOrder: stage.sortOrder,
-        title: stage.title,
-        goal: stage.goal,
-        description: stage.description,
-        plannedResults: stage.plannedResults,
-        startDate: isoDate(stage.startDate),
-        endDate: isoDate(stage.endDate),
-        status: stage.status as StageStatus,
-        checkpoints: stage.checkpoints.map((checkpoint) => ({
-          id: checkpoint.id,
-          title: checkpoint.title,
-          description: checkpoint.description,
-          dueDate: isoDate(checkpoint.dueDate),
-          status: checkpoint.status as CheckpointStatus,
-        })),
-        materials: stage.materials.map(({ material }) => ({
-          id: material.id,
-          title: material.title,
-          kind: material.kind as MaterialKind,
-          archived: material.archivedAt !== null,
-        })),
-        assignments: stage.assignments.map((item) => ({
-          id: item.id,
-          assignment: {
-            id: item.assignment.id,
-            title: item.assignment.title,
-            typeName: item.assignment.type.name,
-            difficulty: item.assignment.difficulty as DifficultyLevel,
-            archived: item.assignment.archivedAt !== null,
-          },
-          dueAt: item.dueAt?.toISOString() ?? null,
-          status: item.status as AssignmentStatus,
-        })),
+        ...toStageBase(stage),
+        materials: stage.materials.map(({ material }) => toStageMaterial(material)),
       })),
       versions: row.versions.map((version) => ({
         versionNumber: version.versionNumber,
@@ -934,6 +1123,7 @@ export class TrajectoriesService {
         createdBy: version.createdById ? (people.get(version.createdById) ?? null) : null,
         createdAt: version.createdAt.toISOString(),
       })),
+      proposals: toProposals(row, people),
     };
   }
 }

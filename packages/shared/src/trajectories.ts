@@ -11,6 +11,7 @@ import {
   type StageStatus,
   TrajectoryStatus,
 } from './enums.js';
+import type { RouteProposalDto } from './student-assignments.js';
 import type { GroupRef, PersonRef } from './students.js';
 
 export const TRAJECTORY_TEXT_MAX = 4000;
@@ -359,10 +360,12 @@ export interface TrajectoryDto {
   updatedAt: string;
   stages: TrajectoryStageDto[];
   versions: TrajectoryVersionSummaryDto[];
+  /** Предложения студента изменить маршрут (п. 2.3); решение остаётся за преподавателем. */
+  proposals: RouteProposalDto[];
 }
 
 /** Неизменяемый снимок версии (trajectory_versions.snapshot). */
-export type TrajectorySnapshot = Omit<TrajectoryDto, 'versions'>;
+export type TrajectorySnapshot = Omit<TrajectoryDto, 'versions' | 'proposals'>;
 
 export interface TrajectorySummaryDto {
   id: string;
