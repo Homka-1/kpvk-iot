@@ -44,17 +44,16 @@ export async function syncStageProgress(tx: Tx, stageId: string | null): Promise
  * Если все этапы завершены, текущим остаётся прежний действующий этап.
  */
 export async function syncCurrentStage(tx: Tx, trajectoryId: string): Promise<void> {
-  const [trajectory, next] = await Promise.all([
-    tx.trajectory.findUniqueOrThrow({
-      where: { id: trajectoryId },
-      select: { currentStage: { select: { id: true, archivedAt: true } } },
-    }),
-    tx.trajectoryStage.findFirst({
-      where: { trajectoryId, archivedAt: null, status: { not: StageStatus.COMPLETED } },
-      orderBy: { sortOrder: 'asc' },
-      select: { id: true, status: true },
-    }),
-  ]);
+  // Запросы по очереди: у транзакции одно соединение, параллельные запросы на нём pg запрещает.
+  const trajectory = await tx.trajectory.findUniqueOrThrow({
+    where: { id: trajectoryId },
+    select: { currentStage: { select: { id: true, archivedAt: true } } },
+  });
+  const next = await tx.trajectoryStage.findFirst({
+    where: { trajectoryId, archivedAt: null, status: { not: StageStatus.COMPLETED } },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, status: true },
+  });
   const current = trajectory.currentStage;
   if (!next) {
     if (current?.archivedAt) {
