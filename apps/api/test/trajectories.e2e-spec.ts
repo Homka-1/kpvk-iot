@@ -388,6 +388,15 @@ describe('Индивидуальные траектории (e2e)', () => {
     expect(page.items.map((item) => item.id)).not.toContain(draft.id);
   });
 
+  it('FR-002: преподаватель без закреплений не видит ни одной ИОТ', async () => {
+    const { draft } = await filledDraft('БезЗакреплений');
+    const idle = await login(app, (await createUser(app, { role: RoleCode.TEACHER })).login);
+    await as(idle, http().get(`/api/trajectories/${draft.id}`)).expect(404);
+    const page = (await as(idle, http().get('/api/trajectories')).expect(200))
+      .body as TrajectoryPageDto;
+    expect(page.total).toBe(0);
+  });
+
   it('AT-05, UC-03: утверждение — «Активна», версия со снимком, задания назначены, уведомление', async () => {
     const { student, draft } = await filledDraft('Утверждение');
     const approved = (await action(draft, 'approve').expect(200)).body as TrajectoryDto;

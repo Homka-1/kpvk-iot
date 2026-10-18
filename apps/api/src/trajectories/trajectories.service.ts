@@ -261,6 +261,8 @@ function issuesException(message: string, issues: TrajectoryIssue[]): BadRequest
 /** Отбор ИОТ в области пользователя (FR-002): дисциплина, которую он ведёт в группе студента. */
 export function trajectoryScopeWhere(scope: AccessScope): Prisma.TrajectoryWhereInput {
   if (scope.kind === 'all') return {};
+  // Пустой OR в Prisma не ограничивает выборку: без закреплений — ни одной ИОТ.
+  if (scope.pairs.length === 0) return { id: { in: [] } };
   return {
     OR: scope.pairs.map((pair) => ({
       disciplineId: pair.disciplineId,
