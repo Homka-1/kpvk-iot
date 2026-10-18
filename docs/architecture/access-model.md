@@ -190,6 +190,21 @@
 
 Студенту `/api/student-assignments/**` — 403. Комментарий проверки и пояснения по критериям видны студенту; внутренних заметок в проверке нет (FR-068, этап 15). Действия журнала аудита этапа 13: `assignment.submitted` (номер попытки, из каких частей ответ — без содержимого), `assignment.accepted` и `assignment.returned` (номер попытки, балл).
 
+Применение на этапе 14 (мониторинг и корректировка ИОТ, ADR-020):
+
+| Данные                                                        | Кто получает                                                     | Ограничения                                                                                                                       |
+| ------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/monitoring`                                         | `students.read` + `monitoring.read`                              | ИОТ «Активна», «Требует корректировки», «Завершена» студентов из области данных (пары группа×дисциплина); без закреплений — пусто |
+| `GET /api/monitoring/trajectories/:id`                        | `students.read` + `monitoring.read`                              | ИОТ из области данных, иначе 404                                                                                                  |
+| `PUT /api/monitoring/students/:id/support-status`             | `students.read` + `monitoring.read`                              | студент из области данных и не в архиве, иначе 404; основание обязательно                                                         |
+| `POST /api/trajectories/:id/corrections`                      | `students.read` + `trajectories.manage` + `trajectories.approve` | ИОТ из области данных; статус «Активна» или «Требует корректировки» (иначе 409); метка редакции; история выполнения не стирается  |
+| `POST /api/trajectories/:id/needs-correction`                 | `students.read` + `trajectories.manage`                          | только из «Активна»; причина обязательна                                                                                          |
+| `POST /api/trajectories/:id/complete`                         | `students.read` + `trajectories.manage`                          | только из «Активна»; нет ответов на проверке (иначе 409)                                                                          |
+| `POST /api/trajectories/:id/checkpoints/:checkpointId/status` | `students.read` + `trajectories.manage`                          | точка действующего этапа ИОТ в статусе «Активна» или «Требует корректировки»                                                      |
+| `GET /api/trajectories/:id/versions/:n`                       | `students.read` + `trajectories.manage`                          | ИОТ из области данных; нет версии — 404                                                                                           |
+
+Студенту и исследователю мониторинг недоступен (403). Студент видит итоговую оценку завершённой ИОТ и получает уведомление о новой версии маршрута без текста причины. Действия журнала аудита этапа 14: `trajectory.needs_correction` и `trajectory.corrected` (с причиной), `trajectory.completed`, `trajectory.checkpoint_marked`, `trajectory.checkpoint_missed` (фоновая задача, без автора), `student.support_status_changed` (с основанием).
+
 ## Сессия и вход
 
 | Механизм                          | Значение по умолчанию | Где задаётся                       |
