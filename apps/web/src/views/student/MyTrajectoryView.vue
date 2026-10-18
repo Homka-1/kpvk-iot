@@ -117,6 +117,10 @@ onMounted(load);
             <dt>Планируемые результаты</dt>
             <dd class="my-trajectory__text">{{ trajectory.plannedResults }}</dd>
           </div>
+          <div v-if="trajectory.finalAssessment" class="my-trajectory__wide">
+            <dt>Итог маршрута ({{ formatDate(trajectory.completedAt) }})</dt>
+            <dd class="my-trajectory__text">{{ trajectory.finalAssessment }}</dd>
+          </div>
         </dl>
       </section>
 

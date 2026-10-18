@@ -19,6 +19,7 @@ const IMPLEMENTED = new Set([
   'motivation-profiles',
   'trajectories',
   'assignments',
+  'monitoring',
   'library',
   'analytics',
 ]);

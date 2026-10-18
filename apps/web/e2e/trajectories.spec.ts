@@ -86,6 +86,8 @@ async function mockTrajectoryApi(page: Page) {
     currentStageId: null,
     approvedBy: null,
     approvedAt: null,
+    completedAt: null,
+    finalAssessment: null,
     archivedAt: null,
     createdAt: stamp(),
     updatedAt: stamp(),

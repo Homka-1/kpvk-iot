@@ -36,6 +36,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   'motivation-profiles': () => import('@/views/profiles/MotivationProfilesView.vue'),
   trajectories: () => import('@/views/trajectories/TrajectoriesView.vue'),
   assignments: () => import('@/views/assignments/AssignmentsView.vue'),
+  monitoring: () => import('@/views/monitoring/MonitoringView.vue'),
   library: () => import('@/views/library/LibraryView.vue'),
   analytics: () => import('@/views/analytics/AnalyticsView.vue'),
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
@@ -111,6 +112,13 @@ export const routes: RouteRecordRaw[] = [
         name: 'assignment-review',
         component: () => import('@/views/assignments/AssignmentReviewView.vue'),
         meta: { title: 'Проверка задания', permission: Permission.ASSIGNMENTS_MANAGE },
+      },
+      // Мониторинг одной ИОТ — вложенная страница раздела «Мониторинг».
+      {
+        path: 'monitoring/:id',
+        name: 'monitoring-details',
+        component: () => import('@/views/monitoring/MonitoringDetailView.vue'),
+        meta: { title: 'Мониторинг ИОТ', permission: Permission.MONITORING_READ },
       },
       // Конструктор методики — вложенная страница раздела «Диагностика».
       {

@@ -1,4 +1,7 @@
 import {
+  ASSIGNMENT_CANCELLABLE_STATUSES,
+  ASSIGNMENT_INACTIVE_STATUSES,
+  type AssignmentStatus,
   CHECKPOINT_STATUS_LABELS,
   type CheckpointStatus,
   STAGE_STATUS_LABELS,
@@ -19,6 +22,8 @@ export interface CheckpointForm {
   title: string;
   description: string;
   dueDate: string;
+  /** Отметка сохранённой точки; у новой — null. */
+  status: CheckpointStatus | null;
 }
 
 export interface StageAssignmentForm {
@@ -26,6 +31,8 @@ export interface StageAssignmentForm {
   id: string | null;
   assignment: StageAssignmentDto['assignment'];
   dueDate: string;
+  /** Статус сохранённого назначения; у нового — null. */
+  status: AssignmentStatus | null;
 }
 
 export interface StageForm {
@@ -111,6 +118,7 @@ export function toForm(dto: TrajectoryDto): TrajectoryForm {
         title: checkpoint.title,
         description: checkpoint.description ?? '',
         dueDate: checkpoint.dueDate ?? '',
+        status: checkpoint.status,
       })),
       materials: [...stage.materials],
       assignments: stage.assignments.map((item) => ({
@@ -118,6 +126,7 @@ export function toForm(dto: TrajectoryDto): TrajectoryForm {
         id: item.id,
         assignment: item.assignment,
         dueDate: dateFromDueAt(item.dueAt),
+        status: item.status,
       })),
     })),
   };
@@ -174,17 +183,35 @@ export function formStages(form: TrajectoryForm, saved: TrajectoryDto): Trajecto
       title: checkpoint.title,
       description: orNull(checkpoint.description),
       dueDate: orNull(checkpoint.dueDate),
-      status: 'PENDING',
+      status: checkpoint.status ?? 'PENDING',
     })),
     materials: stage.materials,
     assignments: stage.assignments.map((item) => ({
       id: item.key,
       assignment: item.assignment,
       dueAt: dueAtFromDate(item.dueDate),
-      status: 'ASSIGNED',
+      status: item.status ?? 'ASSIGNED',
     })),
   }));
 }
+
+/**
+ * При корректировке убрать можно только задание, к которому студент ещё не приступал
+ * (FR-043: история выполнения сохраняется); новое, ещё не сохранённое — всегда.
+ */
+export function assignmentRemovable(item: StageAssignmentForm): boolean {
+  return (
+    item.status === null ||
+    ASSIGNMENT_CANCELLABLE_STATUSES.includes(item.status) ||
+    ASSIGNMENT_INACTIVE_STATUSES.includes(item.status)
+  );
+}
+
+/** Отмеченная контрольная точка при корректировке не удаляется. */
+export const checkpointRemovable = (item: CheckpointForm) =>
+  item.status === null || item.status === 'PENDING';
+
+export const stageRemovable = (stage: StageForm) => stage.assignments.every(assignmentRemovable);
 
 const STAGE_TONES: Record<StageStatus, StatusTone> = {
   NOT_STARTED: 'neutral',

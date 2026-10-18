@@ -46,6 +46,8 @@ const draft: TrajectoryDto = {
   currentStageId: null,
   approvedBy: null,
   approvedAt: null,
+  completedAt: null,
+  finalAssessment: null,
   archivedAt: null,
   createdAt: '2026-10-18T10:00:00.000Z',
   updatedAt: '2026-10-18T10:00:00.000Z',

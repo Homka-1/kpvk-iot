@@ -64,6 +64,8 @@ const trajectory: CabinetTrajectoryDto = {
   plannedEndDate: '2027-01-31',
   currentStageId: 's0',
   approvedAt: '2026-09-01T10:00:00.000Z',
+  completedAt: null,
+  finalAssessment: null,
   stages: STANDARD_TRAJECTORY_STAGES.map((_, index) =>
     stage(
       index,

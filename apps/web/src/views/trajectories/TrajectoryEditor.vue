@@ -8,7 +8,9 @@ import {
   STAGE_MATERIALS_MAX,
   type StageAssignmentDto,
   type StageMaterialDto,
+  TRAJECTORY_REASON_MAX,
   TRAJECTORY_STAGES_MAX,
+  trajectoryDiff,
   type TrajectoryDto,
   trajectoryIssues,
 } from '@iot/shared';
@@ -24,14 +26,18 @@ import ActionDialog from '@/components/ActionDialog.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
+  assignmentRemovable,
+  checkpointRemovable,
   formStages,
   newKey,
+  stageRemovable,
   STEPS,
   type StageForm,
   toContent,
   toForm,
   type TrajectoryForm,
 } from './content';
+import VersionChanges from './VersionChanges.vue';
 import LibraryPickerDialog from './LibraryPickerDialog.vue';
 import StageMap from './StageMap.vue';
 import StepsHeader from './StepsHeader.vue';
@@ -42,9 +48,17 @@ import TrajectoryPassport from './TrajectoryPassport.vue';
  * библиотеки, сроки и контрольные точки, формы поддержки, предварительный просмотр и
  * «Утвердить и назначить». Черновик сохраняется при переходе между шагами; проверки — то же
  * правило, что на сервере (`trajectoryIssues`); права и полноту окончательно проверяет сервер.
+ *
+ * Режим `correction` — корректировка утверждённого маршрута (UC-05, FR-043): изменения не
+ * сохраняются по шагам, а применяются одной новой версией с причиной на последнем шаге; начатые
+ * и выполненные задания и отмеченные контрольные точки убрать нельзя.
  */
-const props = defineProps<{ trajectory: TrajectoryDto }>();
-const emit = defineEmits<{ updated: [trajectory: TrajectoryDto] }>();
+const props = withDefaults(
+  defineProps<{ trajectory: TrajectoryDto; mode?: 'draft' | 'correction' }>(),
+  { mode: 'draft' },
+);
+const emit = defineEmits<{ updated: [trajectory: TrajectoryDto]; cancel: [] }>();
+const correction = computed(() => props.mode === 'correction');
 const auth = useAuthStore();
 const router = useRouter();
 const canApprove = computed(() => auth.hasPermission(Permission.TRAJECTORIES_APPROVE));
@@ -84,6 +98,9 @@ const preview = computed<TrajectoryDto>(() => {
   };
 });
 const approvalIssues = computed(() => trajectoryIssues(toContent(form.value), 'approve'));
+const changes = computed(() =>
+  correction.value ? trajectoryDiff(saved.value, preview.value) : [],
+);
 
 /** Шаг, на котором исправляется поле с путём `path`. */
 function stepOf(path: string): number {
@@ -104,6 +121,11 @@ async function save(): Promise<boolean> {
     errors.value = Object.fromEntries(issues.map((issue) => [issue.path, issue.message]));
     message.value = 'Проверьте отмеченные поля';
     return false;
+  }
+  // Корректировка применяется целиком на последнем шаге — новой версией с причиной.
+  if (correction.value) {
+    errors.value = {};
+    return true;
   }
   if (!dirty.value) return true;
   busy.value = true;
@@ -153,6 +175,8 @@ function addStage(): void {
   });
 }
 
+const lockedHint = 'Студент уже работал над этим — убрать нельзя';
+
 function moveStage(index: number, delta: number): void {
   const stages = form.value.stages;
   const [stage] = stages.splice(index, 1);
@@ -193,6 +217,7 @@ function pickAssignments(items: StageAssignmentDto['assignment'][]): void {
       id: null,
       assignment,
       dueDate: picker.value!.stage.endDate,
+      status: null,
     })),
   );
 }
@@ -204,6 +229,7 @@ function addCheckpoint(stage: StageForm): void {
     title: `Контрольная точка этапа «${stage.title}»`,
     description: '',
     dueDate: stage.endDate,
+    status: null,
   });
 }
 
@@ -251,6 +277,55 @@ async function act(
 
 function archive(reason: string): Promise<void> {
   return act('archive', { reason });
+}
+
+// ── Корректировка (UC-05) ──
+
+const reason = ref('');
+const confirmCorrection = ref(false);
+
+function askCorrection(): void {
+  actionError.value = null;
+  if (!reason.value.trim()) {
+    errors.value = { ...errors.value, reason: 'Укажите причину корректировки' };
+    return;
+  }
+  confirmCorrection.value = true;
+}
+
+async function correct(): Promise<void> {
+  busy.value = true;
+  actionError.value = null;
+  try {
+    const next = await api<TrajectoryDto>(`/trajectories/${saved.value.id}/corrections`, {
+      method: 'POST',
+      body: {
+        updatedAt: saved.value.updatedAt,
+        reason: reason.value.trim(),
+        ...toContent(form.value),
+      },
+    });
+    confirmCorrection.value = false;
+    savedJson.value = JSON.stringify(toContent(toForm(next)));
+    form.value = toForm(next);
+    emit('updated', next);
+  } catch (caught) {
+    confirmCorrection.value = false;
+    if (caught instanceof ApiError) {
+      errors.value = caught.fields;
+      actionError.value = caught.message;
+    } else {
+      actionError.value = 'Не удалось сохранить корректировку. Повторите попытку';
+    }
+  } finally {
+    busy.value = false;
+  }
+}
+
+function cancelCorrection(): void {
+  if (dirty.value && !window.confirm('Отменить корректировку? Изменения не сохранятся.')) return;
+  savedJson.value = JSON.stringify(toContent(form.value));
+  emit('cancel');
 }
 </script>
 
@@ -345,6 +420,8 @@ function archive(reason: string): Promise<void> {
               icon="pi pi-trash"
               severity="danger"
               text
+              :disabled="correction && !stageRemovable(stage)"
+              :title="correction && !stageRemovable(stage) ? lockedHint : undefined"
               :aria-label="`Удалить этап ${index + 1}`"
               @click="removeStage(index)"
             />
@@ -459,12 +536,17 @@ function archive(reason: string): Promise<void> {
               icon="pi pi-times"
               severity="secondary"
               text
+              :disabled="correction && !assignmentRemovable(item)"
+              :title="correction && !assignmentRemovable(item) ? lockedHint : undefined"
               :aria-label="`Убрать задание «${item.assignment.title}»`"
               @click="stage.assignments.splice(position, 1)"
             />
           </li>
         </ul>
         <p v-else class="editor__muted">Задания не назначены</p>
+        <small v-if="error(`stages.${index}.assignments`)" class="iot-field-error">
+          {{ error(`stages.${index}.assignments`) }}
+        </small>
         <Button
           label="Добавить задания"
           icon="pi pi-file-edit"
@@ -557,10 +639,17 @@ function archive(reason: string): Promise<void> {
             icon="pi pi-trash"
             severity="danger"
             text
+            :disabled="correction && !checkpointRemovable(checkpoint)"
+            :title="
+              correction && !checkpointRemovable(checkpoint) ? 'Точка уже отмечена' : undefined
+            "
             :aria-label="`Удалить контрольную точку «${checkpoint.title}»`"
             @click="stage.checkpoints.splice(item, 1)"
           />
         </div>
+        <small v-if="error(`stages.${index}.checkpoints`)" class="iot-field-error">
+          {{ error(`stages.${index}.checkpoints`) }}
+        </small>
         <div>
           <Button
             label="Добавить контрольную точку"
@@ -628,11 +717,52 @@ function archive(reason: string): Promise<void> {
           </li>
         </ul>
       </Message>
-      <Message v-else severity="success" :closable="false">
+      <Message v-else-if="!correction" severity="success" :closable="false">
         Маршрут заполнен. После утверждения он станет активным и появится в кабинете студента.
       </Message>
-      <Message v-if="actionError" severity="error" role="alert">{{ actionError }}</Message>
-      <div class="editor__actions">
+      <template v-if="correction">
+        <section class="iot-card iot-form" aria-labelledby="correction-title">
+          <h3 id="correction-title">Изменения новой версии {{ saved.version + 1 }}</h3>
+          <VersionChanges :changes="changes" />
+          <div class="iot-field">
+            <label for="t-reason">Причина корректировки</label>
+            <Textarea
+              id="t-reason"
+              v-model="reason"
+              rows="3"
+              :maxlength="TRAJECTORY_REASON_MAX"
+              :invalid="!!error('reason')"
+              fluid
+            />
+            <small v-if="error('reason')" class="iot-field-error">{{ error('reason') }}</small>
+            <small v-else class="editor__muted">
+              Сохраняется в истории версий. Студент получит уведомление о новой версии.
+            </small>
+          </div>
+          <small v-if="error('stages')" class="iot-field-error">{{ error('stages') }}</small>
+        </section>
+        <Message v-if="actionError" severity="error" role="alert">{{ actionError }}</Message>
+        <div class="editor__actions">
+          <Button
+            label="Подтвердить новую версию"
+            icon="pi pi-check"
+            :disabled="approvalIssues.length > 0 || changes.length === 0"
+            :loading="busy"
+            @click="askCorrection"
+          />
+          <Button
+            label="Отменить корректировку"
+            icon="pi pi-times"
+            severity="secondary"
+            text
+            @click="cancelCorrection"
+          />
+        </div>
+      </template>
+      <Message v-if="actionError && !correction" severity="error" role="alert">
+        {{ actionError }}
+      </Message>
+      <div v-if="!correction" class="editor__actions">
         <Button
           v-if="canApprove"
           label="Утвердить и назначить"
@@ -657,7 +787,7 @@ function archive(reason: string): Promise<void> {
           @click="confirmArchive = true"
         />
       </div>
-      <p v-if="!canApprove" class="editor__muted">
+      <p v-if="!canApprove && !correction" class="editor__muted">
         Утверждает преподаватель с правом «Утверждение ИОТ»: отправьте маршрут на согласование.
       </p>
     </section>
@@ -672,6 +802,7 @@ function archive(reason: string): Promise<void> {
         @click="go(step - 1)"
       />
       <Button
+        v-if="!correction"
         label="Сохранить черновик"
         icon="pi pi-save"
         severity="secondary"
@@ -689,7 +820,12 @@ function archive(reason: string): Promise<void> {
       />
     </div>
     <p class="editor__muted" role="status">
-      {{ dirty ? 'Есть несохранённые изменения' : 'Все изменения сохранены' }}
+      <template v-if="correction">
+        Изменения применятся после подтверждения новой версии на шаге «Предпросмотр».
+      </template>
+      <template v-else>
+        {{ dirty ? 'Есть несохранённые изменения' : 'Все изменения сохранены' }}
+      </template>
     </p>
 
     <LibraryPickerDialog
@@ -709,6 +845,15 @@ function archive(reason: string): Promise<void> {
       :busy="busy"
       :error="actionError"
       @confirm="act('approve')"
+    />
+    <ActionDialog
+      v-model:visible="confirmCorrection"
+      title="Подтвердить новую версию ИОТ"
+      :message="`Будет утверждена версия ${saved.version + 1}. Прежняя версия сохранится в истории, студент получит уведомление.`"
+      confirm-label="Подтвердить"
+      :busy="busy"
+      :error="actionError"
+      @confirm="correct"
     />
     <ActionDialog
       v-model:visible="confirmArchive"
