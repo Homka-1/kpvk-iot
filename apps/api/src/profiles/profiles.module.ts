@@ -14,5 +14,6 @@ import { MotivationProfilesService } from './motivation-profiles.service.js';
     MotivationStrategiesController,
   ],
   providers: [MotivationProfilesService, IdempotencyService],
+  exports: [MotivationProfilesService],
 })
 export class ProfilesModule {}

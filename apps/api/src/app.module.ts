@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { ProfilesModule } from './profiles/profiles.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { StudentsModule } from './students/students.module.js';
+import { TrajectoriesModule } from './trajectories/trajectories.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module.js';
     DiagnosticsModule,
     ProfilesModule,
     LibraryModule,
+    TrajectoriesModule,
     HealthModule,
   ],
 })

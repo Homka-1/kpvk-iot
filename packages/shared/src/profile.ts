@@ -92,6 +92,11 @@ export const STUDENT_HISTORY_LABELS: Record<string, string> = {
     'Профиль не сформирован: требуется дополнительная диагностика',
   'motivation_profile.confirmed': 'Мотивационный профиль подтверждён',
   'motivation_profile.corrected': 'Мотивационный профиль скорректирован',
+  'trajectory.created': 'Создан черновик ИОТ',
+  'trajectory.submitted': 'ИОТ отправлена на согласование',
+  'trajectory.returned': 'ИОТ возвращена на доработку',
+  'trajectory.approved': 'ИОТ утверждена и назначена',
+  'trajectory.archived': 'ИОТ перенесена в архив',
 };
 
 // ── Схемы форм (zod) ──

@@ -13,6 +13,7 @@ import { syncRbacCatalog } from '../src/auth/rbac-catalog.js';
 import { loadDefinitions } from '../src/diagnostics/questionnaire-definitions.js';
 import { passportData, replaceContent } from '../src/diagnostics/questionnaire-content.js';
 import { syncAssignmentTypes } from '../src/library/assignment-types-catalog.js';
+import { syncTrajectoryTemplates } from '../src/trajectories/trajectory-templates-catalog.js';
 
 loadEnv();
 
@@ -97,6 +98,7 @@ async function main(): Promise<void> {
     await seedDirectory(prisma);
     await seedQuestionnaires(prisma);
     await syncAssignmentTypes(prisma);
+    await syncTrajectoryTemplates(prisma);
     await seedLibrary(prisma);
   } finally {
     await prisma.$disconnect();

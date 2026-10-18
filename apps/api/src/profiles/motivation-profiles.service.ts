@@ -116,10 +116,7 @@ export class MotivationProfilesService {
             where: { id: student.currentMotivationProfileId },
           })
         : null,
-      this.prisma.motivationProfile.findFirst({
-        where: { studentId, status: { in: DECIDED } },
-        orderBy: { decidedAt: 'desc' },
-      }),
+      this.lastDecided(studentId),
       this.prisma.motivationProfileHistory.findMany({
         where: { profile: { studentId } },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -322,6 +319,17 @@ export class MotivationProfilesService {
   }
 
   // ── Стратегии сопровождения (FR-030) ──
+
+  /** Действующий для проектирования ИОТ профиль: последний подтверждённый или скорректированный. */
+  lastDecided(
+    studentId: string,
+    db: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<MotivationProfile | null> {
+    return db.motivationProfile.findFirst({
+      where: { studentId, status: { in: DECIDED } },
+      orderBy: { decidedAt: 'desc' },
+    });
+  }
 
   async getStrategies(): Promise<MotivationStrategiesDto> {
     const row = await this.prisma.systemSetting.findUnique({ where: { key: STRATEGIES_KEY } });

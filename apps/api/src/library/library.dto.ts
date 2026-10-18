@@ -4,8 +4,6 @@ import {
   ASSIGNMENT_CRITERIA_MAX,
   DifficultyLevel,
   MaterialKind,
-  SAFE_URL_HINT,
-  SAFE_URL_PATTERN,
   SubmissionFormat,
 } from '@iot/shared';
 import { Transform, Type } from 'class-transformer';
@@ -16,59 +14,26 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
-  IsString,
   IsUUID,
-  Matches,
   Max,
-  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { emptyToNull, trim } from '../common/dto.js';
+import {
+  emptyToNull,
+  OptionalText,
+  OptionalUrl,
+  OptionalUuid,
+  RequiredTitle,
+} from '../common/dto.js';
 import { PersonRefDto, RefDto } from '../disciplines/disciplines.dto.js';
 import { queryBoolean } from '../groups/groups.dto.js';
 
 const MATERIAL_KINDS = Object.values(MaterialKind);
 const DIFFICULTY_LEVELS = Object.values(DifficultyLevel);
 const SUBMISSION_FORMATS = Object.values(SubmissionFormat);
-
-function RequiredTitle(message: string, max = 300) {
-  return function (target: object, property: string) {
-    Transform(trim)(target, property);
-    IsString({ message })(target, property);
-    IsNotEmpty({ message })(target, property);
-    MaxLength(max, { message: `Не более ${max} символов` })(target, property);
-  };
-}
-
-/** Необязательная строка: пустое значение сохраняется как null. */
-function OptionalText(max: number) {
-  return function (target: object, property: string) {
-    IsOptional()(target, property);
-    Transform(emptyToNull)(target, property);
-    IsString({ message: 'Ожидается текст' })(target, property);
-    MaxLength(max, { message: `Не более ${max} символов` })(target, property);
-  };
-}
-
-/** Необязательная ссылка: только http и https (защита от javascript: и data:). */
-function OptionalUrl() {
-  return function (target: object, property: string) {
-    OptionalText(2000)(target, property);
-    Matches(SAFE_URL_PATTERN, { message: SAFE_URL_HINT })(target, property);
-  };
-}
-
-function OptionalUuid(message: string) {
-  return function (target: object, property: string) {
-    IsOptional()(target, property);
-    Transform(emptyToNull)(target, property);
-    IsUUID('7', { message })(target, property);
-  };
-}
 
 // ── Файлы ──
 
