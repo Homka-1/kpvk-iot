@@ -122,6 +122,20 @@
 
 Выгрузка не содержит ФИО, логинов, e-mail и исходных ответов, поэтому доступна исследователю без `research.personal_data.read` (п. 2.4). Действия журнала аудита этапа 08: `questionnaire_comparability.approved`, `questionnaire_comparability.revoked` (с причиной), `diagnostic_results.exported` (формат, фильтр замера, число строк; без данных студентов).
 
+Применение на этапе 09 (мотивационные профили, ADR-015):
+
+| Данные                                           | Кто получает                            | Ограничения                                                                                                                               |
+| ------------------------------------------------ | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/students/:id/motivation-profile`       | `students.read`                         | студент из области данных, иначе 404; исследователю и администратору — 403                                                                |
+| `POST /api/students/:id/motivation-profiles`     | `students.read` + `profiles.manage`     | студент из области данных и не в архиве; заголовок `Idempotency-Key`                                                                      |
+| `POST /api/motivation-profiles/:id/decision`     | `students.read` + `profiles.manage`     | только текущее предложение со статусом «Предложен системой»; корректировка — с причиной; профиль без уровня и решённый профиль — 409      |
+| `GET /api/motivation-profiles/distribution`      | `students.read` + `profiles.manage`     | только действующие студенты области данных                                                                                                |
+| `GET /api/motivation-strategies`                 | `profiles.manage` или `settings.manage` | тексты стратегий, персональных данных нет                                                                                                 |
+| `PUT /api/motivation-strategies`                 | `settings.manage`                       | изменение пишется в журнал (`settings.updated`)                                                                                           |
+| `GET /api/cabinet/profile` → `motivationProfile` | `cabinet.access`                        | только собственный последний утверждённый профиль и только пояснение для студента: без уровня, оснований и причины корректировки (FR-016) |
+
+Действия журнала аудита этапа 09: `motivation_profile.proposed`, `motivation_profile.needs_more_diagnostics`, `motivation_profile.confirmed`, `motivation_profile.corrected` (с причиной).
+
 ## Сессия и вход
 
 | Механизм                          | Значение по умолчанию | Где задаётся                       |

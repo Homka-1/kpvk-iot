@@ -146,7 +146,9 @@ test.describe('UC-02: формирование мотивационного пр
     await page.goto(`/students/${STUDENT_ID}?tab=motivation`);
     const panel = page.getByRole('tabpanel');
     await expect(panel.getByText('Система предлагает')).toBeVisible();
-    await expect(panel.getByRole('cell', { name: 'Познавательный интерес' })).toBeVisible();
+    await expect(
+      panel.getByRole('cell', { name: 'Познавательный интерес', exact: true }),
+    ).toBeVisible();
     await expect(panel.getByText('Создание ситуации успеха')).toBeVisible();
     await expect(panel.getByRole('link', { name: 'Сформировать ИОТ' })).toHaveCount(0);
     await expectNoHorizontalScroll(page);

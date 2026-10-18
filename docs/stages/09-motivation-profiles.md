@@ -1,6 +1,6 @@
 # Этап 09 — Мотивационные профили
 
-статус: in_progress дата: 2026-10-18 коммиты: см. git log ветки worktree-stage-09-motivation-profiles (.claude/worktrees/stage-09-motivation-profiles)
+статус: done дата: 2026-10-18 коммиты: см. git log ветки worktree-stage-09-motivation-profiles (.claude/worktrees/stage-09-motivation-profiles)
 
 ## сделано
 
@@ -12,12 +12,15 @@
 - web: `views/profiles/` StudentMotivationTab (вкладка профиля), ProfileDecisionDialog, StrategyCard, MotivationProfilesView (раздел), StrategiesSettings (в «Настройках»); StudentProfileView `?tab=`; StudentsView `?profile=`; labels `profileBadge` (PROPOSED → «Ждёт решения: …»), `PROFILE_FILTER_LABELS`; MyProfileView блок «Рекомендации по учёбе»; SettingsView группы по `group`.
 - api e2e `test/motivation-profiles.e2e-spec.ts` 8/8 ✅. web vitest `views/profiles/profiles.spec.ts` 5/5 ✅. lint + typecheck ✅.
 
-## осталось (следующая сессия, этот же этап)
+## требования
 
-- ❌ Playwright `apps/web/e2e/motivation-profiles.spec.ts` падает (оба теста × 2 вьюпорта): вкладка не показывает «Система предлагает» / раздел без заголовков карточек. гипотеза: не замокан `GET /api/motivation-strategies` до загрузки? (мок есть в mockSession) или пользователь без прав/ErrorState — смотреть `test-results/*/error-context.md`. navigation.spec прошёл (motivation-profiles добавлен в IMPLEMENTED; mockSession мокает strategies + distribution).
-- прогнать полный `pnpm test` (api e2e все, web) и `pnpm test:e2e`.
-- docs: ADR-015 (правило большинства, minScales, указатель текущего профиля, стратегии в system_settings, студенту только пояснение), data-model §2.4/3.3 (указатель, лишний переход нет), access-model (эндпоинты этапа 09), wireframes §2 вкладка + раздел, navigation (раздел 09), open-questions 3 и 11 «до ответа: …», traceability FR-027–033, UC-02, AT-03, AT-04.
-- финальный коммит + STATUS done.
+- FR-027 ✅ FR-028 ✅ FR-029 ✅ FR-030 ✅ FR-032 ✅ FR-033 ✅ (ограничений нет, пояснение в UI)
+- FR-031 ⚠️ кнопка есть, ведёт в /trajectories?studentId= (конструктор — этап 11)
+- UC-02 ✅ AT-03 ✅ AT-04 ✅
+- FR-008 ⚠️ + фильтр по текущему профилю, значение PROPOSED
+- FR-016 ⚠️ + студенту только пояснение утверждённого профиля
+- NFR-006 ⚠️ + формирование профиля (Idempotency-Key, без новых данных — без записи)
+- AT-12 ⚠️ + профиль по scope, студент/исследователь/админ — 403, чужой преподаватель — 404
 
 ## решения (почему)
 
@@ -32,3 +35,26 @@
 
 - `export PATH=$HOME/.npm-global/bin:$PATH; pnpm db:up && pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e`
 - в worktree .env/.env.test скопированы из корня.
+
+## файлы ключевые
+
+- packages/shared/src/motivation-profiles.ts — правило, DTO, стратегии по умолч.
+- apps/api/src/profiles/motivation-profiles.{service,controller,dto}.ts, profiles.module.ts
+- apps/api/prisma/migrations/20261018120000_current_motivation_profile
+- apps/web/src/views/profiles/*.vue
+
+## тесты
+
+- shared 38 (+7), api unit 44, api e2e 89 (+8 motivation-profiles), web vitest 72 (+5 profiles.spec), playwright 93 passed / 1 skipped (by design; +4: motivation-profiles 2 × 2 вьюпорта).
+- правлены старые: моки OwnProfileDto + motivationProfile, StudentSummaryDto + proposedLevel; navigation.spec IMPLEMENTED + motivation-profiles; mockSession мокает motivation-strategies и distribution.
+- грабли: Playwright reuseExistingServer подхватил чужой vite (осиротевший dev-сервер worktree этапа 08 на :5173) — тесты шли по старому коду. процесс остановлен. перед test:e2e проверять `ss -ltnp | grep 5173`.
+
+## долги / TODO(этап NN)
+
+- TODO(этап 11): FR-031 — ссылка на конструктор ИОТ; паспорт ИОТ брать из `lastDecided` (последний утверждённый профиль).
+- TODO(этап 16): распределение профилей — диаграмма на главной (API `GET /motivation-profiles/distribution` готов).
+- TODO(решение заказчика): open-questions 3 (правило/минимум), 11 (тексты стратегий).
+
+## для след. этапа
+
+- этап 10 (библиотека): профиль сложность заданий не ограничивает — не связывать уровни заданий с профилем (FR-033).
