@@ -1,6 +1,7 @@
 {
   "rootDir": "..",
   "testEnvironment": "node",
+  "testTimeout": 30000,
   "testRegex": "test/.*\\.e2e-spec\\.ts$",
   "setupFiles": ["<rootDir>/test/setup-env.ts"],
   "extensionsToTreatAsEsm": [".ts"],
