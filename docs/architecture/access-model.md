@@ -158,7 +158,22 @@
 | `PUT /api/trajectories/:id`, `POST …/submit`, `POST …/archive` | `students.read` + `trajectories.manage`  | изменение только черновика; метка редакции `updatedAt` (устаревшая — 409); материалы и задания — из библиотеки дисциплины маршрута; архив — с причиной      |
 | `POST /api/trajectories/:id/approve`, `POST …/return`          | `students.read` + `trajectories.approve` | утверждение черновика или маршрута «На утверждении» при полном заполнении (иначе 400 с полями); контрольная группа исследования — 403; возврат — с причиной |
 
-Студент, исследователь и администратор этих разрешений не имеют (403); кабинет студента получит активную ИОТ на этапе 12. Действия журнала аудита этапа 11: `trajectory.created`, `trajectory.updated`, `trajectory.submitted`, `trajectory.returned` (с причиной), `trajectory.approved` (номер версии), `trajectory.archived` (с причиной).
+Студент, исследователь и администратор этих разрешений не имеют (403); кабинет студента — ниже (этап 12). Действия журнала аудита этапа 11: `trajectory.created`, `trajectory.updated`, `trajectory.submitted`, `trajectory.returned` (с причиной), `trajectory.approved` (номер версии), `trajectory.archived` (с причиной).
+
+Применение на этапе 12 (кабинет студента и назначение заданий, ADR-018):
+
+| Данные                                              | Кто получает                           | Ограничения                                                                                                                                                        |
+| --------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/student-assignments?studentId=`           | `students.read` + `assignments.manage` | студент из области данных (иначе 404); задания дисциплин, которые пользователь ведёт в группе студента; только действующие назначения вне ИОТ и в утверждённых ИОТ |
+| `POST /api/student-assignments`                     | `students.read` + `assignments.manage` | задания библиотеки одной дисциплины из своих; студенты или группа, где пользователь ведёт эту дисциплину; заголовок `Idempotency-Key`                              |
+| `POST /api/student-assignments/:id/cancel`          | `students.read` + `assignments.manage` | только не начатое задание вне ИОТ, с причиной; чужое — 404                                                                                                         |
+| `GET /api/cabinet/trajectories`                     | `cabinet.access`                       | только свои ИОТ в статусах «Активна», «Требует корректировки», «Завершена»; без истории версий и служебных полей                                                   |
+| `POST /api/cabinet/trajectories/:id/proposals`      | `cabinet.access`                       | только своя действующая ИОТ (чужая — 404, завершённая — 409); маршрут не меняется; заголовок `Idempotency-Key`                                                     |
+| `GET /api/cabinet/assignments`, `…/assignments/:id` | `cabinet.access`                       | только свои действующие задания вне ИОТ и в утверждённой ИОТ; задания черновика, отменённые, невыбранные и чужие — 404                                             |
+| `POST /api/cabinet/assignment-choices/:id/choose`   | `cabinet.access`                       | только свой набор, ровно нужное число вариантов, один раз (повтор — 409)                                                                                           |
+| `GET /api/cabinet/files/:id`                        | `cabinet.access`                       | материал этапа своей утверждённой ИОТ или вложение своего действующего задания; иначе 404; отдаётся вложением                                                      |
+
+Преподаватель, администратор и исследователь не имеют `cabinet.access` (403 на `/api/cabinet/**`); студент не имеет `assignments.manage` (403 на `/api/student-assignments`). Действия журнала аудита этапа 12: `assignment.assigned` (задания, студенты, срок, набор), `assignment.cancelled` (с причиной), `assignment.chosen`, `trajectory.change_proposed`.
 
 ## Сессия и вход
 
