@@ -11,10 +11,10 @@ import {
 } from '@iot/shared';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
-import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import Textarea from 'primevue/textarea';
 import { computed, reactive, ref, watch } from 'vue';
+import DateInput from '@/components/DateInput.vue';
 import { api, ApiError, newIdempotencyKey } from '@/api/http';
 import QuestionField from '@/components/QuestionField.vue';
 
@@ -128,10 +128,9 @@ async function submit(): Promise<void> {
         <h2 class="answers-form__title">{{ form.title }}</h2>
         <div v-if="mode === 'paper'" class="iot-field">
           <label for="paper-date">Дата заполнения бланка</label>
-          <InputText
-            id="paper-date"
+          <DateInput
             v-model="completedOn"
-            type="date"
+            input-id="paper-date"
             :max="todayIsoDate()"
             :invalid="!!fieldErrors.completedAt"
             fluid

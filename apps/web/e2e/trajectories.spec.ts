@@ -203,6 +203,9 @@ const MONTHS: [string, string][] = [
   ['2027-01-10', '2027-01-31'],
 ];
 
+/** Дата так, как её вводит пользователь: «дд/мм/гггг». */
+const typed = (iso: string) => iso.split('-').reverse().join('/');
+
 test.describe('UC-03: создание и утверждение ИОТ', () => {
   test('AT-05, FR-034–FR-039, NFR-004: шаблон по профилю → цели → этапы → задания → сроки → предпросмотр → утверждение', async ({
     page,
@@ -222,9 +225,18 @@ test.describe('UC-03: создание и утверждение ИОТ', () => 
 
     // ② Цели и сроки.
     await page.getByLabel('Образовательные цели').fill('Освоить линейные уравнения');
-    await page.getByLabel('Дата начала').fill('2026-09-01');
-    await page.getByLabel('Планируемая дата завершения').fill('2027-01-31');
+    await page.getByLabel('Дата начала').fill('01/09/2026');
+    await page.getByLabel('Планируемая дата завершения').fill('31/01/2027');
+    await expect(page.getByLabel('Дата начала')).toHaveValue('01/09/2026');
+    const saved = page.waitForRequest(
+      (request) => request.method() === 'PUT' && request.url().endsWith(TRAJECTORY_ID),
+    );
     await next();
+    // Пользователь вводит «дд/мм/гггг», в API уходит дата ISO.
+    expect((await saved).postDataJSON()).toMatchObject({
+      startDate: '2026-09-01',
+      plannedEndDate: '2027-01-31',
+    });
 
     // ③ Пять этапов из шаблона (п. 4.6).
     await expect(page.getByLabel('Название этапа 5')).toHaveValue('Профессиональное развитие');
@@ -241,11 +253,11 @@ test.describe('UC-03: создание и утверждение ИОТ', () => 
 
     // ⑤ Сроки этапов, контрольная точка, срок задания.
     for (const [index, [start, end]] of MONTHS.entries()) {
-      await page.locator(`#s-stage-${index}-start`).fill(start);
-      await page.locator(`#s-stage-${index}-end`).fill(end);
+      await page.locator(`#s-stage-${index}-start`).fill(typed(start));
+      await page.locator(`#s-stage-${index}-end`).fill(typed(end));
     }
     await page.getByRole('button', { name: 'Добавить контрольную точку' }).first().click();
-    await page.getByLabel('Линейные уравнения').fill('2026-09-20');
+    await page.getByLabel('Линейные уравнения').fill('20/09/2026');
     await next();
 
     // ⑥ Сопровождение заполнено по стратегии профиля.

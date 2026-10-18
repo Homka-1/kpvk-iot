@@ -18,6 +18,7 @@ import Message from 'primevue/message';
 import Textarea from 'primevue/textarea';
 import { computed, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
+import DateInput from '@/components/DateInput.vue';
 import { api, ApiError } from '@/api/http';
 import ActionDialog from '@/components/ActionDialog.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
@@ -273,10 +274,9 @@ function archive(reason: string): Promise<void> {
       <div class="editor__pair">
         <div class="iot-field">
           <label for="t-start">Дата начала</label>
-          <InputText
-            id="t-start"
+          <DateInput
             v-model="form.startDate"
-            type="date"
+            input-id="t-start"
             :invalid="!!error('startDate')"
             fluid
           />
@@ -284,10 +284,9 @@ function archive(reason: string): Promise<void> {
         </div>
         <div class="iot-field">
           <label for="t-end">Планируемая дата завершения</label>
-          <InputText
-            id="t-end"
+          <DateInput
             v-model="form.plannedEndDate"
-            type="date"
+            input-id="t-end"
             :invalid="!!error('plannedEndDate')"
             fluid
           />
@@ -494,10 +493,9 @@ function archive(reason: string): Promise<void> {
         <div class="editor__pair">
           <div class="iot-field">
             <label :for="`s-${stage.key}-start`">Начало этапа</label>
-            <InputText
-              :id="`s-${stage.key}-start`"
+            <DateInput
               v-model="stage.startDate"
-              type="date"
+              :input-id="`s-${stage.key}-start`"
               :invalid="!!error(`stages.${index}.startDate`)"
               fluid
             />
@@ -507,10 +505,9 @@ function archive(reason: string): Promise<void> {
           </div>
           <div class="iot-field">
             <label :for="`s-${stage.key}-end`">Окончание этапа</label>
-            <InputText
-              :id="`s-${stage.key}-end`"
+            <DateInput
               v-model="stage.endDate"
-              type="date"
+              :input-id="`s-${stage.key}-end`"
               :invalid="!!error(`stages.${index}.endDate`)"
               fluid
             />
@@ -543,10 +540,9 @@ function archive(reason: string): Promise<void> {
           </div>
           <div class="iot-field">
             <label :for="`c-${checkpoint.key}-date`">Дата</label>
-            <InputText
-              :id="`c-${checkpoint.key}-date`"
+            <DateInput
               v-model="checkpoint.dueDate"
-              type="date"
+              :input-id="`c-${checkpoint.key}-date`"
               :invalid="!!error(`stages.${index}.checkpoints.${item}.dueDate`)"
               fluid
             />
@@ -584,10 +580,9 @@ function archive(reason: string): Promise<void> {
             class="iot-field editor__due"
           >
             <label :for="`a-${item.key}-due`">{{ item.assignment.title }}</label>
-            <InputText
-              :id="`a-${item.key}-due`"
+            <DateInput
               v-model="item.dueDate"
-              type="date"
+              :input-id="`a-${item.key}-due`"
               :invalid="!!error(`stages.${index}.assignments.${position}.dueAt`)"
             />
             <small

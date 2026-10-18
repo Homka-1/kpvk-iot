@@ -14,12 +14,12 @@ import {
 import { toTypedSchema } from '@vee-validate/zod';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
-import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import RadioButton from 'primevue/radiobutton';
 import Select from 'primevue/select';
 import { useForm } from 'vee-validate';
 import { computed, ref, watch } from 'vue';
+import DateInput from '@/components/DateInput.vue';
 import { api, ApiError, newIdempotencyKey } from '@/api/http';
 import { useContextStore } from '@/stores/context';
 
@@ -291,11 +291,10 @@ const submit = form.handleSubmit(async (values) => {
       <div class="assign__period">
         <div class="iot-field">
           <label for="assign-starts">Начало</label>
-          <InputText
-            id="assign-starts"
+          <DateInput
             v-model="startsOn"
+            input-id="assign-starts"
             v-bind="startsOnAttrs"
-            type="date"
             :invalid="!!form.errors.value.startsOn"
             fluid
           />
@@ -305,11 +304,10 @@ const submit = form.handleSubmit(async (values) => {
         </div>
         <div class="iot-field">
           <label for="assign-ends">Окончание (включительно)</label>
-          <InputText
-            id="assign-ends"
+          <DateInput
             v-model="endsOn"
+            input-id="assign-ends"
             v-bind="endsOnAttrs"
-            type="date"
             :invalid="!!form.errors.value.endsOn"
             fluid
           />

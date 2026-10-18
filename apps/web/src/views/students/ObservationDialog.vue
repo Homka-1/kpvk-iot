@@ -9,13 +9,13 @@ import {
 import { toTypedSchema } from '@vee-validate/zod';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
-import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import RadioButton from 'primevue/radiobutton';
 import Select from 'primevue/select';
 import Textarea from 'primevue/textarea';
 import { useForm } from 'vee-validate';
 import { ref, watch } from 'vue';
+import DateInput from '@/components/DateInput.vue';
 import { api, ApiError, newIdempotencyKey } from '@/api/http';
 
 /**
@@ -106,11 +106,10 @@ const save = form.handleSubmit(async (values) => {
     <form class="iot-form" novalidate @submit="save">
       <div class="iot-field">
         <label for="observation-date">Дата наблюдения</label>
-        <InputText
-          id="observation-date"
+        <DateInput
           v-model="observedAt"
+          input-id="observation-date"
           v-bind="observedAtAttrs"
-          type="date"
           :max="todayIsoDate()"
           :invalid="!!form.errors.value.observedAt"
           fluid

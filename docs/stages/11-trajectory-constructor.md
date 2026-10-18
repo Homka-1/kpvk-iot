@@ -62,6 +62,12 @@
 - правлены старые: profiles.spec (href FR-031), e2e navigation IMPLEMENTED + trajectories, mockSession мокает /api/trajectories.
 - грабли: диалог, смонтированный сразу открытым (`v-if` + visible=true), не ловит `watch(visible)` — нужен `immediate: true`. bash с python heredoc/сложными конструкциями в worktree-сессии блокируется — скрипты писать файлом в $CLAUDE_JOB_DIR/tmp, запускать отдельной командой.
 
+## исправление после закрытия (по просьбе пользователя)
+
+- ввод дат был `<input type="date">` → формат по языку браузера (en-US = мм/дд/гггг). теперь общий `apps/web/src/components/DateInput.vue` (PrimeVue DatePicker, `dd/mm/yy`, плейсхолдер «дд/мм/гггг», календарь по кнопке, `showOnFocus=false`); значение — строка `YYYY-MM-DD`, формы и API не менялись. заменены все 10 полей: AssignDialog (2), AnswersFormDialog, ObservationDialog, TrajectoryEditor (6). локаль PrimeVue `dateFormat` → `dd/mm/yy` (поле срока разрешения в админке). показ дат (`formatDate`) остался «дд.мм.гггг».
+- тесты: `src/components/DateInput.spec.ts` (+2), Playwright UC-03 вводит «дд/мм/гггг» и проверяет ISO в запросе. web vitest 88, playwright 99 passed / 1 skipped.
+- новые поля дат — только через `DateInput`.
+
 ## долги / TODO(этап NN)
 
 - TODO(этап 12): кабинет студента — активная ИОТ (FR-040), карта `StageMap` для студента; задания студенту показывать только у ИОТ в статусах ACTIVE/NEEDS_CORRECTION/COMPLETED (черновые trajectory_assignments тоже ASSIGNED!). центральная карта во вкладке профиля. уведомление `trajectory.approved` ссылается на `/student/trajectory`.

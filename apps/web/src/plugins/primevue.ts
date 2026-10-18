@@ -55,7 +55,7 @@ const ruLocale = {
   today: 'Сегодня',
   weekHeader: 'Нед',
   firstDayOfWeek: 1,
-  dateFormat: 'dd.mm.yy',
+  dateFormat: 'dd/mm/yy',
   aria: {
     close: 'Закрыть',
     trueLabel: 'Да',
