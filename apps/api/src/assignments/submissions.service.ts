@@ -12,9 +12,7 @@ import {
   checkAssessment,
   type CurrentUser,
   formatFullName,
-  nextStageStatus,
   type ReviewQueueItemDto,
-  StageStatus,
   submissionIssues,
 } from '@iot/shared';
 import { AccessScopeService } from '../auth/access-scope.service.js';
@@ -28,14 +26,13 @@ import {
   teacherAssignmentWhere,
 } from '../library/library-scope.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { syncStageProgress } from '../trajectories/stage-progress.js';
 import { order, rowInclude, StudentAssignmentsService } from './student-assignments.service.js';
 import type {
   AssessAssignmentDto,
   ReviewQueueQueryDto,
   SubmitAssignmentDto,
 } from './submissions.dto.js';
-
-type Tx = Prisma.TransactionClient;
 
 const REVIEW_QUEUE_LIMIT = 200;
 
@@ -58,59 +55,6 @@ const SUBMIT_CONFLICTS: Partial<Record<AssignmentStatus, string>> = {
   SUBMITTED: 'Ответ уже отправлен и ждёт проверки',
   COMPLETED: 'Задание уже выполнено',
 };
-
-/**
- * Учёт выполнения этапа ИОТ (FR-042): статус этапа по его заданиям; завершённый текущий этап
- * уступает место следующему. Маршрут и его версия при этом не меняются — это ход выполнения,
- * а не корректировка (FR-043). Итоговое завершение ИОТ остаётся за преподавателем (FR-044).
- */
-async function syncStageProgress(tx: Tx, stageId: string | null): Promise<void> {
-  if (!stageId) return;
-  const stage = await tx.trajectoryStage.findUnique({
-    where: { id: stageId },
-    select: {
-      status: true,
-      sortOrder: true,
-      trajectoryId: true,
-      archivedAt: true,
-      assignments: { select: { status: true } },
-      trajectory: { select: { currentStageId: true } },
-    },
-  });
-  if (!stage || stage.archivedAt) return;
-  const next = nextStageStatus(
-    stage.status,
-    stage.assignments.map((item) => item.status),
-  );
-  if (next === stage.status) return;
-  const completed = next === StageStatus.COMPLETED;
-  await tx.trajectoryStage.update({
-    where: { id: stageId },
-    data: { status: next, completedAt: completed ? new Date() : null },
-  });
-  if (!completed || stage.trajectory.currentStageId !== stageId) return;
-  const following = await tx.trajectoryStage.findFirst({
-    where: {
-      trajectoryId: stage.trajectoryId,
-      archivedAt: null,
-      sortOrder: { gt: stage.sortOrder },
-      status: { not: StageStatus.COMPLETED },
-    },
-    orderBy: { sortOrder: 'asc' },
-    select: { id: true, status: true },
-  });
-  if (!following) return;
-  await tx.trajectory.update({
-    where: { id: stage.trajectoryId },
-    data: { currentStageId: following.id },
-  });
-  if (following.status === StageStatus.NOT_STARTED) {
-    await tx.trajectoryStage.update({
-      where: { id: following.id },
-      data: { status: StageStatus.IN_PROGRESS },
-    });
-  }
-}
 
 /**
  * Выполнение заданий (UC-04, AT-07): студент приступает к заданию и отправляет ответ текстом,

@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Post,
   Put,
@@ -23,25 +24,31 @@ import {
   type TrajectoryDto,
   type TrajectoryOptionsDto,
   type TrajectoryPageDto,
+  type TrajectoryVersionDto,
 } from '@iot/shared';
 import { type AuthUser, RequirePermissions, User } from '../auth/decorators.js';
 import { ApiIdempotencyHeader, IdempotencyKey } from '../common/idempotency.service.js';
 import {
   CabinetTrajectoryResponseDto,
+  CheckpointStatusDto,
+  CompleteTrajectoryDto,
   CreateTrajectoryDto,
   RouteProposalInputDto,
   RouteProposalResponseDto,
   TrajectoryReasonDto,
   RevisionTokenDto,
   TrajectoryContentDto,
+  TrajectoryCorrectionDto,
   TrajectoryListQueryDto,
   TrajectoryOptionsResponseDto,
   TrajectoryPageResponseDto,
   TrajectoryResponseDto,
+  TrajectoryVersionResponseDto,
 } from './trajectories.dto.js';
 import { TrajectoriesService } from './trajectories.service.js';
 
 const uuid = new ParseUUIDPipe({ version: '7', errorHttpStatusCode: 404 });
+const versionNumber = new ParseIntPipe({ errorHttpStatusCode: 404 });
 
 @ApiTags('Индивидуальные траектории')
 @ApiBearerAuth()
@@ -199,12 +206,93 @@ export class TrajectoriesController {
     return this.trajectories.approve(user, id, dto);
   }
 
+  @Post(':id/corrections')
+  @HttpCode(200)
+  @RequirePermissions(
+    Permission.STUDENTS_READ,
+    Permission.TRAJECTORIES_MANAGE,
+    Permission.TRAJECTORIES_APPROVE,
+  )
+  @ApiOperation({
+    summary: 'Корректировка ИОТ новой версией с причиной (FR-043, UC-05, AT-09)',
+    description:
+      'Статусы «Активна» и «Требует корректировки». Тело — полное содержимое маршрута (как при сохранении черновика) и причина. Новая версия утверждается сразу, поэтому нужно и право «Утверждение ИОТ» (FR-039). Прежняя версия остаётся неизменным снимком; маршрут — «Активна»; студент получает уведомление. Убранный этап архивируется, убранное задание отменяется. Нельзя убрать начатые и выполненные задания, этап с ними и отмеченные контрольные точки, заменить задание в назначении (400 с полями). Устаревшая редакция — 409.',
+  })
+  @ApiOkResponse({ type: TrajectoryResponseDto })
+  correct(
+    @Param('id', uuid) id: string,
+    @Body() dto: TrajectoryCorrectionDto,
+    @User() user: AuthUser,
+  ): Promise<TrajectoryDto> {
+    return this.trajectories.correct(user, id, dto);
+  }
+
+  @Post(':id/needs-correction')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Отметка «Требует корректировки» по итогам мониторинга (UC-05)',
+    description: 'Только из статуса «Активна»; причина пишется в журнал аудита.',
+  })
+  @ApiOkResponse({ type: TrajectoryResponseDto })
+  markNeedsCorrection(
+    @Param('id', uuid) id: string,
+    @Body() dto: TrajectoryReasonDto,
+    @User() user: AuthUser,
+  ): Promise<TrajectoryDto> {
+    return this.trajectories.markNeedsCorrection(user, id, dto);
+  }
+
+  @Post(':id/complete')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Завершение маршрута с итоговой оценкой достижения целей (FR-044)',
+    description:
+      'Только из статуса «Активна». Если есть ответы на проверке — 409. Незавершённые задания маршрута отменяются; студент получает уведомление и видит итоговую оценку.',
+  })
+  @ApiOkResponse({ type: TrajectoryResponseDto })
+  complete(
+    @Param('id', uuid) id: string,
+    @Body() dto: CompleteTrajectoryDto,
+    @User() user: AuthUser,
+  ): Promise<TrajectoryDto> {
+    return this.trajectories.complete(user, id, dto);
+  }
+
+  @Get(':id/versions/:version')
+  @ApiOperation({
+    summary: 'Версия маршрута со снимком — история версий и сравнение (FR-043)',
+  })
+  @ApiOkResponse({ type: TrajectoryVersionResponseDto })
+  version(
+    @Param('id', uuid) id: string,
+    @Param('version', versionNumber) version: number,
+    @User() user: AuthUser,
+  ): Promise<TrajectoryVersionDto> {
+    return this.trajectories.version(user, id, version);
+  }
+
+  @Post(':id/checkpoints/:checkpointId/status')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Отметка контрольной точки действующего маршрута (п. 4.8, FR-058)',
+    description:
+      'Пройдена, пропущена или снова ожидается. Версия маршрута не меняется. Этап без заданий завершается, когда пройдены все его контрольные точки.',
+  })
+  @ApiOkResponse({ type: TrajectoryResponseDto })
+  markCheckpoint(
+    @Param('id', uuid) id: string,
+    @Param('checkpointId', uuid) checkpointId: string,
+    @Body() dto: CheckpointStatusDto,
+    @User() user: AuthUser,
+  ): Promise<TrajectoryDto> {
+    return this.trajectories.markCheckpoint(user, id, checkpointId, dto);
+  }
+
   @Post(':id/archive')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Перенос черновика ИОТ в архив с причиной',
-    description:
-      'Задания черновика отменяются. Действующую ИОТ архивируют после завершения (этап 14).',
+    summary: 'Перенос черновика или завершённой ИОТ в архив с причиной',
+    description: 'Незавершённые задания черновика отменяются. Действующую ИОТ сначала завершают.',
   })
   @ApiOkResponse({ type: TrajectoryResponseDto })
   archive(

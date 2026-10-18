@@ -135,4 +135,17 @@ describe('Сдача и проверка заданий', () => {
     expect(nextStageStatus(StageStatus.IN_PROGRESS, [])).toBe(StageStatus.IN_PROGRESS);
     expect(nextStageStatus(StageStatus.COMPLETED, [ASSIGNED])).toBe(StageStatus.COMPLETED);
   });
+
+  it('FR-042: этап без заданий завершается, когда пройдены все контрольные точки', () => {
+    expect(nextStageStatus(StageStatus.IN_PROGRESS, [], ['PASSED', 'PASSED'])).toBe(
+      StageStatus.COMPLETED,
+    );
+    expect(
+      nextStageStatus(StageStatus.IN_PROGRESS, [AssignmentStatus.CANCELLED], ['PASSED', 'PENDING']),
+    ).toBe(StageStatus.IN_PROGRESS);
+    // С заданиями этап завершают задания, а не точки.
+    expect(nextStageStatus(StageStatus.IN_PROGRESS, [AssignmentStatus.ASSIGNED], ['PASSED'])).toBe(
+      StageStatus.IN_PROGRESS,
+    );
+  });
 });

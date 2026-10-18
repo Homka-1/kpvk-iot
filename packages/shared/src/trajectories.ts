@@ -26,8 +26,9 @@ export const STAGE_ASSIGNMENTS_MAX = 30;
 
 /**
  * Допустимые переходы статуса ИОТ. «На утверждении» — только при дополнительном согласовании;
- * обязательный утверждающий — преподаватель (п. 4.6). Переходы активной ИОТ (корректировка,
- * завершение) используются с этапа 14.
+ * обязательный утверждающий — преподаватель (п. 4.6). Активная ИОТ отмечается «Требует
+ * корректировки» по итогам мониторинга, корректируется новой версией (UC-05) и завершается
+ * с итоговой оценкой (FR-044). Корректировка оставляет статус «Активна», поэтому это не переход.
  */
 export const TRAJECTORY_TRANSITIONS: Readonly<
   Record<TrajectoryStatus, readonly TrajectoryStatus[]>
@@ -46,6 +47,18 @@ export function canTransition(from: TrajectoryStatus, to: TrajectoryStatus): boo
 
 /** Статусы, в которых содержимое маршрута редактируется без новой версии. */
 export const TRAJECTORY_EDITABLE_STATUSES: readonly TrajectoryStatus[] = [TrajectoryStatus.DRAFT];
+
+/**
+ * Статусы, в которых утверждённый маршрут корректируется (FR-043, UC-05): каждая корректировка
+ * создаёт новую версию с причиной, прежняя версия сохраняется, маршрут снова «Активна».
+ */
+export const TRAJECTORY_CORRECTABLE_STATUSES: readonly TrajectoryStatus[] = [
+  TrajectoryStatus.ACTIVE,
+  TrajectoryStatus.NEEDS_CORRECTION,
+];
+
+/** Итоговая оценка достижения целей при завершении маршрута (FR-044). */
+export const TRAJECTORY_FINAL_ASSESSMENT_MAX = 4000;
 
 /** Статусы действующего маршрута: у студента не более одного такого по дисциплине (FR-045). */
 export const TRAJECTORY_CURRENT_STATUSES: readonly TrajectoryStatus[] = [
@@ -180,7 +193,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const blank = (value: string | null | undefined) => !value || value.trim() === '';
 
 /** Дата `YYYY-MM-DD` момента `iso` по местному времени. */
-function localDate(iso: string): string {
+export function localDate(iso: string): string {
   const date = new Date(iso);
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -354,6 +367,9 @@ export interface TrajectoryDto {
   currentStageId: string | null;
   approvedBy: PersonRef | null;
   approvedAt: string | null;
+  completedAt: string | null;
+  /** Итоговая оценка достижения целей при завершении (FR-044). */
+  finalAssessment: string | null;
   archivedAt: string | null;
   createdAt: string;
   /** Метка редакции: передаётся при сохранении и утверждении, чтобы не затереть чужие изменения. */
@@ -366,6 +382,160 @@ export interface TrajectoryDto {
 
 /** Неизменяемый снимок версии (trajectory_versions.snapshot). */
 export type TrajectorySnapshot = Omit<TrajectoryDto, 'versions' | 'proposals'>;
+
+/** Зафиксированная версия маршрута со снимком (история версий, UC-05). */
+export interface TrajectoryVersionDto extends TrajectoryVersionSummaryDto {
+  snapshot: TrajectorySnapshot;
+}
+
+// ── Сравнение версий (FR-043, UC-05) ──
+
+export type TrajectoryChangeKind = 'added' | 'removed' | 'changed' | 'moved';
+
+/** Одно отличие между версиями маршрута. Значения подготовлены для показа человеку. */
+export interface TrajectoryChange {
+  /** Где изменение: «Паспорт маршрута», «Этапы» или «Этап «название»». */
+  scope: string;
+  kind: TrajectoryChangeKind;
+  /** Что изменилось: поле, этап, контрольная точка, задание или материал. */
+  subject: string;
+  before: string | null;
+  after: string | null;
+}
+
+const PASSPORT_FIELDS = [
+  ['goals', 'Образовательные цели'],
+  ['plannedResults', 'Планируемые результаты'],
+  ['supportMethods', 'Способы сопровождения'],
+  ['startDate', 'Дата начала'],
+  ['plannedEndDate', 'Планируемая дата завершения'],
+] as const;
+
+const STAGE_FIELDS = [
+  ['title', 'Название этапа'],
+  ['goal', 'Цель этапа'],
+  ['description', 'Содержание'],
+  ['plannedResults', 'Планируемые результаты этапа'],
+  ['startDate', 'Начало этапа'],
+  ['endDate', 'Окончание этапа'],
+] as const;
+
+const DATE_FIELDS: ReadonlySet<string> = new Set(['startDate', 'plannedEndDate', 'endDate']);
+
+/** `YYYY-MM-DD` → `ДД.ММ.ГГГГ`; пустое значение — null. */
+function ruDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return `${day}.${month}.${year}`;
+}
+
+const dueText = (dueAt: string | null) => (dueAt ? ruDate(localDate(dueAt)) : null);
+const shown = (field: string, value: string | null) =>
+  DATE_FIELDS.has(field) ? ruDate(value) : value || null;
+
+/**
+ * Отличия версии `after` от версии `before` (история версий, UC-05): паспорт, состав и порядок
+ * этапов, поля этапов, контрольные точки, задания и материалы. Записи сопоставляются по id,
+ * поэтому переименованный этап — изменение, а не удаление и добавление.
+ */
+export function trajectoryDiff(
+  before: TrajectorySnapshot,
+  after: TrajectorySnapshot,
+): TrajectoryChange[] {
+  const changes: TrajectoryChange[] = [];
+  const add = (
+    scope: string,
+    kind: TrajectoryChangeKind,
+    subject: string,
+    from: string | null,
+    to: string | null,
+  ) => changes.push({ scope, kind, subject, before: from, after: to });
+
+  for (const [field, label] of PASSPORT_FIELDS) {
+    if ((before[field] ?? null) !== (after[field] ?? null)) {
+      add(
+        'Паспорт маршрута',
+        'changed',
+        label,
+        shown(field, before[field]),
+        shown(field, after[field]),
+      );
+    }
+  }
+
+  const oldStages = new Map(before.stages.map((stage) => [stage.id, stage]));
+  const newStageIds = new Set(after.stages.map((stage) => stage.id));
+  // Порядок сравнивается среди этапов, которые есть в обеих версиях: новый этап не сдвигает остальные.
+  const oldOrder = before.stages.filter((stage) => newStageIds.has(stage.id)).map((s) => s.id);
+  const newOrder = after.stages.filter((stage) => oldStages.has(stage.id)).map((s) => s.id);
+
+  for (const stage of before.stages) {
+    if (!newStageIds.has(stage.id))
+      add('Этапы', 'removed', `Этап «${stage.title}»`, stage.title, null);
+  }
+  for (const stage of after.stages) {
+    const old = oldStages.get(stage.id);
+    if (!old) {
+      add('Этапы', 'added', `Этап «${stage.title}»`, null, stage.title);
+      continue;
+    }
+    const scope = `Этап «${stage.title}»`;
+    if (oldOrder.indexOf(stage.id) !== newOrder.indexOf(stage.id)) {
+      add(scope, 'moved', 'Место в маршруте', `№ ${old.sortOrder + 1}`, `№ ${stage.sortOrder + 1}`);
+    }
+    for (const [field, label] of STAGE_FIELDS) {
+      if ((old[field] ?? null) !== (stage[field] ?? null)) {
+        add(scope, 'changed', label, shown(field, old[field]), shown(field, stage[field]));
+      }
+    }
+
+    const oldPoints = new Map(old.checkpoints.map((point) => [point.id, point]));
+    const newPoints = new Set(stage.checkpoints.map((point) => point.id));
+    for (const point of old.checkpoints) {
+      if (!newPoints.has(point.id)) {
+        add(scope, 'removed', `Контрольная точка «${point.title}»`, ruDate(point.dueDate), null);
+      }
+    }
+    for (const point of stage.checkpoints) {
+      const was = oldPoints.get(point.id);
+      const subject = `Контрольная точка «${point.title}»`;
+      const text = (item: { title: string; dueDate: string | null }) =>
+        [item.title, ruDate(item.dueDate)].filter(Boolean).join(', ');
+      if (!was) add(scope, 'added', subject, null, ruDate(point.dueDate));
+      else if (was.title !== point.title || was.dueDate !== point.dueDate) {
+        add(scope, 'changed', subject, text(was), text(point));
+      }
+    }
+
+    const oldTasks = new Map(old.assignments.map((item) => [item.id, item]));
+    const newTasks = new Set(stage.assignments.map((item) => item.id));
+    for (const item of old.assignments) {
+      if (!newTasks.has(item.id)) {
+        add(scope, 'removed', `Задание «${item.assignment.title}»`, dueText(item.dueAt), null);
+      }
+    }
+    for (const item of stage.assignments) {
+      const was = oldTasks.get(item.id);
+      const subject = `Задание «${item.assignment.title}»`;
+      if (!was) add(scope, 'added', subject, null, dueText(item.dueAt));
+      else if (dueText(was.dueAt) !== dueText(item.dueAt)) {
+        add(scope, 'changed', `${subject}: срок`, dueText(was.dueAt), dueText(item.dueAt));
+      }
+    }
+
+    const oldMaterials = new Set(old.materials.map((item) => item.id));
+    const newMaterials = new Set(stage.materials.map((item) => item.id));
+    for (const item of old.materials) {
+      if (!newMaterials.has(item.id))
+        add(scope, 'removed', `Материал «${item.title}»`, item.title, null);
+    }
+    for (const item of stage.materials) {
+      if (!oldMaterials.has(item.id))
+        add(scope, 'added', `Материал «${item.title}»`, null, item.title);
+    }
+  }
+  return changes;
+}
 
 export interface TrajectorySummaryDto {
   id: string;

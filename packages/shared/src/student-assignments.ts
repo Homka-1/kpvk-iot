@@ -146,6 +146,9 @@ export interface CabinetTrajectoryDto {
   plannedEndDate: string | null;
   currentStageId: string | null;
   approvedAt: string | null;
+  completedAt: string | null;
+  /** Итоговая оценка достижения целей (FR-044), когда маршрут завершён. */
+  finalAssessment: string | null;
   stages: CabinetStageDto[];
   /** Собственные предложения студента по этому маршруту. */
   proposals: RouteProposalDto[];

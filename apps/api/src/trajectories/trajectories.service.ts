@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  ASSIGNMENT_CANCELLABLE_STATUSES,
+  ASSIGNMENT_INACTIVE_STATUSES,
   type AssignmentStatus,
   type CabinetStageMaterialDto,
   type CabinetTrajectoryDto,
@@ -22,10 +24,12 @@ import {
   type StageStatus,
   STUDENT_VISIBLE_TRAJECTORY_STATUSES,
   suggestTemplate,
+  TRAJECTORY_CORRECTABLE_STATUSES,
   TRAJECTORY_CURRENT_STATUSES,
   TRAJECTORY_EDITABLE_STATUSES,
   TRAJECTORY_STATUS_LABELS,
   type TrajectoryContent,
+  trajectoryDiff,
   type TrajectoryDto,
   type TrajectoryIssue,
   trajectoryIssues,
@@ -37,6 +41,7 @@ import {
   type TrajectoryStudentRef,
   type TrajectorySummaryDto,
   type TrajectoryTemplateDto,
+  type TrajectoryVersionDto,
 } from '@iot/shared';
 import {
   type AccessScope,
@@ -51,12 +56,16 @@ import { assignmentScopeWhere, materialScopeWhere } from '../library/library-sco
 import { loadPeople } from '../library/materials.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MotivationProfilesService } from '../profiles/motivation-profiles.service.js';
+import { syncCurrentStage, syncStageProgress } from './stage-progress.js';
 import type {
+  CheckpointStatusDto,
+  CompleteTrajectoryDto,
   CreateTrajectoryDto,
   TrajectoryReasonDto,
   RevisionTokenDto,
   RouteProposalInputDto,
   TrajectoryContentDto,
+  TrajectoryCorrectionDto,
   TrajectoryListQueryDto,
 } from './trajectories.dto.js';
 
@@ -249,6 +258,84 @@ function toProposals(row: DetailRow, people: Map<string, PersonRef>): RoutePropo
     author: people.get(item.authorId) ?? null,
     createdAt: item.createdAt.toISOString(),
   }));
+}
+
+/** Незавершённые задания: при завершении маршрута отменяются (FR-044). */
+const ASSIGNMENT_OPEN_STATUSES: readonly AssignmentStatus[] = [
+  'OFFERED',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'RETURNED',
+];
+/** Действующие, но ещё не принятые задания: из-за них завершённый этап снова в работе. */
+const UNFINISHED_STATUSES: readonly AssignmentStatus[] = [
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'SUBMITTED',
+  'RETURNED',
+];
+
+function passportData(dto: TrajectoryContent) {
+  return {
+    goals: dto.goals ?? null,
+    plannedResults: dto.plannedResults ?? null,
+    supportMethods: dto.supportMethods ?? null,
+    startDate: toDate(dto.startDate),
+    plannedEndDate: toDate(dto.plannedEndDate),
+  };
+}
+
+/**
+ * Корректировка не стирает историю выполнения (FR-043): нельзя убрать этап или задание, над
+ * которым студент уже работал, удалить отмеченную контрольную точку или заменить задание
+ * в существующем назначении (его можно убрать и добавить новое).
+ */
+function assertCorrectable(current: TrajectoryDto, dto: TrajectoryContent): void {
+  const fields: Record<string, string> = {};
+  const removable = (status: AssignmentStatus) =>
+    ASSIGNMENT_CANCELLABLE_STATUSES.includes(status) ||
+    ASSIGNMENT_INACTIVE_STATUSES.includes(status);
+  const kept = new Set(dto.stages.map((stage) => stage.id).filter(Boolean));
+  const locked = current.stages.filter(
+    (stage) => !kept.has(stage.id) && stage.assignments.some((item) => !removable(item.status)),
+  );
+  if (locked.length > 0) {
+    fields.stages = `Этап «${locked[0]!.title}» нельзя убрать: студент уже работал над его заданиями`;
+  }
+  dto.stages.forEach((stage, index) => {
+    const before = current.stages.find((item) => item.id === stage.id);
+    if (!before) return;
+    const at = `stages.${index}`;
+    const points = new Set(stage.checkpoints.map((item) => item.id).filter(Boolean));
+    const marked = before.checkpoints.find(
+      (item) => !points.has(item.id) && item.status !== 'PENDING',
+    );
+    if (marked) {
+      fields[`${at}.checkpoints`] =
+        `Контрольная точка «${marked.title}» уже отмечена — её нельзя удалить`;
+    }
+    const tasks = new Map(stage.assignments.map((item) => [item.id, item]));
+    const started = before.assignments.find(
+      (item) => !tasks.has(item.id) && !removable(item.status),
+    );
+    if (started) {
+      fields[`${at}.assignments`] =
+        `Задание «${started.assignment.title}» уже начато — убрать его нельзя`;
+    }
+    stage.assignments.forEach((item, position) => {
+      const was = item.id ? before.assignments.find((row) => row.id === item.id) : undefined;
+      if (was && was.assignment.id !== item.assignmentId) {
+        fields[`${at}.assignments.${position}.assignmentId`] =
+          'Задание в назначении не заменяется: уберите его и добавьте новое';
+      }
+    });
+  });
+  if (Object.keys(fields).length > 0) {
+    throw new BadRequestException({
+      message: 'Корректировка сохраняет историю выполнения — проверьте отмеченные поля',
+      fields,
+    });
+  }
 }
 
 function issuesException(message: string, issues: TrajectoryIssue[]): BadRequestException {
@@ -488,90 +575,8 @@ export class TrajectoriesService {
     await this.assertReferences(scope, current, dto);
 
     await this.prisma.$transaction(async (tx) => {
-      await this.touch(tx, id, dto.updatedAt, [TrajectoryStatus.DRAFT], {
-        goals: dto.goals ?? null,
-        plannedResults: dto.plannedResults ?? null,
-        supportMethods: dto.supportMethods ?? null,
-        startDate: toDate(dto.startDate),
-        plannedEndDate: toDate(dto.plannedEndDate),
-      });
-      const kept = new Set(dto.stages.map((stage) => stage.id).filter(Boolean));
-      const removed = current.stages
-        .filter((stage) => !kept.has(stage.id))
-        .map((stage) => stage.id);
-      // Черновик ещё не видел студент, поэтому удалённые этапы удаляются полностью.
-      if (removed.length > 0) {
-        await tx.trajectoryAssignment.deleteMany({ where: { stageId: { in: removed } } });
-        await tx.trajectoryCheckpoint.deleteMany({ where: { stageId: { in: removed } } });
-        await tx.trajectoryStage.deleteMany({ where: { id: { in: removed } } });
-      }
-
-      for (const [index, stage] of dto.stages.entries()) {
-        const data = {
-          sortOrder: index,
-          title: stage.title,
-          goal: stage.goal ?? null,
-          description: stage.description ?? null,
-          plannedResults: stage.plannedResults ?? null,
-          startDate: toDate(stage.startDate),
-          endDate: toDate(stage.endDate),
-        };
-        const stageId = stage.id
-          ? (await tx.trajectoryStage.update({ where: { id: stage.id }, data })).id
-          : (await tx.trajectoryStage.create({ data: { ...data, trajectoryId: id } })).id;
-        const before = current.stages.find((item) => item.id === stage.id);
-
-        const keptCheckpoints = stage.checkpoints.map((item) => item.id).filter(Boolean);
-        await tx.trajectoryCheckpoint.deleteMany({
-          where: { stageId, id: { notIn: keptCheckpoints as string[] } },
-        });
-        for (const checkpoint of stage.checkpoints) {
-          const fields = {
-            title: checkpoint.title,
-            description: checkpoint.description ?? null,
-            dueDate: toDate(checkpoint.dueDate),
-          };
-          if (checkpoint.id) {
-            await tx.trajectoryCheckpoint.update({ where: { id: checkpoint.id }, data: fields });
-          } else {
-            await tx.trajectoryCheckpoint.create({ data: { ...fields, stageId } });
-          }
-        }
-
-        await tx.stageMaterial.deleteMany({ where: { stageId } });
-        await tx.stageMaterial.createMany({
-          data: stage.materialIds.map((materialId, sortOrder) => ({
-            stageId,
-            materialId,
-            sortOrder,
-          })),
-        });
-
-        const keptAssignments = stage.assignments.map((item) => item.id).filter(Boolean);
-        const dropped = (before?.assignments ?? [])
-          .map((item) => item.id)
-          .filter((itemId) => !keptAssignments.includes(itemId));
-        if (dropped.length > 0) {
-          await tx.trajectoryAssignment.deleteMany({ where: { id: { in: dropped } } });
-        }
-        for (const item of stage.assignments) {
-          const fields = { assignmentId: item.assignmentId, dueAt: toDate(item.dueAt) };
-          if (item.id) {
-            await tx.trajectoryAssignment.update({ where: { id: item.id }, data: fields });
-          } else {
-            await tx.trajectoryAssignment.create({
-              data: {
-                ...fields,
-                studentId: trajectory.studentId,
-                trajectoryId: id,
-                stageId,
-                assignedById: user.id,
-              },
-            });
-          }
-        }
-      }
-
+      await this.touch(tx, id, dto.updatedAt, [TrajectoryStatus.DRAFT], passportData(dto));
+      await this.writeContent(tx, user.id, current, dto, 'draft');
       await this.audit.log(
         {
           action: 'trajectory.updated',
@@ -582,6 +587,246 @@ export class TrajectoriesService {
             materials: dto.stages.reduce((sum, stage) => sum + stage.materialIds.length, 0),
             assignments: dto.stages.reduce((sum, stage) => sum + stage.assignments.length, 0),
           },
+        },
+        tx,
+      );
+    });
+    return this.load(this.prisma, id);
+  }
+
+  /**
+   * Корректировка утверждённого маршрута (FR-043, UC-05): сроки, задания, этапы и их порядок,
+   * способы сопровождения меняются одной новой версией с обязательной причиной. Прежняя
+   * версия остаётся неизменным снимком, маршрут снова «Активна», студент получает уведомление.
+   * Начатые и выполненные задания и отмеченные контрольные точки не убираются — история
+   * выполнения сохраняется.
+   */
+  async correct(
+    user: CurrentUser,
+    id: string,
+    dto: TrajectoryCorrectionDto,
+  ): Promise<TrajectoryDto> {
+    const scope = await this.scopes.forUser(user);
+    const trajectory = await this.findInScope(user, id, scope);
+    const from = trajectory.status as TrajectoryStatus;
+    if (!TRAJECTORY_CORRECTABLE_STATUSES.includes(from)) {
+      throw new ConflictException(
+        `ИОТ в статусе «${TRAJECTORY_STATUS_LABELS[from]}» не корректируется`,
+      );
+    }
+    this.assertStudentActive(trajectory.student);
+    this.assertRevision(trajectory, dto.updatedAt);
+    const issues = trajectoryIssues(dto, 'approve');
+    if (issues.length > 0) {
+      throw issuesException('Новая версия заполнена не полностью — проверьте маршрут', issues);
+    }
+    const current = await this.load(this.prisma, id);
+    await this.assertReferences(scope, current, dto);
+    assertCorrectable(current, dto);
+    const version = trajectory.currentVersion + 1;
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.assertNotControlGroup(tx, trajectory.studentId);
+      await this.touch(tx, id, dto.updatedAt, [from], {
+        ...passportData(dto),
+        status: TrajectoryStatus.ACTIVE,
+        currentVersion: version,
+      });
+      await this.writeContent(tx, user.id, current, dto, 'correction');
+      await this.refreshStages(tx, id);
+      const previous = await tx.trajectoryVersion.findUnique({
+        where: {
+          trajectoryId_versionNumber: {
+            trajectoryId: id,
+            versionNumber: trajectory.currentVersion,
+          },
+        },
+        select: { snapshot: true },
+      });
+      const snapshot = toSnapshot(await this.load(tx, id));
+      await tx.trajectoryVersion.create({
+        data: {
+          trajectoryId: id,
+          versionNumber: version,
+          status: TrajectoryStatus.ACTIVE,
+          snapshot: snapshot as unknown as Prisma.InputJsonValue,
+          reason: dto.reason,
+          createdById: user.id,
+        },
+      });
+      if (trajectory.student.userId) {
+        await tx.notification.create({
+          data: {
+            userId: trajectory.student.userId,
+            type: 'trajectory.corrected',
+            title: 'Индивидуальная траектория скорректирована',
+            body: `${snapshot.discipline.name} · версия ${version}`,
+            link: '/student/trajectory',
+            entityType: 'trajectory',
+            entityId: id,
+          },
+        });
+      }
+      await this.audit.log(
+        {
+          action: 'trajectory.corrected',
+          entityType: 'trajectory',
+          entityId: id,
+          before: { status: from, version: trajectory.currentVersion },
+          after: {
+            status: TrajectoryStatus.ACTIVE,
+            version,
+            changes: previous
+              ? trajectoryDiff(previous.snapshot as unknown as TrajectorySnapshot, snapshot).length
+              : null,
+          },
+          reason: dto.reason,
+        },
+        tx,
+      );
+    });
+    return this.load(this.prisma, id);
+  }
+
+  /** Отметка по итогам мониторинга: «Активна» → «Требует корректировки» с причиной (UC-05). */
+  async markNeedsCorrection(
+    user: CurrentUser,
+    id: string,
+    dto: TrajectoryReasonDto,
+  ): Promise<TrajectoryDto> {
+    const trajectory = await this.findInScope(user, id);
+    this.assertTransition(trajectory.status, TrajectoryStatus.NEEDS_CORRECTION);
+    await this.prisma.$transaction(async (tx) => {
+      await this.touch(tx, id, dto.updatedAt, [TrajectoryStatus.ACTIVE], {
+        status: TrajectoryStatus.NEEDS_CORRECTION,
+      });
+      await this.audit.log(
+        {
+          action: 'trajectory.needs_correction',
+          entityType: 'trajectory',
+          entityId: id,
+          before: { status: TrajectoryStatus.ACTIVE },
+          after: { status: TrajectoryStatus.NEEDS_CORRECTION },
+          reason: dto.reason,
+        },
+        tx,
+      );
+    });
+    return this.load(this.prisma, id);
+  }
+
+  /**
+   * Завершение маршрута с итоговой оценкой достижения целей (FR-044). Ответы на проверке нужно
+   * сначала проверить; незавершённые задания маршрута отменяются, выполненные остаются в истории.
+   */
+  async complete(
+    user: CurrentUser,
+    id: string,
+    dto: CompleteTrajectoryDto,
+  ): Promise<TrajectoryDto> {
+    const trajectory = await this.findInScope(user, id);
+    this.assertTransition(trajectory.status, TrajectoryStatus.COMPLETED);
+    await this.prisma.$transaction(async (tx) => {
+      await this.touch(tx, id, dto.updatedAt, [TrajectoryStatus.ACTIVE], {
+        status: TrajectoryStatus.COMPLETED,
+        completedAt: new Date(),
+        finalAssessment: dto.finalAssessment,
+      });
+      const pending = await tx.trajectoryAssignment.count({
+        where: { trajectoryId: id, status: 'SUBMITTED' },
+      });
+      if (pending > 0) {
+        throw new ConflictException(
+          `Есть ответы на проверке (${pending}): проверьте их перед завершением маршрута`,
+        );
+      }
+      const cancelled = await tx.trajectoryAssignment.updateMany({
+        where: { trajectoryId: id, status: { in: [...ASSIGNMENT_OPEN_STATUSES] } },
+        data: { status: 'CANCELLED' },
+      });
+      if (trajectory.student.userId) {
+        await tx.notification.create({
+          data: {
+            userId: trajectory.student.userId,
+            type: 'trajectory.completed',
+            title: 'Индивидуальная траектория завершена',
+            body: trajectory.discipline.name,
+            link: '/student/trajectory',
+            entityType: 'trajectory',
+            entityId: id,
+          },
+        });
+      }
+      await this.audit.log(
+        {
+          action: 'trajectory.completed',
+          entityType: 'trajectory',
+          entityId: id,
+          before: { status: TrajectoryStatus.ACTIVE },
+          after: { status: TrajectoryStatus.COMPLETED, cancelledAssignments: cancelled.count },
+        },
+        tx,
+      );
+    });
+    return this.load(this.prisma, id);
+  }
+
+  /** Версия маршрута со снимком — для истории версий и сравнения (FR-043). */
+  async version(
+    user: CurrentUser,
+    id: string,
+    versionNumber: number,
+  ): Promise<TrajectoryVersionDto> {
+    await this.findInScope(user, id);
+    const row = await this.prisma.trajectoryVersion.findUnique({
+      where: { trajectoryId_versionNumber: { trajectoryId: id, versionNumber } },
+    });
+    if (!row) throw new NotFoundException('Версия ИОТ не найдена');
+    const people = await loadPeople(this.prisma, [row.createdById]);
+    return {
+      versionNumber: row.versionNumber,
+      status: row.status as TrajectoryStatus,
+      reason: row.reason,
+      createdBy: row.createdById ? (people.get(row.createdById) ?? null) : null,
+      createdAt: row.createdAt.toISOString(),
+      snapshot: row.snapshot as unknown as TrajectorySnapshot,
+    };
+  }
+
+  /**
+   * Отметка контрольной точки действующего маршрута (п. 4.8 «достижение контрольных точек»):
+   * пройдена, пропущена или снова ожидается. Это ход выполнения, версия маршрута не меняется;
+   * этап без заданий завершается, когда пройдены все его точки (FR-042).
+   */
+  async markCheckpoint(
+    user: CurrentUser,
+    id: string,
+    checkpointId: string,
+    dto: CheckpointStatusDto,
+  ): Promise<TrajectoryDto> {
+    const trajectory = await this.findInScope(user, id);
+    if (!TRAJECTORY_CORRECTABLE_STATUSES.includes(trajectory.status as TrajectoryStatus)) {
+      throw new ConflictException('Контрольные точки отмечаются только в действующем маршруте');
+    }
+    const checkpoint = await this.prisma.trajectoryCheckpoint.findFirst({
+      where: { id: checkpointId, stage: { trajectoryId: id, archivedAt: null } },
+      select: { id: true, status: true, stageId: true, title: true },
+    });
+    if (!checkpoint) throw new NotFoundException('Контрольная точка не найдена');
+    if (checkpoint.status === dto.status) return this.load(this.prisma, id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.trajectoryCheckpoint.update({
+        where: { id: checkpointId },
+        data: { status: dto.status, passedAt: dto.status === 'PASSED' ? new Date() : null },
+      });
+      await syncStageProgress(tx, checkpoint.stageId);
+      await this.audit.log(
+        {
+          action: 'trajectory.checkpoint_marked',
+          entityType: 'trajectory',
+          entityId: id,
+          before: { checkpointId, status: checkpoint.status },
+          after: { checkpointId, status: dto.status },
         },
         tx,
       );
@@ -641,7 +886,7 @@ export class TrajectoriesService {
     const trajectory = await this.findInScope(user, id);
     this.assertTransition(trajectory.status, TrajectoryStatus.ACTIVE);
     if (trajectory.status === TrajectoryStatus.NEEDS_CORRECTION) {
-      // Утверждение скорректированной версии — этап 14 (UC-05).
+      // Новая версия маршрута, требующего корректировки, утверждается самой корректировкой (UC-05).
       throw new ConflictException('Скорректированная версия утверждается при корректировке ИОТ');
     }
     this.assertStudentActive(trajectory.student);
@@ -775,6 +1020,8 @@ export class TrajectoriesService {
       plannedEndDate: isoDate(row.plannedEndDate),
       currentStageId: row.currentStageId,
       approvedAt: row.approvedAt?.toISOString() ?? null,
+      completedAt: row.completedAt?.toISOString() ?? null,
+      finalAssessment: row.finalAssessment,
       stages: row.stages.map((stage) => ({
         ...toStageBase(stage),
         materials: stage.materials.map(({ material }) => toCabinetMaterial(material)),
@@ -923,7 +1170,7 @@ export class TrajectoriesService {
   private async findInScope(user: CurrentUser, id: string, scope?: AccessScope) {
     const row = await this.prisma.trajectory.findFirst({
       where: { id, ...trajectoryScopeWhere(scope ?? (await this.scopes.forUser(user))) },
-      include: { student: { select: studentSelect } },
+      include: { student: { select: studentSelect }, discipline: { select: { name: true } } },
     });
     if (!row) throw new NotFoundException('ИОТ не найдена');
     return row;
@@ -1083,6 +1330,143 @@ export class TrajectoriesService {
     }
   }
 
+  /**
+   * Запись этапов, контрольных точек, материалов и заданий маршрута. В черновике убранное
+   * удаляется — его ещё не видел студент. При корректировке убранный этап архивируется,
+   * убранное задание отменяется, а у сохранённого назначения меняется только срок: попытки
+   * и оценки остаются привязаны к прежним записям.
+   */
+  private async writeContent(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    current: TrajectoryDto,
+    dto: TrajectoryContentDto,
+    mode: 'draft' | 'correction',
+  ): Promise<void> {
+    const id = current.id;
+    const correction = mode === 'correction';
+    const cancel = (where: Prisma.TrajectoryAssignmentWhereInput) =>
+      tx.trajectoryAssignment.updateMany({
+        where: { ...where, status: { in: [...ASSIGNMENT_CANCELLABLE_STATUSES] } },
+        data: { status: 'CANCELLED' },
+      });
+    const kept = new Set(dto.stages.map((stage) => stage.id).filter(Boolean));
+    const removed = current.stages.filter((stage) => !kept.has(stage.id)).map((stage) => stage.id);
+    if (removed.length > 0 && correction) {
+      await cancel({ stageId: { in: removed } });
+      await tx.trajectoryStage.updateMany({
+        where: { id: { in: removed } },
+        data: { archivedAt: new Date() },
+      });
+    } else if (removed.length > 0) {
+      await tx.trajectoryAssignment.deleteMany({ where: { stageId: { in: removed } } });
+      await tx.trajectoryCheckpoint.deleteMany({ where: { stageId: { in: removed } } });
+      await tx.trajectoryStage.deleteMany({ where: { id: { in: removed } } });
+    }
+
+    for (const [index, stage] of dto.stages.entries()) {
+      const data = {
+        sortOrder: index,
+        title: stage.title,
+        goal: stage.goal ?? null,
+        description: stage.description ?? null,
+        plannedResults: stage.plannedResults ?? null,
+        startDate: toDate(stage.startDate),
+        endDate: toDate(stage.endDate),
+      };
+      const stageId = stage.id
+        ? (await tx.trajectoryStage.update({ where: { id: stage.id }, data })).id
+        : (await tx.trajectoryStage.create({ data: { ...data, trajectoryId: id } })).id;
+      const before = current.stages.find((item) => item.id === stage.id);
+
+      const keptCheckpoints = stage.checkpoints.map((item) => item.id).filter(Boolean);
+      await tx.trajectoryCheckpoint.deleteMany({
+        where: { stageId, id: { notIn: keptCheckpoints as string[] } },
+      });
+      for (const checkpoint of stage.checkpoints) {
+        const fields = {
+          title: checkpoint.title,
+          description: checkpoint.description ?? null,
+          dueDate: toDate(checkpoint.dueDate),
+        };
+        const was = before?.checkpoints.find((item) => item.id === checkpoint.id);
+        if (was) {
+          // Перенос срока пропущенной точки при корректировке снова делает её ожидаемой.
+          const reopened = was.status === 'MISSED' && was.dueDate !== (checkpoint.dueDate ?? null);
+          await tx.trajectoryCheckpoint.update({
+            where: { id: was.id },
+            data: reopened ? { ...fields, status: 'PENDING' } : fields,
+          });
+        } else {
+          await tx.trajectoryCheckpoint.create({ data: { ...fields, stageId } });
+        }
+      }
+
+      await tx.stageMaterial.deleteMany({ where: { stageId } });
+      await tx.stageMaterial.createMany({
+        data: stage.materialIds.map((materialId, sortOrder) => ({
+          stageId,
+          materialId,
+          sortOrder,
+        })),
+      });
+
+      const keptAssignments = new Set(stage.assignments.map((item) => item.id).filter(Boolean));
+      const dropped = (before?.assignments ?? [])
+        .map((item) => item.id)
+        .filter((itemId) => !keptAssignments.has(itemId));
+      if (dropped.length > 0 && correction) await cancel({ id: { in: dropped } });
+      else if (dropped.length > 0) {
+        await tx.trajectoryAssignment.deleteMany({ where: { id: { in: dropped } } });
+      }
+      for (const item of stage.assignments) {
+        const dueAt = toDate(item.dueAt);
+        if (item.id) {
+          await tx.trajectoryAssignment.update({
+            where: { id: item.id },
+            data: correction ? { dueAt } : { assignmentId: item.assignmentId, dueAt },
+          });
+        } else {
+          await tx.trajectoryAssignment.create({
+            data: {
+              assignmentId: item.assignmentId,
+              dueAt,
+              studentId: current.student.id,
+              trajectoryId: id,
+              stageId,
+              assignedById: userId,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Статусы этапов после корректировки: завершённый этап, в который добавлено новое задание,
+   * снова «В работе»; остальные пересчитываются по заданиям и точкам, текущим становится первый
+   * незавершённый этап (FR-042).
+   */
+  private async refreshStages(tx: Prisma.TransactionClient, id: string): Promise<void> {
+    const stages = await tx.trajectoryStage.findMany({
+      where: { trajectoryId: id, archivedAt: null },
+      select: { id: true, status: true, assignments: { select: { status: true } } },
+    });
+    for (const stage of stages) {
+      const reopened =
+        stage.status === 'COMPLETED' &&
+        stage.assignments.some((item) => UNFINISHED_STATUSES.includes(item.status));
+      if (reopened) {
+        await tx.trajectoryStage.update({
+          where: { id: stage.id },
+          data: { status: 'IN_PROGRESS', completedAt: null },
+        });
+      }
+      await syncStageProgress(tx, stage.id);
+    }
+    await syncCurrentStage(tx, id);
+  }
+
   private async load(db: Db, id: string): Promise<TrajectoryDto> {
     const row: DetailRow = await db.trajectory.findUniqueOrThrow({
       where: { id },
@@ -1111,6 +1495,8 @@ export class TrajectoriesService {
       currentStageId: row.currentStageId,
       approvedBy: row.approvedById ? (people.get(row.approvedById) ?? null) : null,
       approvedAt: row.approvedAt?.toISOString() ?? null,
+      completedAt: row.completedAt?.toISOString() ?? null,
+      finalAssessment: row.finalAssessment,
       archivedAt: row.archivedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

@@ -4,6 +4,7 @@
 import {
   type AssessmentDecision,
   AssignmentStatus,
+  type CheckpointStatus,
   StageStatus,
   SubmissionFormat,
 } from './enums.js';
@@ -202,14 +203,20 @@ export function assignmentProgress(
 
 /**
  * Статус этапа по его заданиям (FR-042): все выполнены — «Завершён», работа начата —
- * «В работе». Этап без заданий и завершённый этап не меняются; назад статус не откатывается.
+ * «В работе». Этап без заданий завершается, когда пройдены все его контрольные точки (их
+ * отмечает преподаватель); без заданий и точек статус не меняется. Назад статус не откатывается.
  */
 export function nextStageStatus(
   current: StageStatus,
   statuses: readonly AssignmentStatus[],
+  checkpoints: readonly CheckpointStatus[] = [],
 ): StageStatus {
   const counted = statuses.filter((status) => !NOT_COUNTED.includes(status));
-  if (current === StageStatus.COMPLETED || counted.length === 0) return current;
+  if (current === StageStatus.COMPLETED) return current;
+  if (counted.length === 0) {
+    const passed = checkpoints.length > 0 && checkpoints.every((status) => status === 'PASSED');
+    return passed ? StageStatus.COMPLETED : current;
+  }
   if (counted.every((status) => status === AssignmentStatus.COMPLETED)) {
     return StageStatus.COMPLETED;
   }

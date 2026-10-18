@@ -10,6 +10,7 @@ import {
   STAGE_CHECKPOINTS_MAX,
   STAGE_MATERIALS_MAX,
   StageStatus,
+  TRAJECTORY_FINAL_ASSESSMENT_MAX,
   TRAJECTORY_REASON_MAX,
   TRAJECTORY_STAGES_MAX,
   TRAJECTORY_TEXT_MAX,
@@ -268,6 +269,30 @@ export class TrajectoryReasonDto extends RevisionTokenDto {
   reason: string;
 }
 
+/** Корректировка утверждённой ИОТ: новое содержимое и причина новой версии (FR-043, UC-05). */
+export class TrajectoryCorrectionDto extends TrajectoryContentDto {
+  @ApiProperty({ description: 'Причина корректировки — сохраняется в версии маршрута и в аудите' })
+  @RequiredTitle('Укажите причину корректировки', TRAJECTORY_REASON_MAX)
+  reason: string;
+}
+
+export class CompleteTrajectoryDto extends RevisionTokenDto {
+  @ApiProperty({
+    description: 'Итоговая оценка достижения целей маршрута (FR-044); видна студенту',
+  })
+  @RequiredTitle('Опишите, насколько достигнуты цели маршрута', TRAJECTORY_FINAL_ASSESSMENT_MAX)
+  finalAssessment: string;
+}
+
+export class CheckpointStatusDto {
+  @ApiProperty({
+    enum: Object.values(CheckpointStatus),
+    description: 'Пройдена, пропущена или ожидается',
+  })
+  @IsIn(Object.values(CheckpointStatus), { message: 'Выберите отметку контрольной точки' })
+  status: CheckpointStatus;
+}
+
 // ── Ответы ──
 
 class StudentRefResponseDto {
@@ -364,7 +389,7 @@ class StageResponseDto {
   @ApiProperty({ type: [StageAssignmentResponseDto] }) assignments: StageAssignmentResponseDto[];
 }
 
-class VersionSummaryResponseDto {
+export class VersionSummaryResponseDto {
   @ApiProperty() versionNumber: number;
   @ApiProperty({ enum: STATUSES }) status: TrajectoryStatus;
   @ApiProperty({ nullable: true, type: String }) reason: string | null;
@@ -392,6 +417,9 @@ export class TrajectoryResponseDto {
   @ApiProperty({ nullable: true, type: String }) currentStageId: string | null;
   @ApiProperty({ type: PersonRefDto, nullable: true }) approvedBy: PersonRefDto | null;
   @ApiProperty({ nullable: true, type: String }) approvedAt: string | null;
+  @ApiProperty({ nullable: true, type: String }) completedAt: string | null;
+  @ApiProperty({ nullable: true, type: String, description: 'Итоговая оценка достижения целей' })
+  finalAssessment: string | null;
   @ApiProperty({ nullable: true, type: String }) archivedAt: string | null;
   @ApiProperty() createdAt: string;
   @ApiProperty({ description: 'Метка редакции для сохранения и утверждения' }) updatedAt: string;
@@ -402,6 +430,16 @@ export class TrajectoryResponseDto {
     description: 'Предложения студента изменить маршрут (п. 2.3)',
   })
   proposals: RouteProposalResponseDto[];
+}
+
+class TrajectorySnapshotResponseDto extends OmitType(TrajectoryResponseDto, [
+  'versions',
+  'proposals',
+] as const) {}
+
+export class TrajectoryVersionResponseDto extends VersionSummaryResponseDto {
+  @ApiProperty({ type: TrajectorySnapshotResponseDto, description: 'Неизменяемый снимок версии' })
+  snapshot: TrajectorySnapshotResponseDto;
 }
 
 class TrajectorySummaryResponseDto {
@@ -472,6 +510,9 @@ export class CabinetTrajectoryResponseDto {
   @ApiProperty({ nullable: true, type: String, format: 'date' }) plannedEndDate: string | null;
   @ApiProperty({ nullable: true, type: String }) currentStageId: string | null;
   @ApiProperty({ nullable: true, type: String }) approvedAt: string | null;
+  @ApiProperty({ nullable: true, type: String }) completedAt: string | null;
+  @ApiProperty({ nullable: true, type: String, description: 'Итоговая оценка достижения целей' })
+  finalAssessment: string | null;
   @ApiProperty({ type: [CabinetStageResponseDto] }) stages: CabinetStageResponseDto[];
   @ApiProperty({ type: [RouteProposalResponseDto], description: 'Свои предложения по маршруту' })
   proposals: RouteProposalResponseDto[];

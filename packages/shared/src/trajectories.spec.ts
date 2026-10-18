@@ -8,7 +8,10 @@ import {
   suggestTemplate,
   TRAJECTORY_TRANSITIONS,
   type TrajectoryContent,
+  trajectoryDiff,
   trajectoryIssues,
+  type TrajectorySnapshot,
+  type TrajectoryStageDto,
 } from './trajectories.js';
 
 const stage = (overrides: Partial<StageContent> = {}): StageContent => ({
@@ -125,5 +128,90 @@ describe('trajectories', () => {
   it('длительность этапа считается включительно, без дат — null', () => {
     expect(stageDurationDays('2026-09-01', '2026-09-30')).toBe(30);
     expect(stageDurationDays('2026-09-01', null)).toBeNull();
+  });
+});
+
+describe('сравнение версий ИОТ', () => {
+  const stageDto = (id: string, sortOrder: number, title: string): TrajectoryStageDto => ({
+    id,
+    sortOrder,
+    title,
+    goal: 'Цель',
+    description: null,
+    plannedResults: null,
+    startDate: '2026-09-01',
+    endDate: '2026-09-30',
+    status: 'NOT_STARTED',
+    checkpoints: [
+      { id: `${id}-c`, title: 'КТ', description: null, dueDate: '2026-09-30', status: 'PENDING' },
+    ],
+    materials: [],
+    assignments: [
+      {
+        id: `${id}-a`,
+        assignment: {
+          id: 'lib',
+          title: 'Задача',
+          typeName: 'Практическая',
+          difficulty: 'BASIC',
+          archived: false,
+        },
+        dueAt: '2026-09-20T12:00:00.000Z',
+        status: 'ASSIGNED',
+      },
+    ],
+  });
+  const snapshot = (stages: TrajectoryStageDto[], goals = 'Освоить тему') =>
+    ({
+      goals,
+      plannedResults: null,
+      supportMethods: null,
+      startDate: '2026-09-01',
+      plannedEndDate: '2026-12-25',
+      stages,
+    }) as TrajectorySnapshot;
+
+  it('FR-043: одинаковые версии не отличаются', () => {
+    const version = snapshot([stageDto('s1', 0, 'Первый')]);
+    expect(trajectoryDiff(version, version)).toEqual([]);
+  });
+
+  it('UC-05: видны изменения целей, сроков, заданий, порядка и состава этапов', () => {
+    const before = snapshot([
+      stageDto('s1', 0, 'Первый'),
+      stageDto('s2', 1, 'Второй'),
+      stageDto('s3', 2, 'Третий'),
+    ]);
+    const second = stageDto('s2', 0, 'Второй');
+    second.endDate = '2026-10-05';
+    second.assignments = [];
+    const first = stageDto('s1', 1, 'Первый');
+    first.assignments[0]!.dueAt = '2026-09-25T12:00:00.000Z';
+    const after = snapshot([second, first, stageDto('s4', 2, 'Новый')], 'Освоить тему глубже');
+
+    const changes = trajectoryDiff(before, after);
+    const expected = [
+      [
+        'Паспорт маршрута',
+        'changed',
+        'Образовательные цели',
+        'Освоить тему',
+        'Освоить тему глубже',
+      ],
+      ['Этапы', 'removed', 'Этап «Третий»', 'Третий', null],
+      ['Этап «Второй»', 'moved', 'Место в маршруте', '№ 2', '№ 1'],
+      ['Этап «Второй»', 'changed', 'Окончание этапа', '30.09.2026', '05.10.2026'],
+      ['Этап «Второй»', 'removed', 'Задание «Задача»', '20.09.2026', null],
+      ['Этап «Первый»', 'moved', 'Место в маршруте', '№ 1', '№ 2'],
+      ['Этап «Первый»', 'changed', 'Задание «Задача»: срок', '20.09.2026', '25.09.2026'],
+      ['Этапы', 'added', 'Этап «Новый»', null, 'Новый'],
+    ].map(([scope, kind, subject, from, to]) => ({
+      scope,
+      kind,
+      subject,
+      before: from,
+      after: to,
+    }));
+    expect(changes).toEqual(expected);
   });
 });
