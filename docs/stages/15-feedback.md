@@ -1,6 +1,6 @@
 # Этап 15 — Обратная связь и уведомления
 
-статус: done дата: 2026-10-19 коммиты: см. git log ветки worktree-stage-15-feedback (api, web, docs); база — ветка 14 с fix f3325fb
+статус: done дата: 2026-10-19 коммиты: ee230fc (api+shared), fbdb4f8 (web), 2a7ed91 (docs); ветка worktree-stage-15-feedback от ветки 14 с fix f3325fb
 
 ## сделано
 
