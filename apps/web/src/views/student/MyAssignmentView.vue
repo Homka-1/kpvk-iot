@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
-  type CabinetAssignmentDetailDto,
+  ASSIGNMENT_SUBMITTABLE_STATUSES,
+  type AssignmentWorkDto,
   DIFFICULTY_LEVEL_LABELS,
   type FileDto,
   formatFileSize,
@@ -14,17 +15,31 @@ import { apiDownload, api, ApiError } from '@/api/http';
 import ErrorState from '@/components/ErrorState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { formatDateTime, formatNumber } from '@/utils/format';
-import { assignmentBadge, dueText } from '@/views/assignments/status';
+import SubmissionHistory from '@/views/assignments/SubmissionHistory.vue';
+import { assignmentBadge, dueText, overdueBadge, scoreText } from '@/views/assignments/status';
+import SubmissionForm from './SubmissionForm.vue';
 
 /**
- * Карточка задания в кабинете студента (п. 4.7; UC-04, шаги 4–5): цель, инструкция, критерии
- * оценивания, ресурсы, срок и формат сдачи. Отправка ответа — следующий этап (FR-050).
+ * Карточка задания в кабинете студента (п. 4.7; UC-04): цель, инструкция, критерии оценивания,
+ * ресурсы, срок и формат сдачи; выполнение — ответ на проверку (FR-050), повторная сдача после
+ * доработки (FR-051), оценка и комментарий преподавателя (FR-052), история попыток.
  */
 const route = useRoute();
 const id = computed(() => String(route.params.id));
-const item = ref<CabinetAssignmentDetailDto | null>(null);
+const item = ref<AssignmentWorkDto | null>(null);
 const error = ref<string | null>(null);
 const downloadError = ref<string | null>(null);
+const starting = ref(false);
+const actionError = ref<string | null>(null);
+const canSubmit = computed(
+  () => !!item.value && ASSIGNMENT_SUBMITTABLE_STATUSES.includes(item.value.status),
+);
+/** Последняя проверка — комментарий к возврату или итог принятого задания. */
+const lastAssessment = computed(
+  () =>
+    [...(item.value?.submissions ?? [])].reverse().find((submission) => submission.assessment)
+      ?.assessment ?? null,
+);
 const formats = computed(() =>
   item.value?.submissionFormats.map((value) => SUBMISSION_FORMAT_LABELS[value]).join(', '),
 );
@@ -33,9 +48,24 @@ async function load(): Promise<void> {
   item.value = null;
   error.value = null;
   try {
-    item.value = await api<CabinetAssignmentDetailDto>(`/cabinet/assignments/${id.value}`);
+    item.value = await api<AssignmentWorkDto>(`/cabinet/assignments/${id.value}`);
   } catch (caught) {
     error.value = caught instanceof ApiError ? caught.message : 'Не удалось загрузить задание';
+  }
+}
+
+async function start(): Promise<void> {
+  starting.value = true;
+  actionError.value = null;
+  try {
+    item.value = await api<AssignmentWorkDto>(`/cabinet/assignments/${id.value}/start`, {
+      method: 'POST',
+    });
+  } catch (caught) {
+    actionError.value =
+      caught instanceof ApiError ? caught.message : 'Не удалось отметить начало работы';
+  } finally {
+    starting.value = false;
   }
 }
 
@@ -62,6 +92,7 @@ watch(id, load, { immediate: true });
       <div class="my-assignment__heading">
         <h1>{{ item.assignment.title }}</h1>
         <StatusBadge v-bind="assignmentBadge(item.status)" />
+        <StatusBadge v-if="overdueBadge(item)" v-bind="overdueBadge(item)!" />
       </div>
 
       <section class="iot-card" aria-labelledby="my-assignment-facts">
@@ -164,10 +195,46 @@ watch(id, load, { immediate: true });
         <Message v-if="downloadError" severity="error" role="alert">{{ downloadError }}</Message>
       </section>
 
-      <Message severity="info" :closable="false">
-        Отправка ответа на проверку появится в следующем обновлении системы. Пока выполните задание
-        и сдайте его так, как договорились с преподавателем.
-      </Message>
+      <section class="iot-card my-assignment__work" aria-labelledby="my-assignment-work">
+        <h2 id="my-assignment-work" class="my-assignment__title">Выполнение</h2>
+        <Message v-if="item.status === 'SUBMITTED'" severity="info" :closable="false">
+          Ответ отправлен и ждёт проверки преподавателем. Вы получите уведомление о результате.
+        </Message>
+        <Message v-else-if="item.status === 'COMPLETED'" severity="success" :closable="false">
+          Задание выполнено<template v-if="lastAssessment && scoreText(lastAssessment)"
+            >. Балл: {{ scoreText(lastAssessment) }}</template
+          >.
+        </Message>
+        <Message v-else-if="item.status === 'RETURNED'" severity="warn" :closable="false">
+          Задание возвращено на доработку. Учтите комментарий преподавателя и отправьте ответ снова.
+          <template v-if="lastAssessment?.comment">
+            <br />Комментарий: {{ lastAssessment.comment }}
+          </template>
+        </Message>
+        <div v-if="item.status === 'ASSIGNED'" class="my-assignment__start">
+          <p class="my-assignment__muted">
+            Начали работу? Отметьте это — преподаватель увидит, что задание выполняется.
+          </p>
+          <Button
+            label="Приступить к выполнению"
+            icon="pi pi-play"
+            severity="secondary"
+            outlined
+            :loading="starting"
+            @click="start"
+          />
+        </div>
+        <Message v-if="actionError" severity="error" role="alert">{{ actionError }}</Message>
+        <SubmissionForm v-if="canSubmit" :work="item" @submitted="item = $event" />
+      </section>
+
+      <section class="iot-card" aria-labelledby="my-assignment-attempts">
+        <h2 id="my-assignment-attempts" class="my-assignment__title">Мои попытки</h2>
+        <SubmissionHistory
+          :submissions="item.submissions"
+          :file-path="(file) => `/cabinet/files/${file.id}`"
+        />
+      </section>
     </template>
   </div>
 </template>
@@ -241,6 +308,23 @@ watch(id, load, { immediate: true });
   gap: var(--iot-space-1);
   margin: 0;
   padding-left: var(--iot-space-4);
+}
+
+.my-assignment__work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iot-space-3);
+}
+
+.my-assignment__work .my-assignment__title {
+  margin: 0;
+}
+
+.my-assignment__start {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--iot-space-2);
+  align-items: center;
 }
 
 .my-assignment__rows :deep(.p-button-link) {

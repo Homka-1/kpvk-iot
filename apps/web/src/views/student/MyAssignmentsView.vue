@@ -14,11 +14,18 @@ import { api, ApiError } from '@/api/http';
 import EmptyState from '@/components/EmptyState.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
-import { assignmentBadge, assignmentMeta, dueText } from '@/views/assignments/status';
+import {
+  assignmentBadge,
+  assignmentMeta,
+  dueText,
+  overdueBadge,
+  scoreText,
+} from '@/views/assignments/status';
 
 /**
  * «Мои задания» (п. 3.2; AT-06): наборы равнозначных заданий на выбор (FR-054), текущие
- * и выполненные задания. Задание открывается карточкой с инструкцией и критериями.
+ * и выполненные задания: просрочка (FR-053) и балл за принятое задание. Задание открывается
+ * карточкой с инструкцией, критериями и отправкой ответа.
  */
 const route = useRoute();
 const data = ref<CabinetAssignmentsDto | null>(null);
@@ -146,6 +153,7 @@ onMounted(load);
             <RouterLink :to="detailsLink(item)" class="iot-card my-assignments__card">
               <span class="my-assignments__name">{{ item.assignment.title }}</span>
               <StatusBadge v-bind="assignmentBadge(item.status)" />
+              <StatusBadge v-if="overdueBadge(item)" v-bind="overdueBadge(item)!" />
               <span class="my-assignments__muted">{{ item.discipline.name }}</span>
               <span class="my-assignments__muted">{{ assignmentMeta(item) }}</span>
               <span class="my-assignments__due">
@@ -165,6 +173,9 @@ onMounted(load);
               <StatusBadge v-bind="assignmentBadge(item.status)" />
               <span class="my-assignments__muted">
                 {{ item.discipline.name }} · {{ assignmentMeta(item) }}
+              </span>
+              <span v-if="item.result && scoreText(item.result)" class="my-assignments__due">
+                <i class="pi pi-star" aria-hidden="true" /> Балл: {{ scoreText(item.result) }}
               </span>
             </RouterLink>
           </li>

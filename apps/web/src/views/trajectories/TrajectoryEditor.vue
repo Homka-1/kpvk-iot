@@ -613,7 +613,11 @@ function archive(reason: string): Promise<void> {
     <section v-if="step === 6" class="editor__section" aria-labelledby="step-preview">
       <h2 id="step-preview">⑦ Предварительный просмотр</h2>
       <TrajectoryPassport :trajectory="preview" />
-      <StageMap :stages="preview.stages" :support-methods="preview.supportMethods" />
+      <StageMap
+        :stages="preview.stages"
+        :support-methods="preview.supportMethods"
+        :progress="false"
+      />
       <Message v-if="approvalIssues.length" severity="warn" :closable="false">
         <p class="editor__issues-title">Перед утверждением заполните:</p>
         <ul class="editor__issues">

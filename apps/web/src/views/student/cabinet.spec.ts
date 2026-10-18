@@ -1,5 +1,5 @@
 import {
-  type CabinetAssignmentDetailDto,
+  type AssignmentWorkDto,
   type CabinetAssignmentsDto,
   type CabinetStageDto,
   type CabinetTrajectoryDto,
@@ -31,6 +31,7 @@ const task = (overrides: Partial<StudentAssignmentDto> = {}): StudentAssignmentD
   trajectory: { id: 't1', stage: { id: 's0', title: 'Адаптационный', sortOrder: 0 } },
   choiceGroup: null,
   assignedBy: { id: 'u1', fullName: 'Иванова Анна' },
+  result: null,
   ...overrides,
 });
 
@@ -206,16 +207,21 @@ describe('кабинет студента: траектория и задани�
     expect(wrapper.text()).not.toContain('Подтвердить выбор');
   });
 
+  const work = (overrides: Partial<AssignmentWorkDto> = {}): AssignmentWorkDto => ({
+    ...task(),
+    goal: 'Научиться решать уравнения',
+    instruction: 'Решите уравнения 1–10',
+    submissionFormats: ['TEXT', 'FILE'],
+    maxScore: 5,
+    criteria: [{ id: 'c1', title: 'Верность', description: null, maxScore: 5 }],
+    attachments: [{ id: 'f1', title: 'Справка', file: null, url: 'https://example.org' }],
+    completedAt: null,
+    submissions: [],
+    ...overrides,
+  });
+
   it('AT-06: карточка задания — инструкция, критерии, ресурсы и формат сдачи', async () => {
-    const detail: CabinetAssignmentDetailDto = {
-      ...task(),
-      goal: 'Научиться решать уравнения',
-      instruction: 'Решите уравнения 1–10',
-      submissionFormats: ['TEXT', 'FILE'],
-      maxScore: 5,
-      criteria: [{ id: 'c1', title: 'Верность', description: null, maxScore: 5 }],
-      attachments: [{ id: 'f1', title: 'Справка', file: null, url: 'https://example.org' }],
-    };
+    const detail = work();
     mockApi({ 'GET /cabinet/assignments/ta1': detail });
     const { wrapper } = await mountWithApp(MyAssignmentView, {
       path: '/student/assignments/ta1',
@@ -228,5 +234,86 @@ describe('кабинет студента: траектория и задани�
     expect(wrapper.text()).toContain('Текст, Файл');
     expect(wrapper.text()).toContain('1. Адаптационный');
     expect(wrapper.find('a[href="https://example.org"]').attributes('rel')).toContain('noopener');
+  });
+
+  it('UC-04, FR-050: студент отправляет ответ на проверку с ключом повторной отправки', async () => {
+    const submitted = work({
+      status: 'SUBMITTED',
+      submissions: [
+        {
+          id: 'sub1',
+          attemptNumber: 1,
+          text: 'x = 2',
+          url: null,
+          files: [],
+          submittedAt: '2026-09-10T10:00:00.000Z',
+          late: false,
+          assessment: null,
+        },
+      ],
+    });
+    const fetchMock = mockApi({
+      'GET /cabinet/assignments/ta1': work({ status: 'IN_PROGRESS' }),
+      'POST /cabinet/assignments/ta1/submissions': submitted,
+    });
+    const { wrapper } = await mountWithApp(MyAssignmentView, {
+      path: '/student/assignments/ta1',
+      user: student,
+    });
+    await flushPromises();
+    // Ссылки задание не принимает — поля нет; пустой ответ не отправляется.
+    expect(wrapper.find('#submission-url').exists()).toBe(false);
+    await wrapper.find('form.submission-form').trigger('submit');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Добавьте ответ: текст, файл или ссылку');
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+
+    await wrapper.find('#submission-text').setValue('x = 2');
+    await wrapper.find('form.submission-form').trigger('submit');
+    await flushPromises();
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes('/submissions'))!;
+    expect(JSON.parse(String(call[1]!.body))).toEqual({ text: 'x = 2', url: null, fileIds: [] });
+    expect(new Headers(call[1]!.headers).get('Idempotency-Key')).toBeTruthy();
+    expect(wrapper.text()).toContain('Ответ отправлен и ждёт проверки');
+    expect(wrapper.text()).toContain('Попытка 1');
+    expect(wrapper.find('form.submission-form').exists()).toBe(false);
+  });
+
+  it('FR-051, FR-052: возвращённое задание — комментарий преподавателя и повторная сдача', async () => {
+    mockApi({
+      'GET /cabinet/assignments/ta1': work({
+        status: 'RETURNED',
+        submissions: [
+          {
+            id: 'sub1',
+            attemptNumber: 1,
+            text: 'x = 3',
+            url: null,
+            files: [],
+            submittedAt: '2026-09-10T10:00:00.000Z',
+            late: true,
+            assessment: {
+              id: 'as1',
+              decision: 'RETURNED',
+              score: null,
+              maxScore: null,
+              comment: 'Проверьте корень',
+              criterionScores: [],
+              assessor: { id: 'u1', fullName: 'Иванова Анна' },
+              createdAt: '2026-09-11T10:00:00.000Z',
+            },
+          },
+        ],
+      }),
+    });
+    const { wrapper } = await mountWithApp(MyAssignmentView, {
+      path: '/student/assignments/ta1',
+      user: student,
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Задание возвращено на доработку');
+    expect(wrapper.text()).toContain('Комментарий: Проверьте корень');
+    expect(wrapper.text()).toContain('Отправлено после срока');
+    expect(wrapper.find('form.submission-form').exists()).toBe(true);
   });
 });

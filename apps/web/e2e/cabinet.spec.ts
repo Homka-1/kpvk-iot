@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   type AssignTasksResultDto,
-  type CabinetAssignmentDetailDto,
+  type AssignmentWorkDto,
   type CabinetAssignmentsDto,
   type CabinetTrajectoryDto,
   type GroupDto,
@@ -38,6 +38,7 @@ const task: StudentAssignmentDto = {
   trajectory: { id: TRAJECTORY_ID, stage: { id: 's0', title: 'Адаптационный', sortOrder: 0 } },
   choiceGroup: null,
   assignedBy: { id: teacher.id, fullName: 'Иванова Анна' },
+  result: null,
 };
 
 const trajectory: CabinetTrajectoryDto = {
@@ -108,7 +109,7 @@ const trajectory: CabinetTrajectoryDto = {
   proposals: [],
 };
 
-const detail: CabinetAssignmentDetailDto = {
+const detail: AssignmentWorkDto = {
   ...task,
   goal: 'Научиться решать линейные уравнения',
   instruction: 'Решите уравнения 1–10 из сборника.',
@@ -116,6 +117,8 @@ const detail: CabinetAssignmentDetailDto = {
   maxScore: 5,
   criteria: [{ id: 'k1', title: 'Верность решения', description: null, maxScore: 5 }],
   attachments: [],
+  completedAt: null,
+  submissions: [],
 };
 
 test.describe('AT-06: кабинет студента — траектория и задания', () => {

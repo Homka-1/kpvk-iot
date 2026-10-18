@@ -1,4 +1,5 @@
 import {
+  type StageAssignmentDto,
   STANDARD_TRAJECTORY_STAGES,
   type TrajectoryDto,
   type TrajectoryOptionsDto,
@@ -207,5 +208,37 @@ describe('StageMap', () => {
     expect(wrapper.find('.stage-map__details').text()).toContain(
       'Этап 2 — Развитие учебной самостоятельности',
     );
+  });
+
+  it('FR-042, FR-055: выполнение этапа и маршрута — доля принятых заданий и статистика', async () => {
+    const task = (id: string, status: StageAssignmentDto['status']): StageAssignmentDto => ({
+      id,
+      assignment: {
+        id: `a${id}`,
+        title: `Задание ${id}`,
+        typeName: 'Практическая работа',
+        difficulty: 'BASIC',
+        archived: false,
+      },
+      dueAt: null,
+      status,
+    });
+    const stages = [
+      stage(0, { assignments: [task('1', 'COMPLETED'), task('2', 'SUBMITTED')] }),
+      stage(1, { assignments: [task('3', 'ASSIGNED'), task('4', 'CANCELLED')] }),
+    ];
+    const { wrapper } = await mountWithApp(StageMap, { props: { stages, currentStageId: 's0' } });
+    expect(wrapper.find('.stage-map__summary').text()).toContain('Выполнено заданий: 1 из 3');
+    const cards = wrapper.findAll('.stage-map__card');
+    expect(cards[0]!.text()).toContain('50 %');
+    expect(cards[1]!.text()).toContain('0 %');
+    const details = wrapper.find('.stage-map__details').text();
+    expect(details).toContain('Выполнено 1 из 2 · на проверке: 1');
+    expect(details).toContain('На проверке');
+
+    // В предпросмотре черновика выполнение не считается.
+    const preview = await mountWithApp(StageMap, { props: { stages, progress: false } });
+    expect(preview.wrapper.find('.stage-map__summary').exists()).toBe(false);
+    expect(preview.wrapper.findAll('.stage-map__card')[0]!.text()).toContain('Нет данных');
   });
 });

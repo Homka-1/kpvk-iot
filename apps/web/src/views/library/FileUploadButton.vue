@@ -9,10 +9,10 @@ import { FILE_ACCEPT, precheckFile, uploadFile } from './files';
  * Выбор и загрузка одного файла. Файл сразу отправляется на сервер; родитель получает его
  * описание и сохраняет id в форме.
  */
-withDefaults(defineProps<{ label?: string; invalid?: boolean }>(), {
-  label: 'Выбрать файл',
-  invalid: false,
-});
+const props = withDefaults(
+  defineProps<{ label?: string; invalid?: boolean; endpoint?: string; disabled?: boolean }>(),
+  { label: 'Выбрать файл', invalid: false, endpoint: '/files', disabled: false },
+);
 const emit = defineEmits<{ uploaded: [file: FileDto] }>();
 
 const input = ref<HTMLInputElement | null>(null);
@@ -29,7 +29,7 @@ async function onChange(event: Event): Promise<void> {
   if (error.value) return;
   busy.value = true;
   try {
-    emit('uploaded', await uploadFile(file));
+    emit('uploaded', await uploadFile(file, props.endpoint));
   } catch (failure) {
     error.value = failure instanceof ApiError ? failure.message : 'Не удалось загрузить файл';
   } finally {
@@ -58,6 +58,7 @@ async function onChange(event: Event): Promise<void> {
       outlined
       size="small"
       :loading="busy"
+      :disabled="disabled"
       :aria-describedby="hintId"
       :class="{ 'p-invalid': invalid }"
       @click="input?.click()"

@@ -105,6 +105,13 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/students/StudentProfileView.vue'),
         meta: { title: 'Профиль студента', permission: Permission.STUDENTS_READ },
       },
+      // Проверка ответа студента — вложенная страница раздела «Задания».
+      {
+        path: 'assignments/review/:id',
+        name: 'assignment-review',
+        component: () => import('@/views/assignments/AssignmentReviewView.vue'),
+        meta: { title: 'Проверка задания', permission: Permission.ASSIGNMENTS_MANAGE },
+      },
       // Конструктор методики — вложенная страница раздела «Диагностика».
       {
         path: 'diagnostics/questionnaires/:id',

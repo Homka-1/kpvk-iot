@@ -13,12 +13,19 @@ import ErrorState from '@/components/ErrorState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useAction } from '@/views/disciplines/useList';
-import { assignmentBadge, assignmentMeta, dueText } from './status';
+import {
+  assignmentBadge,
+  assignmentMeta,
+  decisionBadge,
+  dueText,
+  overdueBadge,
+  scoreText,
+} from './status';
 
 /**
  * Вкладка «Задания» профиля студента (п. 4.3, п. 6.3): назначенные задания по дисциплинам,
  * которые пользователь ведёт в группе студента. Не начатое задание вне ИОТ можно отменить
- * с причиной. Просрочка и результаты — со сдачей заданий (этап 13).
+ * с причиной. Просрочка (FR-053), итог проверки и переход к проверке ответа (FR-052).
  */
 const props = defineProps<{ studentId: string }>();
 const auth = useAuthStore();
@@ -79,6 +86,7 @@ watch(() => props.studentId, load, { immediate: true });
       <div class="student-tasks__head">
         <span class="student-tasks__name">{{ item.assignment.title }}</span>
         <StatusBadge v-bind="assignmentBadge(item.status)" />
+        <StatusBadge v-if="overdueBadge(item)" v-bind="overdueBadge(item)!" />
       </div>
       <span class="student-tasks__muted">
         {{ item.discipline.name }} · {{ assignmentMeta(item) }}
@@ -91,8 +99,24 @@ watch(() => props.studentId, load, { immediate: true });
         Срок: {{ dueText(item.dueAt) }} · назначил:
         {{ item.assignedBy?.fullName ?? 'нет данных' }}
       </span>
-      <div v-if="cancellable(item)">
+      <span v-if="item.result" class="student-tasks__result">
+        <StatusBadge v-bind="decisionBadge(item.result.decision)" />
+        <template v-if="scoreText(item.result)">Балл: {{ scoreText(item.result) }}</template>
+      </span>
+      <div class="student-tasks__actions">
+        <RouterLink
+          v-if="item.status !== 'OFFERED'"
+          :to="{ name: 'assignment-review', params: { id: item.id } }"
+          class="student-tasks__link"
+        >
+          <i
+            :class="item.status === 'SUBMITTED' ? 'pi pi-check-square' : 'pi pi-eye'"
+            aria-hidden="true"
+          />
+          {{ item.status === 'SUBMITTED' ? 'Проверить ответ' : 'Ответы и проверка' }}
+        </RouterLink>
         <Button
+          v-if="cancellable(item)"
           label="Отменить"
           icon="pi pi-ban"
           size="small"
@@ -150,6 +174,20 @@ watch(() => props.studentId, load, { immediate: true });
   color: var(--iot-color-heading);
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.student-tasks__result,
+.student-tasks__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--iot-space-2);
+  align-items: center;
+}
+
+.student-tasks__link {
+  display: inline-flex;
+  gap: var(--iot-space-1);
+  align-items: center;
 }
 
 .student-tasks__muted {

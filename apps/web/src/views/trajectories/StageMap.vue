@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="S extends TrajectoryStageDto">
 import {
+  assignmentProgress,
   DIFFICULTY_LEVEL_LABELS,
   MATERIAL_KIND_LABELS,
   stageDurationDays,
@@ -10,20 +11,23 @@ import EmptyState from '@/components/EmptyState.vue';
 import ProgressIndicator from '@/components/ProgressIndicator.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { formatDate } from '@/utils/format';
+import { assignmentBadge, overdueBadge } from '@/views/assignments/status';
 import { checkpointBadge, stageBadge } from './content';
 
 /**
  * Карта маршрута (п. 6.4, FR-041): последовательность этапов — название, цель, сроки, статус,
  * % выполнения, количество заданий, контрольная точка. Выбор этапа открывает его содержание.
- * Процент выполнения появится вместе со сдачей заданий (этап 13), до этого — «Нет данных».
+ * Выполнение (FR-042, FR-055) — доля принятых заданий этапа и маршрута; без заданий — «Нет
+ * данных». В предварительном просмотре черновика (`progress = false`) выполнение не считается.
  */
 const props = withDefaults(
   defineProps<{
     stages: S[];
     currentStageId?: string | null;
     supportMethods?: string | null;
+    progress?: boolean;
   }>(),
-  { currentStageId: null, supportMethods: null },
+  { currentStageId: null, supportMethods: null, progress: true },
 );
 
 const selectedId = ref<string | null>(null);
@@ -41,6 +45,12 @@ const selected = computed(() => props.stages.find((stage) => stage.id === select
 const period = (start: string | null, end: string | null) =>
   start || end ? `${formatDate(start)} – ${formatDate(end)}` : 'Сроки не заданы';
 const dueLabel = (iso: string | null) => (iso ? formatDate(new Date(iso)) : 'срок не задан');
+const stageProgress = (stage: TrajectoryStageDto) =>
+  props.progress ? assignmentProgress(stage.assignments) : null;
+const routeProgress = computed(() =>
+  props.progress ? assignmentProgress(props.stages.flatMap((stage) => stage.assignments)) : null,
+);
+const selectedProgress = computed(() => (selected.value ? stageProgress(selected.value) : null));
 const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? null;
 </script>
 
@@ -52,6 +62,15 @@ const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? n
     description="Добавьте этапы маршрута — они появятся на карте."
   />
   <div v-else class="stage-map">
+    <div v-if="routeProgress" class="stage-map__summary">
+      <ProgressIndicator label="Выполнение маршрута" :value="routeProgress.percent" />
+      <span class="stage-map__muted">
+        <template v-if="routeProgress.total">
+          Выполнено заданий: {{ routeProgress.completed }} из {{ routeProgress.total }}
+        </template>
+        <template v-else>В маршруте пока нет заданий</template>
+      </span>
+    </div>
     <ol class="stage-map__list" aria-label="Этапы маршрута">
       <li
         v-for="(stage, index) in stages"
@@ -83,7 +102,7 @@ const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? n
             {{ period(stage.startDate, stage.endDate) }}
           </span>
           <StatusBadge v-bind="stageBadge(stage.status)" />
-          <ProgressIndicator label="Выполнение" :value="null" />
+          <ProgressIndicator label="Выполнение" :value="stageProgress(stage)?.percent ?? null" />
           <span class="stage-map__meta">
             <i class="pi pi-file-edit" aria-hidden="true" /> Заданий: {{ stage.assignments.length }}
           </span>
@@ -141,6 +160,12 @@ const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? n
       <p v-else class="stage-map__muted">Материалы не назначены</p>
 
       <h4>Задания</h4>
+      <p v-if="selectedProgress?.total" class="stage-map__muted stage-map__stats">
+        Выполнено {{ selectedProgress.completed }} из {{ selectedProgress.total }} · на проверке:
+        {{ selectedProgress.submitted }} · на доработке: {{ selectedProgress.returned }} · в работе:
+        {{ selectedProgress.inProgress }} · не начато: {{ selectedProgress.notStarted }} ·
+        просрочено: {{ selectedProgress.overdue }}
+      </p>
       <ul v-if="selected.assignments.length" class="stage-map__rows">
         <li v-for="item in selected.assignments" :key="item.id">
           <slot name="assignment" :item="item">{{ item.assignment.title }}</slot>
@@ -149,6 +174,10 @@ const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? n
             {{ DIFFICULTY_LEVEL_LABELS[item.assignment.difficulty].toLowerCase() }} · срок:
             {{ dueLabel(item.dueAt) }}
           </span>
+          <template v-if="progress">
+            <StatusBadge v-bind="assignmentBadge(item.status)" />
+            <StatusBadge v-if="overdueBadge(item)" v-bind="overdueBadge(item)!" />
+          </template>
         </li>
       </ul>
       <p v-else class="stage-map__muted">Задания не назначены</p>
@@ -179,6 +208,17 @@ const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? n
   display: flex;
   flex-direction: column;
   gap: var(--iot-space-3);
+}
+
+.stage-map__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iot-space-1);
+  max-width: 420px;
+}
+
+.stage-map__stats {
+  margin: 0 0 var(--iot-space-1);
 }
 
 .stage-map__list {

@@ -26,10 +26,11 @@ export function precheckFile(file: File): string | null {
   return null;
 }
 
-export function uploadFile(file: File): Promise<FileDto> {
+/** Загрузка файла: в библиотеку (`/files`) или ответа студента (`/cabinet/files`). */
+export function uploadFile(file: File, endpoint = '/files'): Promise<FileDto> {
   const body = new FormData();
   body.append('file', file);
-  return api<FileDto>('/files', { method: 'POST', body });
+  return api<FileDto>(endpoint, { method: 'POST', body });
 }
 
 export function downloadFile(file: FileDto): Promise<void> {
