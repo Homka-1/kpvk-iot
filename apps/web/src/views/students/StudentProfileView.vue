@@ -25,6 +25,7 @@ import { formatDate, formatDateTime } from '@/utils/format';
 import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
 import ObservationDialog from './ObservationDialog.vue';
 import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
+import StudentAssignmentsTab from '@/views/assignments/StudentAssignmentsTab.vue';
 import StudentTrajectoriesTab from '@/views/trajectories/StudentTrajectoriesTab.vue';
 import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
@@ -306,11 +307,7 @@ function onStudentChanged(): void {
             <StudentTrajectoriesTab :student-id="studentId" :archived="!!profile.archivedAt" />
           </TabPanel>
           <TabPanel value="assignments">
-            <EmptyState
-              icon="pi pi-file-edit"
-              title="Заданий пока нет"
-              description="Здесь появятся выполненные, активные и просроченные задания студента."
-            />
+            <StudentAssignmentsTab :student-id="studentId" />
           </TabPanel>
 
           <TabPanel value="support">

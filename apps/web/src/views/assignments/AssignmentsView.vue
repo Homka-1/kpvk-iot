@@ -27,16 +27,22 @@ import { useContextStore } from '@/stores/context';
 import { formatNumber } from '@/utils/format';
 import { useAction, useList } from '@/views/disciplines/useList';
 import AssignmentDialog from '@/views/library/AssignmentDialog.vue';
+import AssignTasksDialog from './AssignTasksDialog.vue';
 import { downloadFile, fileLabel } from '@/views/library/files';
 
 /**
  * Раздел «Задания»: библиотека заданий с поиском по дисциплине, теме и уровню сложности
- * (FR-046, FR-047, FR-049). Назначение студентам выполняется из ИОТ.
+ * (FR-046, FR-047, FR-049) и назначение студентам, группе или на выбор (FR-048, FR-054).
  */
 const route = useRoute();
 const auth = useAuthStore();
 const context = useContextStore();
 const canLibrary = computed(() => auth.hasPermission(Permission.LIBRARY_MANAGE));
+const canAssign = computed(
+  () =>
+    auth.hasPermission(Permission.ASSIGNMENTS_MANAGE) &&
+    auth.hasPermission(Permission.STUDENTS_READ),
+);
 const difficultyOptions = Object.values(DifficultyLevel).map((value) => ({
   value,
   label: DIFFICULTY_LEVEL_LABELS[value],
@@ -76,6 +82,7 @@ const action = useAction();
 const downloadError = ref<string | null>(null);
 const editorOpen = ref(false);
 const archiveOpen = ref(false);
+const assignOpen = ref(false);
 const selected = ref<LibraryAssignmentDto | null>(null);
 
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -312,6 +319,17 @@ function resetFilters(): void {
             />
             <template v-else>
               <Button
+                v-if="canAssign"
+                label="Назначить"
+                icon="pi pi-send"
+                size="small"
+                aria-haspopup="dialog"
+                @click="
+                  selected = assignment;
+                  assignOpen = true;
+                "
+              />
+              <Button
                 label="Изменить"
                 icon="pi pi-pencil"
                 size="small"
@@ -341,6 +359,7 @@ function resetFilters(): void {
         @saved="list.load"
         @type-created="onTypeCreated"
       />
+      <AssignTasksDialog v-if="selected" v-model:visible="assignOpen" :assignment="selected" />
       <ActionDialog
         v-model:visible="archiveOpen"
         title="Архивирование задания"

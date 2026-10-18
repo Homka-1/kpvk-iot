@@ -69,6 +69,12 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
   await page.route(/\/api\/trajectories(\?.*)?$/, (route) =>
     route.fulfill({ json: { items: [], total: 0, page: 1, pageSize: 24 } }),
   );
+  await page.route(/\/api\/(cabinet\/trajectories|student-assignments)(\?.*)?$/, (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route(/\/api\/cabinet\/assignments$/, (route) =>
+    route.fulfill({ json: { choices: [], items: [] } }),
+  );
   await page.route('**/api/motivation-strategies', (route) =>
     route.fulfill({ json: DEFAULT_MOTIVATION_STRATEGIES }),
   );

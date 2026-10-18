@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="S extends TrajectoryStageDto">
 import {
   DIFFICULTY_LEVEL_LABELS,
   MATERIAL_KIND_LABELS,
@@ -19,7 +19,7 @@ import { checkpointBadge, stageBadge } from './content';
  */
 const props = withDefaults(
   defineProps<{
-    stages: TrajectoryStageDto[];
+    stages: S[];
     currentStageId?: string | null;
     supportMethods?: string | null;
   }>(),
@@ -131,7 +131,9 @@ const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? n
       <h4>Материалы</h4>
       <ul v-if="selected.materials.length" class="stage-map__rows">
         <li v-for="material in selected.materials" :key="material.id">
-          {{ material.title }}
+          <slot name="material" :material="material as S['materials'][number]">
+            {{ material.title }}
+          </slot>
           <span class="stage-map__muted">· {{ MATERIAL_KIND_LABELS[material.kind] }}</span>
           <StatusBadge v-if="material.archived" label="В архиве" tone="neutral" icon="pi pi-box" />
         </li>
@@ -141,7 +143,7 @@ const firstCheckpoint = (stage: TrajectoryStageDto) => stage.checkpoints[0] ?? n
       <h4>Задания</h4>
       <ul v-if="selected.assignments.length" class="stage-map__rows">
         <li v-for="item in selected.assignments" :key="item.id">
-          {{ item.assignment.title }}
+          <slot name="assignment" :item="item">{{ item.assignment.title }}</slot>
           <span class="stage-map__muted">
             · {{ item.assignment.typeName }} · сложность:
             {{ DIFFICULTY_LEVEL_LABELS[item.assignment.difficulty].toLowerCase() }} · срок:

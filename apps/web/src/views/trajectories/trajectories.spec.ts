@@ -50,6 +50,7 @@ const draft: TrajectoryDto = {
   updatedAt: '2026-10-18T10:00:00.000Z',
   stages: STANDARD_TRAJECTORY_STAGES.map((_, index) => stage(index)),
   versions: [],
+  proposals: [],
 };
 
 function mockApi(responses: Record<string, unknown>) {

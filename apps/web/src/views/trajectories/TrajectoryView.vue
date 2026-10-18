@@ -141,6 +141,24 @@ function returnToDraft(reason: string): Promise<void> {
         </section>
 
         <section
+          v-if="trajectory.proposals.length"
+          class="iot-card"
+          aria-labelledby="proposals-title"
+        >
+          <h2 id="proposals-title" class="trajectory__title">Предложения студента</h2>
+          <p class="trajectory__muted">
+            Маршрут не меняется автоматически: решение о корректировке принимает преподаватель.
+          </p>
+          <ul class="trajectory__versions">
+            <li v-for="proposal in trajectory.proposals" :key="proposal.id">
+              {{ formatDateTime(proposal.createdAt) }} ·
+              {{ proposal.stage ? `этап «${proposal.stage.title}»` : 'маршрут в целом' }}:
+              <span class="trajectory__text">{{ proposal.body }}</span>
+            </li>
+          </ul>
+        </section>
+
+        <section
           v-if="trajectory.versions.length"
           class="iot-card"
           aria-labelledby="versions-title"
@@ -224,5 +242,10 @@ function returnToDraft(reason: string): Promise<void> {
 .trajectory__versions {
   margin: 0;
   padding-left: var(--iot-space-4);
+}
+
+.trajectory__text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 </style>

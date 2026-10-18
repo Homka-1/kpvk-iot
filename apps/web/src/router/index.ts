@@ -41,6 +41,8 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),
   admin: () => import('@/views/admin/AdminView.vue'),
+  'student-trajectory': () => import('@/views/student/MyTrajectoryView.vue'),
+  'student-assignments': () => import('@/views/student/MyAssignmentsView.vue'),
   'student-diagnostics': () => import('@/views/student/MyDiagnosticsView.vue'),
   'student-profile': () => import('@/views/student/MyProfileView.vue'),
 };
@@ -80,6 +82,13 @@ export const routes: RouteRecordRaw[] = [
         name: 'student-diagnostic-run',
         component: () => import('@/views/student/DiagnosticRunView.vue'),
         meta: { title: 'Прохождение диагностики', permission: Permission.CABINET_ACCESS },
+      },
+      // Карточка задания — вложенная страница раздела «Мои задания».
+      {
+        path: 'assignments/:id',
+        name: 'student-assignment-details',
+        component: () => import('@/views/student/MyAssignmentView.vue'),
+        meta: { title: 'Задание', permission: Permission.CABINET_ACCESS },
       },
     ],
   },

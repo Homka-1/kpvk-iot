@@ -104,6 +104,7 @@ async function mockTrajectoryApi(page: Page) {
       assignments: [],
     })),
     versions: [],
+    proposals: [],
   };
   const requests: { approve: unknown; create: unknown } = { approve: null, create: null };
 
