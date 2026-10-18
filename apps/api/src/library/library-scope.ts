@@ -42,6 +42,22 @@ export function cabinetAssignmentWhere(userId: string): Prisma.TrajectoryAssignm
   return { ...publishedAssignmentWhere(), student: { userId, archivedAt: null } };
 }
 
+/**
+ * Назначения студентов, которых пользователь ведёт (FR-002): дисциплина задания преподаётся
+ * им в текущей группе студента. Администратор справочников — без ограничений.
+ */
+export function teacherAssignmentWhere(scope: AccessScope): Prisma.TrajectoryAssignmentWhereInput {
+  if (scope.kind === 'all') return {};
+  // Пустой OR в Prisma не ограничивает выборку: без закреплений — ни одного назначения.
+  if (scope.pairs.length === 0) return { id: { in: [] } };
+  return {
+    OR: scope.pairs.map((pair) => ({
+      student: { currentGroupId: pair.groupId },
+      assignment: { disciplineId: pair.disciplineId },
+    })),
+  };
+}
+
 /** Дисциплина для новой записи библиотеки: существует, не в архиве и доступна пользователю. */
 export async function assertLibraryDiscipline(
   prisma: PrismaService,

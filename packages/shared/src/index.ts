@@ -11,3 +11,4 @@ export * from './motivation-profiles.js';
 export * from './library.js';
 export * from './trajectories.js';
 export * from './student-assignments.js';
+export * from './submissions.js';

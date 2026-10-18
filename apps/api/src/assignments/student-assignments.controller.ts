@@ -9,7 +9,7 @@ import {
 } from '@nestjs/swagger';
 import {
   type AssignTasksResultDto,
-  type CabinetAssignmentDetailDto,
+  type AssignmentWorkDto,
   type CabinetAssignmentsDto,
   Permission,
   type StudentAssignmentDto,
@@ -20,12 +20,12 @@ import { ApiIdempotencyHeader, IdempotencyKey } from '../common/idempotency.serv
 import {
   AssignTasksDto,
   AssignTasksResultResponseDto,
-  CabinetAssignmentDetailResponseDto,
   CabinetAssignmentsResponseDto,
   ChooseAssignmentsDto,
   StudentAssignmentResponseDto,
   StudentAssignmentsQueryDto,
 } from './student-assignments.dto.js';
+import { AssignmentWorkResponseDto } from './submissions.dto.js';
 import { StudentAssignmentsService } from './student-assignments.service.js';
 
 const uuid = new ParseUUIDPipe({ version: '7', errorHttpStatusCode: 404 });
@@ -104,10 +104,11 @@ export class CabinetAssignmentsController {
 
   @Get('assignments/:id')
   @ApiOperation({
-    summary: 'Карточка своего задания: инструкция, критерии, ресурсы, срок, формат сдачи (п. 4.7)',
+    summary:
+      'Карточка своего задания: инструкция, критерии, ресурсы, срок, формат сдачи, попытки и проверки (п. 4.7)',
   })
-  @ApiOkResponse({ type: CabinetAssignmentDetailResponseDto })
-  get(@Param('id', uuid) id: string, @User() user: AuthUser): Promise<CabinetAssignmentDetailDto> {
+  @ApiOkResponse({ type: AssignmentWorkResponseDto })
+  get(@Param('id', uuid) id: string, @User() user: AuthUser): Promise<AssignmentWorkDto> {
     return this.assignments.cabinetGet(user, id);
   }
 

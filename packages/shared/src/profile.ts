@@ -98,6 +98,9 @@ export const STUDENT_HISTORY_LABELS: Record<string, string> = {
   'trajectory.approved': 'ИОТ утверждена и назначена',
   'trajectory.archived': 'ИОТ перенесена в архив',
   'trajectory.change_proposed': 'Студент предложил изменить ИОТ',
+  'assignment.submitted': 'Студент отправил задание на проверку',
+  'assignment.accepted': 'Задание принято',
+  'assignment.returned': 'Задание возвращено на доработку',
 };
 
 // ── Схемы форм (zod) ──

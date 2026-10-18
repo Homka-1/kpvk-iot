@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ASSIGN_STUDENTS_MAX,
   ASSIGN_TASKS_MAX,
+  AssessmentDecision,
   AssignmentStatus,
   CHOICE_TITLE_MAX,
   DifficultyLevel,
@@ -143,6 +144,13 @@ class ChoiceGroupRefResponseDto {
   @ApiProperty({ nullable: true, type: String }) chosenAt: string | null;
 }
 
+class AssignmentResultResponseDto {
+  @ApiProperty({ enum: Object.values(AssessmentDecision) }) decision: AssessmentDecision;
+  @ApiProperty({ nullable: true, type: Number }) score: number | null;
+  @ApiProperty({ nullable: true, type: Number }) maxScore: number | null;
+  @ApiProperty() assessedAt: string;
+}
+
 export class StudentAssignmentResponseDto {
   @ApiProperty() id: string;
   @ApiProperty({ enum: Object.values(AssignmentStatus) }) status: AssignmentStatus;
@@ -159,6 +167,12 @@ export class StudentAssignmentResponseDto {
   @ApiProperty({ type: ChoiceGroupRefResponseDto, nullable: true })
   choiceGroup: ChoiceGroupRefResponseDto | null;
   @ApiProperty({ type: PersonRefDto, nullable: true }) assignedBy: PersonRefDto | null;
+  @ApiProperty({
+    type: AssignmentResultResponseDto,
+    nullable: true,
+    description: 'Решение по последней проверенной попытке; null — ещё не проверялось',
+  })
+  result: AssignmentResultResponseDto | null;
 }
 
 export class CabinetAssignmentDetailResponseDto extends StudentAssignmentResponseDto {

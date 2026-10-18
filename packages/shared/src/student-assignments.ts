@@ -9,6 +9,7 @@ import {
 } from './enums.js';
 import type { AssessmentCriterionDto, FileDto, MaterialDto } from './library.js';
 import type { PersonRef } from './students.js';
+import type { AssignmentResultDto } from './submissions.js';
 import type { TrajectoryStageDto } from './trajectories.js';
 
 /** За один раз назначается не больше заданий и студентов (FR-048). */
@@ -75,6 +76,8 @@ export interface StudentAssignmentDto {
   /** Набор равнозначных заданий, из которого студент выбирает (FR-054). */
   choiceGroup: { id: string; title: string; requiredCount: number; chosenAt: string | null } | null;
   assignedBy: PersonRef | null;
+  /** Последнее решение преподавателя по заданию; null — ещё не проверялось. */
+  result: AssignmentResultDto | null;
 }
 
 /** Карточка задания для студента (п. 4.7): инструкция, критерии, ресурсы, формат сдачи. */

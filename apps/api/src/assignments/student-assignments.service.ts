@@ -8,9 +8,10 @@ import {
   ASSIGNMENT_CANCELLABLE_STATUSES,
   ASSIGNMENT_INACTIVE_STATUSES,
   type AssignmentChoiceDto,
+  type AssignmentResultDto,
+  type AssignmentWorkDto,
   type AssignmentStatus,
   type AssignTasksResultDto,
-  type CabinetAssignmentDetailDto,
   type CabinetAssignmentsDto,
   type CurrentUser,
   type DifficultyLevel,
@@ -31,19 +32,30 @@ import { loadPeople } from '../library/materials.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { AssignTasksDto } from './student-assignments.dto.js';
 
-const rowInclude = {
+export const rowInclude = {
   assignment: {
     select: {
       id: true,
       title: true,
       topic: true,
       difficulty: true,
+      maxScore: true,
       discipline: { select: { id: true, name: true } },
       type: { select: { name: true } },
     },
   },
   stage: { select: { id: true, title: true, sortOrder: true } },
   choiceGroup: { select: { id: true, title: true, requiredCount: true, chosenAt: true } },
+  // Последняя проверенная попытка — итог задания в списках.
+  submissions: {
+    where: { assessment: { isNot: null } },
+    orderBy: { attemptNumber: 'desc' },
+    take: 1,
+    select: {
+      attemptNumber: true,
+      assessment: { select: { decision: true, score: true, createdAt: true } },
+    },
+  },
 } satisfies Prisma.TrajectoryAssignmentInclude;
 
 const detailInclude = {
@@ -54,17 +66,33 @@ const detailInclude = {
       goal: true,
       instruction: true,
       submissionFormats: true,
-      maxScore: true,
       criteria: { orderBy: { sortOrder: 'asc' } },
       attachments: { include: { file: true }, orderBy: { sortOrder: 'asc' } },
     },
   },
+  // Все попытки сдачи с проверками (FR-051): история для студента и преподавателя.
+  submissions: {
+    orderBy: { attemptNumber: 'asc' },
+    include: {
+      files: { include: { file: true } },
+      assessment: {
+        include: {
+          criterionScores: {
+            include: { criterion: true },
+            orderBy: { criterion: { sortOrder: 'asc' } },
+          },
+        },
+      },
+    },
+  },
 } satisfies Prisma.TrajectoryAssignmentInclude;
 
-type Row = Prisma.TrajectoryAssignmentGetPayload<{ include: typeof rowInclude }>;
+export type Row = Prisma.TrajectoryAssignmentGetPayload<{ include: typeof rowInclude }>;
 type DetailRow = Prisma.TrajectoryAssignmentGetPayload<{ include: typeof detailInclude }>;
 
-const order = [
+const toNumber = (value: Prisma.Decimal | null) => (value === null ? null : Number(value));
+
+export const order = [
   { dueAt: { sort: 'asc', nulls: 'last' } },
   { assignedAt: 'asc' },
   { id: 'asc' },
@@ -81,6 +109,21 @@ const studentSelect = {
 } satisfies Prisma.StudentSelect;
 
 type StudentRow = Prisma.StudentGetPayload<{ select: typeof studentSelect }>;
+
+/** Итог задания: решение по последней проверенной попытке. */
+function lastResult(row: Row): AssignmentResultDto | null {
+  const assessed = row.submissions
+    .filter((submission) => submission.assessment)
+    .sort((a, b) => b.attemptNumber - a.attemptNumber)[0]?.assessment;
+  if (!assessed) return null;
+  const score = toNumber(assessed.score);
+  return {
+    decision: assessed.decision,
+    score,
+    maxScore: score === null ? null : toNumber(row.assignment.maxScore),
+    assessedAt: assessed.createdAt.toISOString(),
+  };
+}
 
 const studentRef = (row: StudentRow) => ({ id: row.id, fullName: formatFullName(row) });
 
@@ -377,22 +420,40 @@ export class StudentAssignmentsService {
     return { choices: [...choices.values()], items };
   }
 
-  /** Карточка своего задания (п. 4.7). Чужое, отменённое или из черновика ИОТ — 404 (AT-12). */
-  async cabinetGet(user: CurrentUser, id: string): Promise<CabinetAssignmentDetailDto> {
+  /** Карточка своего задания (п. 4.7) с попытками сдачи. Чужое, отменённое или из черновика ИОТ — 404 (AT-12). */
+  async cabinetGet(user: CurrentUser, id: string): Promise<AssignmentWorkDto> {
     await this.scopes.ownStudent(user);
+    const work = await this.work({ id, ...cabinetAssignmentWhere(user.id) });
+    if (!work) throw new NotFoundException('Задание не найдено');
+    return work.dto;
+  }
+
+  /**
+   * Задание с инструкцией, критериями, ресурсами и историей попыток (FR-050–FR-052);
+   * null — назначение не подходит под условие.
+   */
+  async work(
+    where: Prisma.TrajectoryAssignmentWhereInput,
+  ): Promise<{ dto: AssignmentWorkDto; studentId: string } | null> {
     const row: DetailRow | null = await this.prisma.trajectoryAssignment.findFirst({
-      where: { id, ...cabinetAssignmentWhere(user.id) },
+      where,
       include: detailInclude,
     });
-    if (!row) throw new NotFoundException('Задание не найдено');
-    const [base] = await this.toDtos([row]);
+    if (!row) return null;
+    const [[base], assessors] = await Promise.all([
+      this.toDtos([row]),
+      loadPeople(
+        this.prisma,
+        row.submissions.map((submission) => submission.assessment?.assessorId ?? null),
+      ),
+    ]);
     const { assignment } = row;
-    return {
+    const dto: AssignmentWorkDto = {
       ...base!,
       goal: assignment.goal,
       instruction: assignment.instruction,
       submissionFormats: assignment.submissionFormats,
-      maxScore: assignment.maxScore === null ? null : Number(assignment.maxScore),
+      maxScore: toNumber(assignment.maxScore),
       criteria: assignment.criteria.map((criterion) => ({
         id: criterion.id,
         title: criterion.title,
@@ -405,7 +466,36 @@ export class StudentAssignmentsService {
         file: attachment.file ? toFileDto(attachment.file) : null,
         url: attachment.url,
       })),
+      completedAt: row.completedAt?.toISOString() ?? null,
+      submissions: row.submissions.map((submission) => ({
+        id: submission.id,
+        attemptNumber: submission.attemptNumber,
+        text: submission.text,
+        url: submission.url,
+        files: submission.files.map((item) => toFileDto(item.file)),
+        submittedAt: submission.submittedAt.toISOString(),
+        late: !!row.dueAt && submission.submittedAt > row.dueAt,
+        assessment: submission.assessment
+          ? {
+              id: submission.assessment.id,
+              decision: submission.assessment.decision,
+              score: toNumber(submission.assessment.score),
+              maxScore: submission.assessment.score === null ? null : toNumber(assignment.maxScore),
+              comment: submission.assessment.comment,
+              criterionScores: submission.assessment.criterionScores.map((item) => ({
+                criterionId: item.criterionId,
+                title: item.criterion.title,
+                maxScore: Number(item.criterion.maxScore),
+                score: Number(item.score),
+                comment: item.comment,
+              })),
+              assessor: assessors.get(submission.assessment.assessorId) ?? null,
+              createdAt: submission.assessment.createdAt.toISOString(),
+            }
+          : null,
+      })),
     };
+    return { dto, studentId: row.studentId };
   }
 
   /**
@@ -523,7 +613,7 @@ export class StudentAssignmentsService {
     return students;
   }
 
-  private async toDtos(rows: Row[]): Promise<StudentAssignmentDto[]> {
+  async toDtos(rows: Row[]): Promise<StudentAssignmentDto[]> {
     const people = await loadPeople(
       this.prisma,
       rows.map((row) => row.assignedById),
@@ -546,6 +636,7 @@ export class StudentAssignmentsService {
         ? { ...row.choiceGroup, chosenAt: row.choiceGroup.chosenAt?.toISOString() ?? null }
         : null,
       assignedBy: people.get(row.assignedById) ?? null,
+      result: lastResult(row),
     }));
   }
 }

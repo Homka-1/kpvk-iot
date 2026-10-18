@@ -24,6 +24,7 @@ import {
   assignmentScopeWhere,
   cabinetAssignmentWhere,
   materialScopeWhere,
+  teacherAssignmentWhere,
 } from './library-scope.js';
 
 export interface UploadedFileInput {
@@ -147,8 +148,8 @@ export class FilesService {
   }
 
   /**
-   * Файл для студента (AT-12): материал этапа его утверждённой ИОТ или вложение назначенного ему
-   * задания. Остальные файлы — 404.
+   * Файл для студента (AT-12): материал этапа его утверждённой ИОТ, вложение назначенного ему
+   * задания или файл его собственного ответа. Остальные файлы — 404.
    */
   async readForStudent(user: CurrentUser, id: string): Promise<StoredFileContent> {
     const row = await this.prisma.file.findFirst({
@@ -178,7 +179,30 @@ export class FilesService {
               some: { assignment: { assigned: { some: cabinetAssignmentWhere(user.id) } } },
             },
           },
+          {
+            submissionFiles: {
+              some: { submission: { trajectoryAssignment: cabinetAssignmentWhere(user.id) } },
+            },
+          },
         ],
+      },
+    });
+    return this.content(row);
+  }
+
+  /**
+   * Файл ответа студента для проверки (FR-052): только по заданиям студентов, которых
+   * пользователь ведёт (FR-002). Остальные файлы — 404.
+   */
+  async readSubmissionFile(user: CurrentUser, id: string): Promise<StoredFileContent> {
+    const scope = await this.scopes.forUser(user);
+    const row = await this.prisma.file.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+        submissionFiles: {
+          some: { submission: { trajectoryAssignment: teacherAssignmentWhere(scope) } },
+        },
       },
     });
     return this.content(row);
@@ -193,7 +217,7 @@ export class FilesService {
   }
 
   /**
-   * Новый файл для записи библиотеки: должен быть загружен самим пользователем. Уже прикреплённый
+   * Новый файл для записи библиотеки или ответа: должен быть загружен самим пользователем. Уже прикреплённый
    * к записи файл (при изменении) не проверяется — он остаётся прежним.
    */
   async assertOwnUpload(fileId: string, actorId: string, field: string): Promise<void> {

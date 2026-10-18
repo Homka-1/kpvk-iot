@@ -139,11 +139,34 @@ export class FilesController {
 export class CabinetFilesController {
   constructor(private readonly files: FilesService) {}
 
+  @Post()
+  @UseInterceptors(SingleFileInterceptor)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary', description: FILE_UPLOAD_HINT } },
+    },
+  })
+  @ApiOperation({
+    summary: 'Загрузка файла ответа на задание (FR-050)',
+    description:
+      'Те же проверки, что и в библиотеке: белый список расширений, размер, соответствие содержимого формату. Затем id файла указывается при отправке ответа.',
+  })
+  @ApiCreatedResponse({ type: FileResponseDto })
+  upload(
+    @UploadedFile() file: UploadedFileInput | undefined,
+    @User() user: AuthUser,
+  ): Promise<FileDto> {
+    return this.files.upload(file, user.id);
+  }
+
   @Get(':id')
   @ApiOperation({
-    summary: 'Скачивание файла материала или задания студентом',
+    summary: 'Скачивание файла материала, задания или своего ответа студентом',
     description:
-      'Только материалы этапов своей утверждённой ИОТ и вложения назначенных студенту заданий (AT-12). Остальные файлы — 404.',
+      'Только материалы этапов своей утверждённой ИОТ, вложения назначенных студенту заданий и файлы его ответов (AT-12). Остальные файлы — 404.',
   })
   @ApiProduces('application/octet-stream')
   @ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
@@ -153,7 +176,7 @@ export class CabinetFilesController {
 }
 
 /** Файл всегда отдаётся как вложение: браузер не исполняет содержимое на странице приложения. */
-function attachment({ file, content }: StoredFileContent): StreamableFile {
+export function attachment({ file, content }: StoredFileContent): StreamableFile {
   const ascii = file.originalName.replace(/[^\x20-\x7e]/g, '_');
   return new StreamableFile(content, {
     type: file.mimeType,
