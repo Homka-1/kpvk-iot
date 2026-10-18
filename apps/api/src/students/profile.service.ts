@@ -169,12 +169,25 @@ export class StudentProfileService {
   /** Значимые изменения по студенту из журнала аудита (вкладка «История»). */
   async history(user: CurrentUser, studentId: string): Promise<StudentHistoryItemDto[]> {
     await this.assertStudentInScope(await this.scopes.forUser(user), studentId);
-    const [observations, sessions, profiles, trajectories, assignments] = await Promise.all([
-      this.prisma.pedagogicalObservation.findMany({ where: { studentId }, select: { id: true } }),
-      this.prisma.diagnosticSession.findMany({ where: { studentId }, select: { id: true } }),
-      this.prisma.motivationProfile.findMany({ where: { studentId }, select: { id: true } }),
-      this.prisma.trajectory.findMany({ where: { studentId }, select: { id: true } }),
-      this.prisma.trajectoryAssignment.findMany({ where: { studentId }, select: { id: true } }),
+    const ids = { where: { studentId }, select: { id: true } } as const;
+    const [
+      observations,
+      sessions,
+      profiles,
+      trajectories,
+      assignments,
+      feedback,
+      consultations,
+      reflections,
+    ] = await Promise.all([
+      this.prisma.pedagogicalObservation.findMany(ids),
+      this.prisma.diagnosticSession.findMany(ids),
+      this.prisma.motivationProfile.findMany(ids),
+      this.prisma.trajectory.findMany(ids),
+      this.prisma.trajectoryAssignment.findMany(ids),
+      this.prisma.feedback.findMany({ where: { studentId, parentId: null }, select: { id: true } }),
+      this.prisma.consultation.findMany(ids),
+      this.prisma.reflection.findMany(ids),
     ]);
     const logs = await this.prisma.auditLog.findMany({
       where: {
@@ -192,6 +205,9 @@ export class StudentProfileService {
             entityType: 'trajectory_assignment',
             entityId: { in: assignments.map((item) => item.id) },
           },
+          { entityType: 'feedback', entityId: { in: feedback.map((item) => item.id) } },
+          { entityType: 'consultation', entityId: { in: consultations.map((item) => item.id) } },
+          { entityType: 'reflection', entityId: { in: reflections.map((item) => item.id) } },
         ],
       },
       orderBy: { createdAt: 'desc' },

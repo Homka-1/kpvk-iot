@@ -6,7 +6,9 @@ import { DisciplinesModule } from './disciplines/disciplines.module.js';
 import { GroupsModule } from './groups/groups.module.js';
 import { HealthModule } from './health/health.module.js';
 import { LibraryModule } from './library/library.module.js';
+import { FeedbackModule } from './feedback/feedback.module.js';
 import { MonitoringModule } from './monitoring/monitoring.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProfilesModule } from './profiles/profiles.module.js';
 import { SettingsModule } from './settings/settings.module.js';
@@ -31,6 +33,8 @@ import { UsersModule } from './users/users.module.js';
     TrajectoriesModule,
     StudentAssignmentsModule,
     MonitoringModule,
+    FeedbackModule,
+    NotificationsModule,
     HealthModule,
   ],
 })

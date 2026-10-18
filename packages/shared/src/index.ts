@@ -13,3 +13,4 @@ export * from './trajectories.js';
 export * from './student-assignments.js';
 export * from './submissions.js';
 export * from './monitoring.js';
+export * from './feedback.js';

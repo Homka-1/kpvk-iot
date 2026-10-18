@@ -106,6 +106,12 @@ export const STUDENT_HISTORY_LABELS: Record<string, string> = {
   'assignment.submitted': 'Студент отправил задание на проверку',
   'assignment.accepted': 'Задание принято',
   'assignment.returned': 'Задание возвращено на доработку',
+  'feedback.resolved': 'Обращение студента рассмотрено',
+  'consultation.requested': 'Студент запросил консультацию',
+  'consultation.scheduled': 'Назначена консультация',
+  'consultation.held': 'Проведена консультация',
+  'consultation.cancelled': 'Консультация отменена',
+  'reflection.created': 'Студент заполнил рефлексию',
 };
 
 // ── Схемы форм (zod) ──

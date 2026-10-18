@@ -16,6 +16,7 @@ import {
   type CurrentUser,
   type DifficultyLevel,
   formatFullName,
+  isCheckpointReflectable,
   type MaterialKind,
   type MotivationLevel,
   type PersonRef,
@@ -623,6 +624,7 @@ export class TrajectoriesService {
     const current = await this.load(this.prisma, id);
     await this.assertReferences(scope, current, dto);
     assertCorrectable(current, dto);
+    await this.assertReflectionsKept(current, dto);
     const version = trajectory.currentVersion + 1;
 
     await this.prisma.$transaction(async (tx) => {
@@ -686,6 +688,38 @@ export class TrajectoriesService {
       );
     });
     return this.load(this.prisma, id);
+  }
+
+  /**
+   * Контрольная точка, по которой студент заполнил рефлексию, при корректировке не удаляется:
+   * рефлексия — часть истории сопровождения (FR-066). Точки архивных этапов остаются в базе.
+   */
+  private async assertReflectionsKept(
+    current: TrajectoryDto,
+    dto: TrajectoryContent,
+  ): Promise<void> {
+    const fields: Record<string, string> = {};
+    for (const [index, stage] of dto.stages.entries()) {
+      const before = current.stages.find((item) => item.id === stage.id);
+      if (!before) continue;
+      const kept = new Set(stage.checkpoints.map((item) => item.id).filter(Boolean));
+      const dropped = before.checkpoints.filter((item) => !kept.has(item.id));
+      if (dropped.length === 0) continue;
+      const reflected = await this.prisma.reflection.findFirst({
+        where: { checkpointId: { in: dropped.map((item) => item.id) } },
+        select: { checkpoint: { select: { title: true } } },
+      });
+      if (reflected?.checkpoint) {
+        fields[`stages.${index}.checkpoints`] =
+          `По контрольной точке «${reflected.checkpoint.title}» студент заполнил рефлексию — её нельзя удалить`;
+      }
+    }
+    if (Object.keys(fields).length > 0) {
+      throw new BadRequestException({
+        message: 'Корректировка сохраняет историю выполнения — проверьте отмеченные поля',
+        fields,
+      });
+    }
   }
 
   /** Отметка по итогам мониторинга: «Активна» → «Требует корректировки» с причиной (UC-05). */
@@ -820,6 +854,21 @@ export class TrajectoriesService {
         data: { status: dto.status, passedAt: dto.status === 'PASSED' ? new Date() : null },
       });
       await syncStageProgress(tx, checkpoint.stageId);
+      // После отмеченной точки студенту предлагается рефлексия (FR-066), если её ещё нет.
+      const reflected = await tx.reflection.count({ where: { checkpointId } });
+      if (isCheckpointReflectable(dto.status) && reflected === 0 && trajectory.student.userId) {
+        await tx.notification.create({
+          data: {
+            userId: trajectory.student.userId,
+            type: 'reflection.requested',
+            title: 'Заполните рефлексию после контрольной точки',
+            body: `«${checkpoint.title}»`,
+            link: '/student/feedback',
+            entityType: 'trajectory',
+            entityId: id,
+          },
+        });
+      }
       await this.audit.log(
         {
           action: 'trajectory.checkpoint_marked',
