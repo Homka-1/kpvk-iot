@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { config } from 'dotenv';
 
 /** Ищет корень монорепозитория (каталог с pnpm-workspace.yaml) вверх от текущего файла. */
-function findWorkspaceRoot(start: string): string | undefined {
+export function findWorkspaceRoot(start: string): string | undefined {
   let dir = start;
   while (!existsSync(join(dir, 'pnpm-workspace.yaml'))) {
     const parent = dirname(dir);

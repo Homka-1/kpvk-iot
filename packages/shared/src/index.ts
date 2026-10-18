@@ -8,3 +8,4 @@ export * from './diagnostics.js';
 export * from './diagnostic-sessions.js';
 export * from './diagnostic-results.js';
 export * from './motivation-profiles.js';
+export * from './library.js';

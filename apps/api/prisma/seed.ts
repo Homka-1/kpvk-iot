@@ -12,6 +12,7 @@ import { generateTemporaryPassword, hashPassword } from '../src/auth/passwords.j
 import { syncRbacCatalog } from '../src/auth/rbac-catalog.js';
 import { loadDefinitions } from '../src/diagnostics/questionnaire-definitions.js';
 import { passportData, replaceContent } from '../src/diagnostics/questionnaire-content.js';
+import { syncAssignmentTypes } from '../src/library/assignment-types-catalog.js';
 
 loadEnv();
 
@@ -95,6 +96,8 @@ async function main(): Promise<void> {
 
     await seedDirectory(prisma);
     await seedQuestionnaires(prisma);
+    await syncAssignmentTypes(prisma);
+    await seedLibrary(prisma);
   } finally {
     await prisma.$disconnect();
   }
@@ -200,6 +203,55 @@ async function seedQuestionnaires(prisma: PrismaClient): Promise<void> {
     });
     console.log(`Сид: методика «${first.content.title}» опубликована.`);
   }
+}
+
+/**
+ * Демо-библиотека (этап 10): материал-текст и задание по демо-дисциплине. Без файлов —
+ * их содержимое хранится вне БД. Записи ищутся по названию; существующие не меняются.
+ */
+async function seedLibrary(prisma: PrismaClient): Promise<void> {
+  const discipline = await prisma.discipline.findUniqueOrThrow({
+    where: { name: 'Математика (демо)' },
+  });
+  const teacher = await prisma.user.findUnique({ where: { login: 'teacher' } });
+  const materialTitle = 'Памятка: как решать текстовые задачи (демо)';
+  if (!(await prisma.material.findFirst({ where: { title: materialTitle } }))) {
+    await prisma.material.create({
+      data: {
+        title: materialTitle,
+        kind: 'TEXT',
+        body: '1. Прочитайте условие и выделите известные величины.\n2. Сделайте схему или таблицу.\n3. Составьте уравнение.\n4. Проверьте ответ по смыслу задачи.',
+        disciplineId: discipline.id,
+        topic: 'Текстовые задачи',
+        createdById: teacher?.id ?? null,
+      },
+    });
+  }
+  const assignmentTitle = 'Практическая работа: линейные уравнения (демо)';
+  if (!(await prisma.assignment.findFirst({ where: { title: assignmentTitle } }))) {
+    const type = await prisma.assignmentType.findUniqueOrThrow({ where: { code: 'practical' } });
+    await prisma.assignment.create({
+      data: {
+        title: assignmentTitle,
+        disciplineId: discipline.id,
+        topic: 'Линейные уравнения',
+        goal: 'Научиться решать линейные уравнения и проверять решение подстановкой',
+        difficulty: 'BASIC',
+        typeId: type.id,
+        instruction: 'Решите 10 уравнений из файла задания. Для каждого выполните проверку.',
+        submissionFormats: ['TEXT', 'FILE'],
+        maxScore: 10,
+        createdById: teacher?.id ?? null,
+        criteria: {
+          create: [
+            { sortOrder: 0, title: 'Верность решений', maxScore: 7 },
+            { sortOrder: 1, title: 'Проверка подстановкой', maxScore: 3 },
+          ],
+        },
+      },
+    });
+  }
+  console.log('Сид: демо-материал и демо-задание библиотеки готовы.');
 }
 
 await main();

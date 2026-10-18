@@ -6,6 +6,7 @@ import {
   type ExecutionContext,
   Injectable,
 } from '@nestjs/common';
+import { ApiHeader } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -93,3 +94,12 @@ export class IdempotencyService {
     }
   }
 }
+
+/** Описание заголовка `Idempotency-Key` для OpenAPI. */
+export const ApiIdempotencyHeader = () =>
+  ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'Ключ формы (8–100 символов): повторная отправка с тем же ключом не создаёт дублей (NFR-006)',
+  });

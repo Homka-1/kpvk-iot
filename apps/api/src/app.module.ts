@@ -5,6 +5,7 @@ import { DiagnosticsModule } from './diagnostics/diagnostics.module.js';
 import { DisciplinesModule } from './disciplines/disciplines.module.js';
 import { GroupsModule } from './groups/groups.module.js';
 import { HealthModule } from './health/health.module.js';
+import { LibraryModule } from './library/library.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { ProfilesModule } from './profiles/profiles.module.js';
 import { SettingsModule } from './settings/settings.module.js';
@@ -23,6 +24,7 @@ import { UsersModule } from './users/users.module.js';
     StudentsModule,
     DiagnosticsModule,
     ProfilesModule,
+    LibraryModule,
     HealthModule,
   ],
 })
