@@ -71,7 +71,10 @@ export async function apiDownload(path: string, options: RequestOptions = {}): P
     response = await send(path, options);
   }
   if (!response.ok) return parse<void>(response);
-  const name = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1];
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  // filename* (RFC 5987) несёт имя в UTF-8, filename — запасной ASCII-вариант.
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  const name = encoded ? decodeURIComponent(encoded) : /filename="([^"]+)"/.exec(disposition)?.[1];
   const url = URL.createObjectURL(await response.blob());
   const link = document.createElement('a');
   link.href = url;

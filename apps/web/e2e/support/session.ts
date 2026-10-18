@@ -63,7 +63,7 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
   // API и засоряет вывод ошибками ECONNREFUSED. Тесты переопределяют их через mockDirectoryApi.
   await page.route(/\/api\/(groups|disciplines)(\?.*)?$/, (route) => route.fulfill({ json: [] }));
   await page.route(
-    /\/api\/(cabinet\/diagnostics|diagnostic-assignments|questionnaire-comparabilities)$/,
+    /\/api\/(cabinet\/diagnostics|diagnostic-assignments|questionnaire-comparabilities|materials|library-assignments|assignment-types)(\?.*)?$/,
     (route) => route.fulfill({ json: [] }),
   );
   await page.route('**/api/motivation-strategies', (route) =>

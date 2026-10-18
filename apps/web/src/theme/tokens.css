@@ -136,7 +136,8 @@ a {
   min-width: 0;
 }
 
-.iot-field > label {
+.iot-field > label,
+.iot-field__label {
   font-weight: 600;
 }
 

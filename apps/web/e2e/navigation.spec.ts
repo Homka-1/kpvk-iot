@@ -17,6 +17,8 @@ const IMPLEMENTED = new Set([
   'disciplines',
   'diagnostics',
   'motivation-profiles',
+  'assignments',
+  'library',
   'analytics',
 ]);
 /** Служебные разделы администратора; остальные пункты открываются под преподавателем. */
