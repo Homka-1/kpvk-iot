@@ -66,6 +66,9 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
     /\/api\/(cabinet\/diagnostics|diagnostic-assignments|questionnaire-comparabilities|materials|library-assignments|assignment-types)(\?.*)?$/,
     (route) => route.fulfill({ json: [] }),
   );
+  await page.route(/\/api\/trajectories(\?.*)?$/, (route) =>
+    route.fulfill({ json: { items: [], total: 0, page: 1, pageSize: 24 } }),
+  );
   await page.route('**/api/motivation-strategies', (route) =>
     route.fulfill({ json: DEFAULT_MOTIVATION_STRATEGIES }),
   );

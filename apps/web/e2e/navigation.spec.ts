@@ -17,6 +17,7 @@ const IMPLEMENTED = new Set([
   'disciplines',
   'diagnostics',
   'motivation-profiles',
+  'trajectories',
   'assignments',
   'library',
   'analytics',

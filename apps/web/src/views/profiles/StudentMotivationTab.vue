@@ -127,11 +127,11 @@ const levelText = (level: keyof typeof MOTIVATION_LEVEL_LABELS | null) =>
         icon="pi pi-check-square"
         @click="decisionOpen = true"
       />
-      <!-- FR-031: конструктор ИОТ появится на этапе 11; до этого ссылка ведёт в раздел ИОТ. -->
+      <!-- FR-031: переход к конструктору ИОТ с утверждённым профилем. -->
       <RouterLink
         v-if="decided"
         class="p-button p-button-outlined motivation__link"
-        :to="{ path: '/trajectories', query: { studentId } }"
+        :to="{ name: 'trajectory-new', query: { studentId } }"
       >
         <i class="pi pi-directions" aria-hidden="true" /> Сформировать ИОТ
       </RouterLink>

@@ -199,7 +199,7 @@ describe('StudentMotivationTab', () => {
     });
     await flushPromises();
     const link = wrapper.findAll('a').find((a) => a.text().includes('Сформировать ИОТ'))!;
-    expect(link.attributes('href')).toBe('/trajectories?studentId=st1');
+    expect(link.attributes('href')).toBe('/trajectories/new?studentId=st1');
     expect(wrapper.text()).toContain('профиль студента');
     expect(wrapper.text()).toContain('Ставьте небольшие цели.');
   });

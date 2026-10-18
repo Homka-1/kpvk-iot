@@ -25,6 +25,7 @@ import { formatDate, formatDateTime } from '@/utils/format';
 import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
 import ObservationDialog from './ObservationDialog.vue';
 import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
+import StudentTrajectoriesTab from '@/views/trajectories/StudentTrajectoriesTab.vue';
 import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
 
@@ -39,6 +40,7 @@ const context = useContextStore();
 const studentId = computed(() => String(route.params.id));
 const canObserve = computed(() => auth.hasPermission(Permission.OBSERVATIONS_MANAGE));
 const canManage = computed(() => auth.hasPermission(Permission.STUDENTS_MANAGE));
+const canTrajectories = computed(() => auth.hasPermission(Permission.TRAJECTORIES_MANAGE));
 
 const TABS = [
   'general',
@@ -195,7 +197,14 @@ function onStudentChanged(): void {
             </dd>
           </div>
         </dl>
-        <div v-if="canObserve || canManage" class="profile__actions">
+        <div v-if="canObserve || canManage || canTrajectories" class="profile__actions">
+          <RouterLink
+            v-if="canTrajectories && !profile.archivedAt"
+            :to="{ name: 'trajectory-new', query: { studentId } }"
+            class="p-button p-component p-button-outlined"
+          >
+            <i class="pi pi-directions" aria-hidden="true" /> Создать ИОТ
+          </RouterLink>
           <Button
             v-if="canManage"
             label="Управление карточкой"
@@ -294,11 +303,7 @@ function onStudentChanged(): void {
             />
           </TabPanel>
           <TabPanel value="trajectory">
-            <EmptyState
-              icon="pi pi-directions"
-              title="Индивидуальная траектория не создана"
-              description="Здесь появятся цели, этапы маршрута и прогресс их выполнения."
-            />
+            <StudentTrajectoriesTab :student-id="studentId" :archived="!!profile.archivedAt" />
           </TabPanel>
           <TabPanel value="assignments">
             <EmptyState

@@ -34,6 +34,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   students: () => import('@/views/students/StudentsView.vue'),
   diagnostics: () => import('@/views/diagnostics/DiagnosticsView.vue'),
   'motivation-profiles': () => import('@/views/profiles/MotivationProfilesView.vue'),
+  trajectories: () => import('@/views/trajectories/TrajectoriesView.vue'),
   assignments: () => import('@/views/assignments/AssignmentsView.vue'),
   library: () => import('@/views/library/LibraryView.vue'),
   analytics: () => import('@/views/analytics/AnalyticsView.vue'),
@@ -101,6 +102,19 @@ export const routes: RouteRecordRaw[] = [
         name: 'questionnaire-editor',
         component: () => import('@/views/diagnostics/QuestionnaireEditorView.vue'),
         meta: { title: 'Конструктор методики', permission: Permission.DIAGNOSTICS_MANAGE },
+      },
+      // Конструктор и страница ИОТ — вложенные страницы раздела «Индивидуальные траектории».
+      {
+        path: 'trajectories/new',
+        name: 'trajectory-new',
+        component: () => import('@/views/trajectories/TrajectoryNewView.vue'),
+        meta: { title: 'Новая ИОТ', permission: Permission.TRAJECTORIES_MANAGE },
+      },
+      {
+        path: 'trajectories/:id',
+        name: 'trajectory-details',
+        component: () => import('@/views/trajectories/TrajectoryView.vue'),
+        meta: { title: 'Индивидуальная траектория', permission: Permission.TRAJECTORIES_MANAGE },
       },
     ],
   },
