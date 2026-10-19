@@ -28,6 +28,23 @@ export default tseslint.config(
   {
     files: ['apps/web/src/**/*.{ts,vue}'],
     languageOptions: { globals: { ...globals.browser } },
+    rules: {
+      // Защита от XSS (п. 8.3): пользовательский текст выводится только интерполяцией Vue,
+      // которая экранирует HTML. Вставка сырого HTML запрещена.
+      'vue/no-v-html': 'error',
+      'no-restricted-properties': [
+        'error',
+        { object: 'document', property: 'write', message: 'Запрещено: риск XSS (п. 8.3).' },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "AssignmentExpression[left.property.name=/^(innerHTML|outerHTML)$/]:not([right.type='Literal'])",
+          message: 'Запрещено: вставка HTML из данных — риск XSS (п. 8.3).',
+        },
+      ],
+    },
   },
   {
     files: ['apps/api/**/*.ts'],
@@ -43,8 +60,15 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/api/prisma/seed.ts', 'apps/api/prisma/erd.ts'],
+    files: ['apps/api/prisma/seed.ts', 'apps/api/prisma/erd.ts', 'apps/api/test/load/*.ts'],
     rules: { 'no-console': 'off' },
+  },
+  {
+    // Сценарии k6 выполняются не в Node, а в среде k6 со своими глобальными объектами.
+    files: ['**/*.k6.js'],
+    languageOptions: {
+      globals: { __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly', open: 'readonly' },
+    },
   },
   prettier,
 );

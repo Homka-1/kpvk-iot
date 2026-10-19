@@ -50,6 +50,8 @@ test.describe('исследовательский режим', () => {
   test('UC-07, AT-11, NFR-004: исследование, ЭГ и КГ, замер, таблица и обезличенный экспорт', async ({
     page,
   }) => {
+    // Длинный сквозной сценарий: в WebKit и Firefox близок к стандартному лимиту 30 с.
+    test.slow();
     await mockSession(page, fakeUser(['researcher']));
     const state: {
       project: ResearchProjectDetailDto | null;

@@ -14,5 +14,8 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     // NFR-004: минимальная поддерживаемая ширина экрана — 360 px.
     { name: 'mobile-360', use: { ...devices['Pixel 5'], viewport: { width: 360, height: 740 } } },
+    // NFR-003: другие движки браузеров (Firefox; WebKit — Safari и браузеры iOS).
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
 });
