@@ -41,6 +41,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   feedback: () => import('@/views/feedback/FeedbackView.vue'),
   library: () => import('@/views/library/LibraryView.vue'),
   analytics: () => import('@/views/analytics/AnalyticsView.vue'),
+  reports: () => import('@/views/reports/ReportsView.vue'),
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),
   admin: () => import('@/views/admin/AdminView.vue'),

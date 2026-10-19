@@ -24,6 +24,7 @@ const IMPLEMENTED = new Set([
   'feedback',
   'library',
   'analytics',
+  'reports',
 ]);
 /** Служебные разделы администратора; остальные пункты открываются под преподавателем. */
 const ADMIN_SECTIONS = new Set(['settings', 'admin']);

@@ -61,10 +61,9 @@ describe('StaffLayout', () => {
     expect(current.map((link) => link.text())).toEqual(['Мониторинг']);
   });
 
-  it('раздел открывает заглушку «Раздел в разработке» с заголовком пункта', async () => {
+  it('раздел открывается в оболочке с заголовком пункта', async () => {
     const { wrapper } = await mountWithApp(StaffLayout, { path: '/reports' });
     expect(wrapper.find('main h1').text()).toBe('Отчёты');
-    expect(wrapper.find('main').text()).toContain('Раздел в разработке');
   });
 });
 
