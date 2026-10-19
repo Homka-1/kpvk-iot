@@ -41,8 +41,16 @@ const filters = reactive<{
   profile: ProfileFilterValue | null;
   trajectoryStatus: TrajectoryStatus | null;
   difficulties: 'yes' | 'no' | null;
+  attention: 'yes' | 'no' | null;
   archived: boolean;
-}>({ search: '', profile: null, trajectoryStatus: null, difficulties: null, archived: false });
+}>({
+  search: '',
+  profile: null,
+  trajectoryStatus: null,
+  difficulties: null,
+  attention: null,
+  archived: false,
+});
 const page = ref<StudentPageDto | null>(null);
 const current = ref(1);
 const loading = ref(false);
@@ -59,6 +67,8 @@ const queryProfile = route.query.profile;
 if (PROFILE_FILTER_VALUES.includes(queryProfile as ProfileFilterValue)) {
   filters.profile = queryProfile as ProfileFilterValue;
 }
+// Переход с главной панели по карточке «Требуют внимания» (FR-003).
+if (route.query.attention === '1') filters.attention = 'yes';
 const trajectoryOptions = Object.values(TrajectoryStatus).map((value) => ({
   value,
   label: TRAJECTORY_STATUS_LABELS[value],
@@ -66,6 +76,10 @@ const trajectoryOptions = Object.values(TrajectoryStatus).map((value) => ({
 const difficultyOptions = [
   { value: 'yes', label: 'Есть затруднения' },
   { value: 'no', label: 'Нет затруднений' },
+];
+const attentionOptions = [
+  { value: 'yes', label: 'Требуют внимания' },
+  { value: 'no', label: 'Без отметок внимания' },
 ];
 const archiveOptions = [
   { value: false, label: 'Действующие' },
@@ -78,6 +92,7 @@ const hasFilters = computed(
     !!filters.profile ||
     !!filters.trajectoryStatus ||
     !!filters.difficulties ||
+    !!filters.attention ||
     !!context.groupId ||
     !!context.disciplineId,
 );
@@ -94,6 +109,7 @@ async function load(): Promise<void> {
         profile: filters.profile,
         trajectoryStatus: filters.trajectoryStatus,
         hasDifficulties: filters.difficulties ? String(filters.difficulties === 'yes') : null,
+        needsAttention: filters.attention ? String(filters.attention === 'yes') : null,
         archived: filters.archived ? 'true' : null,
         page: current.value,
         pageSize: PAGE_SIZE,
@@ -124,7 +140,13 @@ function onPage(event: PageState): void {
 }
 
 function resetFilters(): void {
-  Object.assign(filters, { search: '', profile: null, trajectoryStatus: null, difficulties: null });
+  Object.assign(filters, {
+    search: '',
+    profile: null,
+    trajectoryStatus: null,
+    difficulties: null,
+    attention: null,
+  });
   context.groupId = null;
   context.disciplineId = null;
 }
@@ -191,6 +213,16 @@ onMounted(load);
         placeholder="Затруднения: все"
         show-clear
         aria-label="Фильтр по наличию затруднений"
+        class="students__filter"
+      />
+      <Select
+        v-model="filters.attention"
+        :options="attentionOptions"
+        option-label="label"
+        option-value="value"
+        placeholder="Внимание: все"
+        show-clear
+        aria-label="Фильтр «Требуют внимания»"
         class="students__filter"
       />
       <SelectButton

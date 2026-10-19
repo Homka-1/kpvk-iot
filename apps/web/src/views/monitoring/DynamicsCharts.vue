@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { computed } from 'vue';
 import { Bar, Line } from 'vue-chartjs';
+import { chartAnimation, chartColor } from '@/utils/chart';
 import { formatDate, formatNumber } from '@/utils/format';
 
 ChartJS.register(
@@ -40,29 +41,20 @@ const hasActivity = computed(() =>
 const hasScores = computed(() => props.points.some((point) => point.averageScore !== null));
 const labels = computed(() => props.points.map((point) => `с ${formatDate(point.weekStart)}`));
 
-function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#163259';
-}
-
-const reducedMotion =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 const activityData = computed<ChartData<'bar', number[], string>>(() => ({
   labels: labels.value,
   datasets: [
     {
       label: 'Принято заданий',
       data: props.points.map((point) => point.completedAssignments),
-      backgroundColor: token('--iot-chart-1'),
+      backgroundColor: chartColor('--iot-chart-1'),
       borderRadius: 4,
       maxBarThickness: 18,
     },
     {
       label: 'Отправлено ответов',
       data: props.points.map((point) => point.submissions),
-      backgroundColor: token('--iot-chart-2'),
+      backgroundColor: chartColor('--iot-chart-2'),
       borderRadius: 4,
       maxBarThickness: 18,
     },
@@ -75,8 +67,8 @@ const scoreData = computed<ChartData<'line', (number | null)[], string>>(() => (
     {
       label: 'Средний результат, %',
       data: props.points.map((point) => point.averageScore),
-      borderColor: token('--iot-chart-1'),
-      backgroundColor: token('--iot-chart-1'),
+      borderColor: chartColor('--iot-chart-1'),
+      backgroundColor: chartColor('--iot-chart-1'),
       borderWidth: 2,
       pointRadius: 4,
       spanGaps: false,
@@ -87,7 +79,7 @@ const scoreData = computed<ChartData<'line', (number | null)[], string>>(() => (
 const common = {
   responsive: true,
   maintainAspectRatio: false,
-  animation: reducedMotion ? (false as const) : { duration: 200 },
+  animation: chartAnimation,
   interaction: { mode: 'index' as const, intersect: false },
 };
 

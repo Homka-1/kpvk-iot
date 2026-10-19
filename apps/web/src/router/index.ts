@@ -31,6 +31,7 @@ declare module 'vue-router' {
 
 /** Реализованные разделы. Остальные пункты меню пока открывают заглушку. */
 const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<RouteComponent>)>> = {
+  home: () => import('@/views/dashboard/TeacherDashboardView.vue'),
   students: () => import('@/views/students/StudentsView.vue'),
   diagnostics: () => import('@/views/diagnostics/DiagnosticsView.vue'),
   'motivation-profiles': () => import('@/views/profiles/MotivationProfilesView.vue'),
@@ -43,9 +44,11 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   disciplines: () => import('@/views/disciplines/DisciplinesView.vue'),
   settings: () => import('@/views/SettingsView.vue'),
   admin: () => import('@/views/admin/AdminView.vue'),
+  'student-home': () => import('@/views/student/StudentHomeView.vue'),
   'student-trajectory': () => import('@/views/student/MyTrajectoryView.vue'),
   'student-assignments': () => import('@/views/student/MyAssignmentsView.vue'),
   'student-diagnostics': () => import('@/views/student/MyDiagnosticsView.vue'),
+  'student-achievements': () => import('@/views/student/MyAchievementsView.vue'),
   'student-feedback': () => import('@/views/student/MyFeedbackView.vue'),
   'student-profile': () => import('@/views/student/MyProfileView.vue'),
 };

@@ -18,6 +18,7 @@ import {
 import { computed } from 'vue';
 import { Line } from 'vue-chartjs';
 import StatusBadge from '@/components/StatusBadge.vue';
+import { chartAnimation, chartColor } from '@/utils/chart';
 import { formatDate } from '@/utils/format';
 import { formatScore } from './content';
 
@@ -61,15 +62,7 @@ function changeView(code: string): { text: string; icon: string } {
     : { text: `−${formatted}`, icon: 'pi pi-arrow-down-right' };
 }
 
-function token(index: number): string {
-  const name = `--iot-chart-${(index % CHART_TOKENS) + 1}`;
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#163259';
-}
-
-const reducedMotion =
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const token = (index: number) => chartColor(`--iot-chart-${(index % CHART_TOKENS) + 1}`);
 
 const chartData = computed<ChartData<'line', (number | null)[], string>>(() => ({
   labels: props.comparison.measurements.map(
@@ -89,7 +82,7 @@ const chartData = computed<ChartData<'line', (number | null)[], string>>(() => (
 const chartOptions: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
-  animation: reducedMotion ? false : { duration: 200 },
+  animation: chartAnimation,
   plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } },
   scales: { y: { title: { display: true, text: 'Балл' } } },
 };

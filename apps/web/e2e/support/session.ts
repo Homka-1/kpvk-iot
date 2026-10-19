@@ -93,23 +93,44 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
       },
     }),
   );
+  // Главная панель преподавателя (этап 16): пустая база — «Нет данных».
+  await page.route(/\/api\/dashboard(\?.*)?$/, (route) =>
+    route.fulfill({
+      json: {
+        period: { from: null, to: null },
+        cards: {
+          students: null,
+          activeTrajectories: null,
+          averageProgress: null,
+          toReview: null,
+          overdueAssignments: null,
+          needsAttention: null,
+        },
+        stages: [],
+        profiles: EMPTY_DISTRIBUTION,
+        recentAssignments: [],
+        activity: [],
+        upcoming: [],
+      },
+    }),
+  );
   await page.route('**/api/motivation-strategies', (route) =>
     route.fulfill({ json: DEFAULT_MOTIVATION_STRATEGIES }),
   );
   await page.route(/\/api\/motivation-profiles\/distribution(\?.*)?$/, (route) =>
-    route.fulfill({
-      json: {
-        total: 0,
-        HIGH: 0,
-        MEDIUM: 0,
-        LOW: 0,
-        PROPOSED: 0,
-        NEEDS_MORE_DIAGNOSTICS: 0,
-        NONE: 0,
-      },
-    }),
+    route.fulfill({ json: EMPTY_DISTRIBUTION }),
   );
 }
+
+const EMPTY_DISTRIBUTION = {
+  total: 0,
+  HIGH: 0,
+  MEDIUM: 0,
+  LOW: 0,
+  PROPOSED: 0,
+  NEEDS_MORE_DIAGNOSTICS: 0,
+  NONE: 0,
+};
 
 /** Пустые ответы API раздела «Администрирование» и «Настройки». */
 export async function mockAdminApi(page: Page): Promise<void> {

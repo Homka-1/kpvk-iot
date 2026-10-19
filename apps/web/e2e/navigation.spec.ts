@@ -11,6 +11,7 @@ import {
 
 /** Разделы, которые уже реализованы (остальные пока открывают заглушку). */
 const IMPLEMENTED = new Set([
+  'home',
   'settings',
   'admin',
   'students',

@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { MONITORING_ROWS_LIMIT, type MonitoringDto } from '@iot/shared';
+import {
+  MONITORING_ROWS_LIMIT,
+  type MonitoringDto,
+  STUDENT_VISIBLE_TRAJECTORY_STATUSES,
+  TRAJECTORY_STATUS_LABELS,
+  type TrajectoryStatus,
+} from '@iot/shared';
 import Button from 'primevue/button';
 import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
 import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { api, ApiError } from '@/api/http';
@@ -29,9 +36,21 @@ const route = useRoute();
 const context = useContextStore();
 const data = ref<MonitoringDto | null>(null);
 const error = ref<string | null>(null);
+// Переход с главной панели (FR-003): статус ИОТ и период — из адреса.
+const queryText = (name: string) => {
+  const value = route.query[name];
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+};
 const search = ref('');
-const from = ref('');
-const to = ref('');
+const from = ref(queryText('from'));
+const to = ref(queryText('to'));
+const status = ref<TrajectoryStatus | null>(
+  STUDENT_VISIBLE_TRAJECTORY_STATUSES.find((item) => item === route.query.status) ?? null,
+);
+const statusOptions = STUDENT_VISIBLE_TRAJECTORY_STATUSES.map((value) => ({
+  value,
+  label: TRAJECTORY_STATUS_LABELS[value],
+}));
 const periodError = ref<string | null>(null);
 
 async function load(): Promise<void> {
@@ -47,6 +66,7 @@ async function load(): Promise<void> {
         groupId: context.groupId,
         disciplineId: context.disciplineId,
         q: search.value.trim(),
+        status: status.value,
         from: from.value,
         to: to.value,
       },
@@ -58,7 +78,7 @@ async function load(): Promise<void> {
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 watch(
-  () => [context.groupId, context.disciplineId, search.value, from.value, to.value],
+  () => [context.groupId, context.disciplineId, search.value, status.value, from.value, to.value],
   () => {
     clearTimeout(timer);
     timer = setTimeout(() => void load(), 300);
@@ -90,6 +110,16 @@ function resetPeriod(): void {
           fluid
         />
       </IconField>
+      <Select
+        v-model="status"
+        :options="statusOptions"
+        option-label="label"
+        option-value="value"
+        placeholder="Любой статус ИОТ"
+        show-clear
+        aria-label="Фильтр по статусу ИОТ"
+        class="monitoring__status"
+      />
       <div class="iot-field">
         <label for="monitoring-from">Период с</label>
         <DateInput v-model="from" input-id="monitoring-from" />
@@ -114,9 +144,11 @@ function resetPeriod(): void {
     <EmptyState
       v-else-if="data.rows.length === 0"
       icon="pi pi-chart-line"
-      :title="search || from || to ? 'Ничего не найдено' : 'Маршрутов для мониторинга нет'"
+      :title="
+        search || status || from || to ? 'Ничего не найдено' : 'Маршрутов для мониторинга нет'
+      "
       :description="
-        search || from || to
+        search || status || from || to
           ? 'Измените поиск или период.'
           : 'Здесь появятся утверждённые ИОТ студентов ваших групп и дисциплин.'
       "
@@ -259,6 +291,11 @@ function resetPeriod(): void {
 
 .monitoring__search {
   flex: 1 1 260px;
+}
+
+.monitoring__status {
+  flex: 0 1 220px;
+  min-width: 0;
 }
 
 .monitoring__summary {
