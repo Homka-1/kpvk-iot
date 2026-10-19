@@ -3,6 +3,7 @@ import { AnalyticsModule } from './analytics/analytics.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { IdempotencyCleanupService } from './common/idempotency-cleanup.service.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module.js';
 import { DisciplinesModule } from './disciplines/disciplines.module.js';
@@ -43,5 +44,6 @@ import { UsersModule } from './users/users.module.js';
     ReportsModule,
     HealthModule,
   ],
+  providers: [IdempotencyCleanupService],
 })
 export class AppModule {}

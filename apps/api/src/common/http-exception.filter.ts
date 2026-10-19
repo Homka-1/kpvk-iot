@@ -11,6 +11,7 @@ import type { ApiErrorBody } from '@iot/shared';
 import type { Response } from 'express';
 import { Prisma } from '../generated/prisma/client.js';
 import type { AppLogger } from '../logging/app-logger.js';
+import { errorForLog } from '../logging/mask.js';
 
 /** Понятные сообщения по статусу, если исключение не содержит русского текста (NFR-005). */
 const DEFAULT_MESSAGES: Record<number, string> = {
@@ -74,11 +75,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const res = host.switchToHttp().getResponse<Response>();
     const body = this.toBody(exception);
     if (body.statusCode >= 500) {
-      this.logger.error(
-        exception instanceof Error ? exception.message : 'Необработанная ошибка',
-        exception instanceof Error ? exception.stack : undefined,
-        'HttpExceptionFilter',
-      );
+      const { message, stack } = errorForLog(exception);
+      this.logger.error(message, stack, 'HttpExceptionFilter');
     }
     if (!res.headersSent) res.status(body.statusCode).json(body);
   }
@@ -98,6 +96,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? (response as { fields?: Record<string, string> }).fields
           : undefined;
       return fields ? { statusCode, message, fields } : { statusCode, message };
+    }
+    // Ошибки разбора тела запроса (body-parser, http-errors): слишком большое тело, битый JSON.
+    const transport = exception as { status?: unknown; expose?: unknown };
+    if (
+      typeof transport.status === 'number' &&
+      transport.status >= 400 &&
+      transport.status < 500 &&
+      transport.expose === true
+    ) {
+      const statusCode = transport.status;
+      return { statusCode, message: DEFAULT_MESSAGES[statusCode] ?? DEFAULT_MESSAGES[400]! };
     }
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       const mapped = PRISMA_ERRORS[exception.code];

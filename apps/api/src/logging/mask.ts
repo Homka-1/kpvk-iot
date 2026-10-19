@@ -56,3 +56,24 @@ export function maskPersonalData(value: unknown, depth = 0): unknown {
 function maskStack(stack: string | undefined): string | undefined {
   return stack === undefined ? undefined : maskString(stack);
 }
+
+/**
+ * Что из необработанной ошибки попадает в журнал (п. 8.3). Текст ошибок Prisma содержит
+ * аргументы запроса — ФИО, логины, ответы, — поэтому от них остаются только класс, код
+ * и строки стека без текста сообщения.
+ */
+export function errorForLog(exception: unknown): { message: string; stack?: string } {
+  if (!(exception instanceof Error)) return { message: 'Необработанная ошибка' };
+  if (!exception.name.startsWith('PrismaClient')) {
+    return { message: exception.message, stack: exception.stack };
+  }
+  const code = (exception as { code?: unknown }).code;
+  const frames = exception.stack
+    ?.split('\n')
+    .filter((line) => line.trimStart().startsWith('at '))
+    .join('\n');
+  return {
+    message: `${exception.name}${typeof code === 'string' ? ` ${code}` : ''}: текст запроса скрыт`,
+    stack: frames,
+  };
+}

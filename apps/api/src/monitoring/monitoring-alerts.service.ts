@@ -11,6 +11,7 @@ import {
   TRAJECTORY_CORRECTABLE_STATUSES,
 } from '@iot/shared';
 import { AuditService } from '../audit/audit.service.js';
+import { errorForLog } from '../logging/mask.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** Как часто фоновая задача проверяет сроки. */
@@ -45,7 +46,7 @@ export class MonitoringAlertsService implements OnApplicationBootstrap, OnApplic
       if (this.running) return;
       this.running = this.run()
         .catch((error: unknown) =>
-          this.logger.error(`Проверка сроков не выполнена: ${String(error)}`),
+          this.logger.error(`Проверка сроков не выполнена: ${errorForLog(error).message}`),
         )
         .finally(() => (this.running = null));
     };

@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { randomBytes } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { CSRF_COOKIE, CSRF_HEADER, type RoleCode, type SessionResponse } from '@iot/shared';
 import request from 'supertest';
@@ -12,7 +13,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 
 export async function createTestApp(logger?: AppLogger): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = moduleRef.createNestApplication();
+  const app = moduleRef.createNestApplication<NestExpressApplication>();
   configureApp(app, logger);
   await app.init();
   return app;

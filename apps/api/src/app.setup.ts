@@ -1,19 +1,57 @@
-import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { API_PREFIX, APP_NAME, REFRESH_COOKIE } from '@iot/shared';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { HttpExceptionFilter, validationException } from './common/http-exception.filter.js';
 import { requestContextMiddleware } from './common/request-context.js';
 import { AppLogger } from './logging/app-logger.js';
 import { createRequestLoggingMiddleware } from './logging/request-logging.middleware.js';
 
+/** Предел JSON-тела запроса: с запасом для крупной методики (FR-017), но не для перегрузки API. */
+export const JSON_BODY_LIMIT = '2mb';
+
+/**
+ * Заголовки безопасности (п. 8.3). API отдаёт только JSON, файлы и страницу документации,
+ * поэтому политика строгая: свои скрипты, без фреймов и плагинов. Встроенные стили нужны
+ * странице документации (swagger-ui).
+ */
+const securityHeaders = helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'no-referrer' },
+});
+
 /**
  * Общая настройка приложения: используется и в `main.ts`, и в e2e-тестах,
  * чтобы тесты проверяли ту же конфигурацию, что работает в production.
  */
-export function configureApp(app: INestApplication, logger = new AppLogger()): void {
+export function configureApp(app: NestExpressApplication, logger = new AppLogger()): void {
   app.useLogger(logger);
+  app.use(securityHeaders);
+  // Ответы API содержат персональные данные: не сохранять их в кэше браузера и прокси.
+  app.use(
+    (_req: unknown, res: { setHeader(name: string, value: string): void }, next: () => void) => {
+      res.setHeader('Cache-Control', 'no-store');
+      next();
+    },
+  );
+  app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.use(requestContextMiddleware);
   app.use(createRequestLoggingMiddleware(logger));
   app.use(cookieParser());
