@@ -15,7 +15,7 @@ import {
   type ReviewQueueItemDto,
   submissionIssues,
 } from '@iot/shared';
-import { AccessScopeService } from '../auth/access-scope.service.js';
+import { type AccessScope, AccessScopeService } from '../auth/access-scope.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { IdempotencyService } from '../common/idempotency.service.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -49,6 +49,22 @@ const toStudent = (row: Prisma.StudentGetPayload<{ select: typeof studentSelect 
   fullName: formatFullName(row),
   group: row.currentGroup,
 });
+
+/**
+ * Ответы «На проверке» студентов, которых пользователь ведёт (FR-002), в контексте шапки.
+ * Общее правило очереди проверки и карточки главной панели.
+ */
+export function reviewQueueWhere(
+  scope: AccessScope,
+  query: { groupId?: string | null; disciplineId?: string | null },
+): Prisma.TrajectoryAssignmentWhereInput {
+  return {
+    AND: [teacherAssignmentWhere(scope), publishedAssignmentWhere()],
+    status: 'SUBMITTED',
+    student: { archivedAt: null, ...(query.groupId ? { currentGroupId: query.groupId } : {}) },
+    ...(query.disciplineId ? { assignment: { disciplineId: query.disciplineId } } : {}),
+  };
+}
 
 const SUBMIT_CONFLICTS: Partial<Record<AssignmentStatus, string>> = {
   OFFERED: 'Сначала выберите задание из набора',
@@ -197,12 +213,7 @@ export class SubmissionsService {
   async reviewQueue(user: CurrentUser, query: ReviewQueueQueryDto): Promise<ReviewQueueItemDto[]> {
     const scope = await this.scopes.forUser(user);
     const rows = await this.prisma.trajectoryAssignment.findMany({
-      where: {
-        AND: [teacherAssignmentWhere(scope), publishedAssignmentWhere()],
-        status: 'SUBMITTED',
-        student: { archivedAt: null, ...(query.groupId ? { currentGroupId: query.groupId } : {}) },
-        ...(query.disciplineId ? { assignment: { disciplineId: query.disciplineId } } : {}),
-      },
+      where: reviewQueueWhere(scope, query),
       include: { ...rowInclude, student: { select: studentSelect } },
       orderBy: order,
       take: REVIEW_QUEUE_LIMIT,

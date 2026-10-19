@@ -6,5 +6,6 @@ import { MonitoringService } from './monitoring.service.js';
 @Module({
   controllers: [MonitoringController],
   providers: [MonitoringService, MonitoringAlertsService],
+  exports: [MonitoringService],
 })
 export class MonitoringModule {}

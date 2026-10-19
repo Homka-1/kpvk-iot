@@ -3,6 +3,7 @@ import {
   CheckpointStatus,
   MeasurementType,
   StageStatus,
+  STUDENT_VISIBLE_TRAJECTORY_STATUSES,
   SUPPORT_REASON_MAX,
   SupportStatus,
   TrajectoryStatus,
@@ -49,6 +50,15 @@ export class MonitoringQueryDto extends MonitoringPeriodQueryDto {
   @ApiPropertyOptional({ description: 'Поиск студента по Ф. И. О. и коду участника' })
   @OptionalText(200)
   q?: string | null;
+
+  @ApiPropertyOptional({
+    enum: STUDENT_VISIBLE_TRAJECTORY_STATUSES,
+    description: 'Статус ИОТ; по умолчанию — все действующие и завершённые',
+  })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsIn([...STUDENT_VISIBLE_TRAJECTORY_STATUSES, null], { message: 'Неизвестный статус ИОТ' })
+  status?: TrajectoryStatus | null;
 }
 
 export class SupportStatusInputDto {

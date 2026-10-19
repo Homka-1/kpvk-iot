@@ -138,6 +138,7 @@ export class MonitoringService {
     if (query.groupId) conditions.push({ student: { currentGroupId: query.groupId } });
     if (query.disciplineId) conditions.push({ disciplineId: query.disciplineId });
     if (query.studentId) conditions.push({ studentId: query.studentId });
+    if (query.status) conditions.push({ status: query.status });
     if (query.q) {
       conditions.push({
         student: {

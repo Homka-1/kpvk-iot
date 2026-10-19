@@ -93,6 +93,17 @@ export function contextWhere(
   return conditions;
 }
 
+/** Нерассмотренное сообщение студента о затруднении (FR-008). */
+const OPEN_DIFFICULTY: Prisma.FeedbackWhereInput = { kind: 'DIFFICULTY_REPORT', resolvedAt: null };
+
+/**
+ * Студенты, требующие внимания (п. 4.1): отметка о сопровождении (FR-060) или нерассмотренное
+ * сообщение о затруднении. Одно правило для карточки главной панели и фильтра списка (FR-003).
+ */
+export const NEEDS_ATTENTION: Prisma.StudentWhereInput = {
+  OR: [{ supportStatus: { not: 'STANDARD' } }, { feedback: { some: OPEN_DIFFICULTY } }],
+};
+
 /** Отбор по текущему профилю (FR-008): утверждённый уровень или статус без уровня. */
 export function currentProfileWhere(filter: ProfileFilterValue): Prisma.StudentWhereInput {
   if (filter === 'PROPOSED' || filter === 'NEEDS_MORE_DIAGNOSTICS') {
@@ -234,10 +245,12 @@ export class StudentsService {
       conditions.push({ trajectories: { some: { status: query.trajectoryStatus } } });
     }
     if (query.hasDifficulties !== undefined) {
-      const difficulty: Prisma.FeedbackWhereInput = { kind: 'DIFFICULTY_REPORT', resolvedAt: null };
       conditions.push({
-        feedback: query.hasDifficulties ? { some: difficulty } : { none: difficulty },
+        feedback: query.hasDifficulties ? { some: OPEN_DIFFICULTY } : { none: OPEN_DIFFICULTY },
       });
+    }
+    if (query.needsAttention !== undefined) {
+      conditions.push(query.needsAttention ? NEEDS_ATTENTION : { NOT: NEEDS_ATTENTION });
     }
 
     const where: Prisma.StudentWhereInput = { AND: conditions };

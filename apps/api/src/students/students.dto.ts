@@ -89,6 +89,15 @@ export class StudentListQueryDto {
   hasDifficulties?: boolean;
 
   @ApiPropertyOptional({
+    description:
+      'Требуют внимания (FR-003, главная панель): отметка о сопровождении или нерассмотренное сообщение о затруднении',
+  })
+  @IsOptional()
+  @Transform(optionalBoolean)
+  @IsBoolean()
+  needsAttention?: boolean;
+
+  @ApiPropertyOptional({
     description: 'Показать архив вместо действующих студентов',
     default: false,
   })
