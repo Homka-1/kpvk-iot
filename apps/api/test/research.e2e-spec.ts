@@ -413,7 +413,7 @@ describe('Аналитика и исследовательский режим (e
       .parse(binary)
       .expect(200);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(xlsx.body as Buffer);
+    await workbook.xlsx.load(xlsx.body as ArrayBuffer);
     const sheet = workbook.getWorksheet('Сводные показатели')!;
     const header = (sheet.getRow(1).values as unknown[]).slice(1);
     expect(header).toEqual(expect.arrayContaining(['Группа исследования', 'Среднее', 'Медиана']));

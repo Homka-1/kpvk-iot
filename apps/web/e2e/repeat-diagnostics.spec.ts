@@ -326,6 +326,8 @@ test.describe('UC-06: повторная диагностика', () => {
 
     await page.goto('/analytics');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Аналитика');
+    // С этапа 17 выгрузка и сопоставимость — на отдельной вкладке раздела.
+    await page.getByRole('tab', { name: 'Диагностика: выгрузка и сопоставимость' }).click();
     await expect(page.getByText('Сопоставимых пар версий нет.')).toBeVisible();
     await page.getByRole('combobox', { name: 'Первая версия' }).click();
     await page.getByRole('option', { name: 'Версия 1' }).click();

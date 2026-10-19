@@ -114,6 +114,9 @@ export async function mockSession(page: Page, user: CurrentUser | null): Promise
       },
     }),
   );
+  // Аналитика (этап 17): нет студентов — пояснение вместо показателей; исследований нет.
+  await page.route(/\/api\/analytics(\?.*)?$/, (route) => route.fulfill({ json: EMPTY_ANALYTICS }));
+  await page.route(/\/api\/research-projects(\?.*)?$/, (route) => route.fulfill({ json: [] }));
   await page.route('**/api/motivation-strategies', (route) =>
     route.fulfill({ json: DEFAULT_MOTIVATION_STRATEGIES }),
   );
@@ -130,6 +133,31 @@ const EMPTY_DISTRIBUTION = {
   PROPOSED: 0,
   NEEDS_MORE_DIAGNOSTICS: 0,
   NONE: 0,
+};
+
+const EMPTY_STATS = {
+  n: 0,
+  missing: 0,
+  mean: null,
+  median: null,
+  sd: null,
+  min: null,
+  q1: null,
+  q3: null,
+  max: null,
+};
+const EMPTY_COMPARISON = { total: EMPTY_STATS, groups: [] };
+
+export const EMPTY_ANALYTICS = {
+  period: { from: null, to: null },
+  trajectories: { statuses: {}, progress: EMPTY_COMPARISON, stagesCompleted: EMPTY_COMPARISON },
+  academic: { averageScore: EMPTY_COMPARISON },
+  activity: { submissions: EMPTY_COMPARISON, helpRequests: EMPTY_COMPARISON },
+  dynamics: [],
+  profiles: { total: EMPTY_DISTRIBUTION, groups: [] },
+  assignments: [],
+  motivation: { options: [], selected: null, completed: 0, incomplete: 0, scales: [] },
+  truncated: false,
 };
 
 /** Пустые ответы API раздела «Администрирование» и «Настройки». */

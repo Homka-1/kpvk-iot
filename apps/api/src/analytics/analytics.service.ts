@@ -103,21 +103,12 @@ export class AnalyticsService {
             : null,
         ),
       },
-      academic: {
-        averageScore: compareGroups(rows, groupOf, (row) => row.averageScore),
-        dynamics: monitoring.dynamics.map((point) => ({
-          weekStart: point.weekStart,
-          averageScore: point.averageScore,
-        })),
-      },
+      academic: { averageScore: compareGroups(rows, groupOf, (row) => row.averageScore) },
       activity: {
         submissions: compareGroups(rows, groupOf, (row) => row.activity.submissions),
         helpRequests: compareGroups(rows, groupOf, (row) => row.helpRequests),
-        dynamics: monitoring.dynamics.map((point) => ({
-          weekStart: point.weekStart,
-          submissions: point.submissions,
-        })),
       },
+      dynamics: monitoring.dynamics,
       profiles,
       assignments,
       motivation,

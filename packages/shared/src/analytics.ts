@@ -2,7 +2,7 @@
 // раздела «Аналитика» по студентам области пользователя. Расчёты — чистые функции.
 import type { ScaleResultDto } from './diagnostic-sessions.js';
 import { MeasurementType, type TrajectoryStatus } from './enums.js';
-import type { MonitoringPeriodDto } from './monitoring.js';
+import type { MonitoringDynamicsPointDto, MonitoringPeriodDto } from './monitoring.js';
 import type { ProfileDistributionDto } from './motivation-profiles.js';
 import { type DescriptiveStats, descriptiveStats } from './statistics.js';
 import type { GroupRef } from './students.js';
@@ -183,16 +183,14 @@ export interface AnalyticsDto {
     stagesCompleted: GroupComparisonDto;
   };
   /** Академическая успешность: средний результат проверенных заданий маршрута, %. */
-  academic: {
-    averageScore: GroupComparisonDto;
-    dynamics: { weekStart: string; averageScore: number | null }[];
-  };
+  academic: { averageScore: GroupComparisonDto };
   /** Учебная активность: сданные ответы и обращения за помощью (входы не учитываются, FR-062). */
   activity: {
     submissions: GroupComparisonDto;
     helpRequests: GroupComparisonDto;
-    dynamics: { weekStart: string; submissions: number }[];
   };
+  /** Динамика по неделям (как в мониторинге): принятые задания, ответы, средний результат. */
+  dynamics: MonitoringDynamicsPointDto[];
   /** Распределение мотивационных профилей: все студенты и по группам. */
   profiles: {
     total: ProfileDistributionDto;

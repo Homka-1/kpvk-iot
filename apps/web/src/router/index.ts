@@ -125,6 +125,13 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/monitoring/MonitoringDetailView.vue'),
         meta: { title: 'Мониторинг ИОТ', permission: Permission.MONITORING_READ },
       },
+      // Исследование — вложенная страница раздела «Аналитика».
+      {
+        path: 'analytics/research/:id',
+        name: 'research-details',
+        component: () => import('@/views/analytics/ResearchProjectView.vue'),
+        meta: { title: 'Исследование', permission: Permission.RESEARCH_READ },
+      },
       // Конструктор методики — вложенная страница раздела «Диагностика».
       {
         path: 'diagnostics/questionnaires/:id',

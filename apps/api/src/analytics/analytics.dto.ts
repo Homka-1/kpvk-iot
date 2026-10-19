@@ -58,20 +58,16 @@ class TrajectoryAnalyticsResponseDto {
   stagesCompleted: GroupComparisonResponseDto;
 }
 
-class ScorePointResponseDto {
-  @ApiProperty({ format: 'date' }) weekStart: string;
-  @ApiProperty(NULLABLE_NUMBER) averageScore: number | null;
-}
-
 class AcademicAnalyticsResponseDto {
   @ApiProperty({ type: GroupComparisonResponseDto, description: 'Средний результат ИОТ, %' })
   averageScore: GroupComparisonResponseDto;
-  @ApiProperty({ type: [ScorePointResponseDto] }) dynamics: ScorePointResponseDto[];
 }
 
-class SubmissionPointResponseDto {
-  @ApiProperty({ format: 'date' }) weekStart: string;
+class DynamicsPointResponseDto {
+  @ApiProperty({ format: 'date', description: 'Понедельник недели' }) weekStart: string;
+  @ApiProperty() completedAssignments: number;
   @ApiProperty() submissions: number;
+  @ApiProperty(NULLABLE_NUMBER) averageScore: number | null;
 }
 
 class ActivityAnalyticsResponseDto {
@@ -79,7 +75,6 @@ class ActivityAnalyticsResponseDto {
   submissions: GroupComparisonResponseDto;
   @ApiProperty({ type: GroupComparisonResponseDto, description: 'Обращения за помощью на ИОТ' })
   helpRequests: GroupComparisonResponseDto;
-  @ApiProperty({ type: [SubmissionPointResponseDto] }) dynamics: SubmissionPointResponseDto[];
 }
 
 class DistributionResponseDto {
@@ -167,6 +162,8 @@ export class AnalyticsResponseDto {
   trajectories: TrajectoryAnalyticsResponseDto;
   @ApiProperty({ type: AcademicAnalyticsResponseDto }) academic: AcademicAnalyticsResponseDto;
   @ApiProperty({ type: ActivityAnalyticsResponseDto }) activity: ActivityAnalyticsResponseDto;
+  @ApiProperty({ type: [DynamicsPointResponseDto], description: 'Динамика по неделям (FR-059)' })
+  dynamics: DynamicsPointResponseDto[];
   @ApiProperty({ type: ProfilesAnalyticsResponseDto }) profiles: ProfilesAnalyticsResponseDto;
   @ApiProperty({ type: [AssignmentEffectivenessResponseDto] })
   assignments: AssignmentEffectivenessResponseDto[];
