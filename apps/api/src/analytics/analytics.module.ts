@@ -11,5 +11,6 @@ import { ResearchService } from './research.service.js';
   imports: [MonitoringModule, ProfilesModule],
   controllers: [AnalyticsController, ResearchController],
   providers: [AnalyticsService, ResearchService, IdempotencyService],
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

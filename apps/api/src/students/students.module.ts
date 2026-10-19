@@ -8,5 +8,6 @@ import { StudentsService } from './students.service.js';
 @Module({
   controllers: [StudentsController, StudentProfileController, CabinetProfileController],
   providers: [StudentsService, StudentProfileService, IdempotencyService],
+  exports: [StudentsService],
 })
 export class StudentsModule {}

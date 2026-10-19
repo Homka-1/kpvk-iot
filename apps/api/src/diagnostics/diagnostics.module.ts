@@ -37,5 +37,6 @@ import { DiagnosticSessionsService } from './sessions.service.js';
     DiagnosticResultsService,
     IdempotencyService,
   ],
+  exports: [DiagnosticSessionsService],
 })
 export class DiagnosticsModule {}

@@ -45,6 +45,19 @@ interface Context {
   disciplineId?: string;
 }
 
+function contextOf(query: AnalyticsQueryDto): Context {
+  return { groupId: query.groupId ?? undefined, disciplineId: query.disciplineId ?? undefined };
+}
+
+function periodOf(query: AnalyticsQueryDto) {
+  const period = dashboardPeriodRange(
+    query.period ?? DashboardPeriod.ACADEMIC_YEAR,
+    localDate(new Date().toISOString()),
+  );
+  // Начало периода — начало местных суток, как в мониторинге.
+  return { period, since: period.from ? new Date(`${period.from}T00:00:00`) : undefined };
+}
+
 /**
  * Аналитика преподавателя (п. 4.10; FR-069, FR-070, FR-073, FR-074): выполнение ИОТ, академическая
  * успешность и её динамика, учебная активность, распределение профилей, результативность заданий,
@@ -63,23 +76,9 @@ export class AnalyticsService {
 
   async overview(user: CurrentUser, query: AnalyticsQueryDto): Promise<AnalyticsDto> {
     const scope = await this.scopes.forUser(user);
-    const context: Context = {
-      groupId: query.groupId ?? undefined,
-      disciplineId: query.disciplineId ?? undefined,
-    };
-    const period = dashboardPeriodRange(
-      query.period ?? DashboardPeriod.ACADEMIC_YEAR,
-      localDate(new Date().toISOString()),
-    );
-    // Начало периода — начало местных суток, как в мониторинге.
-    const since = period.from ? new Date(`${period.from}T00:00:00`) : undefined;
-    const students: Prisma.StudentWhereInput = {
-      AND: [
-        this.scopes.studentsWhere(scope),
-        { archivedAt: null },
-        ...contextWhere(scope, user.id, context),
-      ],
-    };
+    const context = contextOf(query);
+    const { since, period } = periodOf(query);
+    const students = this.studentsOf(user, scope, context);
 
     const [monitoring, profiles, assignments, motivation] = await Promise.all([
       this.monitoring.overview(user, { ...context, ...period }),
@@ -114,6 +113,33 @@ export class AnalyticsService {
       motivation,
       truncated: monitoring.truncated,
     };
+  }
+
+  /** Студенты области пользователя в контексте шапки: действующие, не в архиве. */
+  private studentsOf(
+    user: CurrentUser,
+    scope: AccessScope,
+    context: Context,
+  ): Prisma.StudentWhereInput {
+    return {
+      AND: [
+        this.scopes.studentsWhere(scope),
+        { archivedAt: null },
+        ...contextWhere(scope, user.id, context),
+      ],
+    };
+  }
+
+  /** Динамика мотивации для отчёта по диагностике (FR-079): те же правила, что в аналитике. */
+  async motivationFor(user: CurrentUser, query: AnalyticsQueryDto) {
+    const scope = await this.scopes.forUser(user);
+    const { since, period } = periodOf(query);
+    const motivation = await this.motivation(
+      this.studentsOf(user, scope, contextOf(query)),
+      since,
+      query.versionId ?? null,
+    );
+    return { period, motivation };
   }
 
   /** Распределение профилей по всем студентам и по каждой учебной группе области. */
