@@ -25,3 +25,6 @@ playwright/.cache/
 .DS_Store
 # Сгенерированный клиент Prisma (pnpm db:generate)
 apps/api/src/generated/
+
+# Учётные записи нагрузочного теста (создаются скриптом prepare-data)
+*.local.json
