@@ -11,17 +11,13 @@ import {
   type ComparabilityQuestionnaireDto,
   type CurrentUser,
   type DiagnosticComparisonDto,
-  DiagnosticExportFormat,
   type DiagnosticSource,
-  type ExportCell,
-  type ExportTable,
   formatFullName,
   type MeasurementType,
   type QuestionnaireVersionStatus,
 } from '@iot/shared';
-import ExcelJS from 'exceljs';
-import Papa from 'papaparse';
 import { AuditService } from '../audit/audit.service.js';
+import { type ExportFile, exportFile } from '../common/spreadsheet.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ApproveComparabilityDto, ExportResultsQueryDto } from './results.dto.js';
@@ -34,22 +30,6 @@ import {
 
 /** Версии, которые публиковались: только их можно назначать, сравнивать и выгружать. */
 const EVER_PUBLISHED: QuestionnaireVersionStatus[] = ['PUBLISHED', 'RETIRED'];
-
-const UTF8_BOM = String.fromCharCode(0xfeff);
-
-export interface ExportFile {
-  content: Buffer;
-  contentType: string;
-  fileName: string;
-}
-
-/**
- * Защита от формул в электронных таблицах: текст, начинающийся с «=», «+», «-», «@»,
- * табуляции или перевода строки, выгружается с апострофом и не исполняется при открытии.
- */
-function spreadsheetSafe(cell: ExportCell): ExportCell {
-  return typeof cell === 'string' && /^[=+\-@\t\r]/.test(cell) ? `'${cell}` : cell;
-}
 
 /**
  * Повторная диагностика и сравнение замеров (UC-06; FR-015, FR-024, FR-025): сравнение замеров
@@ -231,19 +211,7 @@ export class DiagnosticResultsService {
         scores: toScaleResults(session.scores, session.currentRevision),
       })),
     );
-    const date = new Date().toISOString().slice(0, 10);
-    const file: ExportFile =
-      query.format === DiagnosticExportFormat.XLSX
-        ? {
-            content: await this.toXlsx(table),
-            contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            fileName: `diagnostics-${date}.xlsx`,
-          }
-        : {
-            content: this.toCsv(table),
-            contentType: 'text/csv; charset=utf-8',
-            fileName: `diagnostics-${date}.csv`,
-          };
+    const file = await exportFile(table, query.format, 'diagnostics', 'Результаты');
     await this.audit.log({
       action: 'diagnostic_results.exported',
       entityType: 'questionnaire',
@@ -255,26 +223,6 @@ export class DiagnosticResultsService {
       },
     });
     return file;
-  }
-
-  private toCsv(table: ExportTable): Buffer {
-    const csv = Papa.unparse(
-      { fields: table.header, data: table.rows.map((row) => row.map(spreadsheetSafe)) },
-      { delimiter: ';', newline: '\r\n' },
-    );
-    // BOM — чтобы Excel открыл UTF-8 с кириллицей без выбора кодировки.
-    return Buffer.from(`${UTF8_BOM}${csv}`, 'utf8');
-  }
-
-  private async toXlsx(table: ExportTable): Promise<Buffer> {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Результаты');
-    sheet.addRow(table.header).font = { bold: true };
-    for (const row of table.rows) {
-      sheet.addRow(row.map((cell) => spreadsheetSafe(cell) ?? undefined));
-    }
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
-    return Buffer.from(await workbook.xlsx.writeBuffer());
   }
 
   private async comparabilityQuestionnaire(id: string): Promise<ComparabilityQuestionnaireDto> {

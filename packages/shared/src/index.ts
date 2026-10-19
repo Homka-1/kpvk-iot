@@ -15,3 +15,6 @@ export * from './submissions.js';
 export * from './monitoring.js';
 export * from './feedback.js';
 export * from './dashboard.js';
+export * from './statistics.js';
+export * from './analytics.js';
+export * from './research.js';

@@ -81,7 +81,8 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'analytics.read': 'Просмотр аналитики',
   'reports.read': 'Формирование отчётов',
   'research.read': 'Обезличенные исследовательские данные',
-  'research.manage': 'Ведение исследований: утверждение сопоставимости версий методик',
+  'research.manage':
+    'Ведение исследований: участники ЭГ и КГ, замеры, утверждение сопоставимости версий методик',
   'research.export': 'Экспорт исследовательских данных',
   'research.personal_data.read': 'Просмотр персональных данных участников исследования',
   'cabinet.access': 'Личный кабинет студента',

@@ -24,6 +24,7 @@ import {
 } from '@iot/shared';
 import { type AuthUser, RequirePermissions, User } from '../auth/decorators.js';
 import { ReasonDto } from '../common/dto.js';
+import { downloadable } from '../common/spreadsheet.js';
 import {
   ApproveComparabilityDto,
   ComparabilityQuestionnaireResponseDto,
@@ -117,11 +118,6 @@ export class DiagnosticResultsExportController {
   @ApiProduces('text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
   @ApiOkResponse({ schema: { type: 'string', format: 'binary' } })
   async export(@Query() query: ExportResultsQueryDto): Promise<StreamableFile> {
-    const file = await this.results.exportResults(query);
-    return new StreamableFile(file.content, {
-      type: file.contentType,
-      disposition: `attachment; filename="${file.fileName}"`,
-      length: file.content.length,
-    });
+    return downloadable(await this.results.exportResults(query));
   }
 }

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
@@ -37,6 +38,7 @@ import { UsersModule } from './users/users.module.js';
     FeedbackModule,
     NotificationsModule,
     DashboardModule,
+    AnalyticsModule,
     HealthModule,
   ],
 })
