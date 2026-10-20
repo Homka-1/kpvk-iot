@@ -40,17 +40,19 @@ pnpm dev                        # API на http://localhost:3000, web на http:
 
 ## Команды
 
-| Команда                       | Что делает                                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev`                    | API и web в режиме разработки                                                                                |
-| `pnpm build`                  | Сборка всех пакетов                                                                                          |
-| `pnpm lint`                   | ESLint                                                                                                       |
-| `pnpm typecheck`              | Проверка типов (`tsc`, `vue-tsc`)                                                                            |
-| `pnpm test`                   | Модульные и e2e-тесты API (нужны запущенный PostgreSQL и `.env.test`), модульные тесты web                   |
-| `pnpm test:e2e`               | Сквозные тесты Playwright (перед первым запуском: `pnpm --filter @iot/web exec playwright install chromium`) |
-| `pnpm db:up` / `pnpm db:down` | Запуск и остановка PostgreSQL для разработки                                                                 |
-| `pnpm db:migrate`             | Применение миграций Prisma (`prisma migrate dev`)                                                            |
-| `pnpm db:seed`                | Заполнение демо-данными                                                                                      |
-| `pnpm db:generate`            | Генерация клиента Prisma (выполняется автоматически перед сборкой, проверкой типов и тестами API)            |
-| `pnpm db:erd`                 | Обновление ER-диаграммы `docs/architecture/er-diagram.md` по схеме                                           |
-| `pnpm format`                 | Форматирование Prettier                                                                                      |
+| Команда                       | Что делает                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`                    | API и web в режиме разработки                                                                                            |
+| `pnpm build`                  | Сборка всех пакетов                                                                                                      |
+| `pnpm lint`                   | ESLint                                                                                                                   |
+| `pnpm typecheck`              | Проверка типов (`tsc`, `vue-tsc`)                                                                                        |
+| `pnpm test`                   | Модульные и e2e-тесты API (нужны запущенный PostgreSQL и `.env.test`), модульные тесты web                               |
+| `pnpm test:e2e`               | Сквозные тесты Playwright (перед первым запуском: `pnpm --filter @iot/web exec playwright install chromium`)             |
+| `pnpm test:acceptance`        | Приёмочный набор AT-01…AT-12 на живом стенде (база `iot_acceptance`, см. `docs/acceptance/checklist.md`)                 |
+| `pnpm acceptance:stand`       | Приёмочный стенд для ручной проверки: http://localhost:5273, учётные записи — `apps/web/e2e/acceptance/stand.local.json` |
+| `pnpm db:up` / `pnpm db:down` | Запуск и остановка PostgreSQL для разработки                                                                             |
+| `pnpm db:migrate`             | Применение миграций Prisma (`prisma migrate dev`)                                                                        |
+| `pnpm db:seed`                | Заполнение демо-данными                                                                                                  |
+| `pnpm db:generate`            | Генерация клиента Prisma (выполняется автоматически перед сборкой, проверкой типов и тестами API)                        |
+| `pnpm db:erd`                 | Обновление ER-диаграммы `docs/architecture/er-diagram.md` по схеме                                                       |
+| `pnpm format`                 | Форматирование Prettier                                                                                                  |
