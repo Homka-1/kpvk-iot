@@ -1,0 +1,25 @@
+# Контекст сборки образов — корень репозитория. В образ попадает только исходный код.
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/.vite
+**/test-results
+**/playwright-report
+**/blob-report
+apps/api/src/generated
+.git
+.husky
+.claude
+.agents
+**/.windsurf
+.env
+.env.*
+!.env.example
+**/*.local.json
+storage
+uploads
+backups
+deploy
+docs
+*.log

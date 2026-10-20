@@ -6,11 +6,14 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.prod.example
 *.log
 # Загруженные пользователями файлы и дампы БД
 storage/
 uploads/
 backups/
+# Сертификаты TLS рабочего сервера и тестовых стендов
+deploy/certs/
 *.dump
 *.sql.gz
 # Playwright
