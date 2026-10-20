@@ -28,3 +28,8 @@ apps/api/src/generated/
 
 # Учётные записи нагрузочного теста (создаются скриптом prepare-data)
 *.local.json
+
+# Локальные скиллы агентов (prisma/skills), ставятся у разработчика, не в репозиторий
+.agents/
+**/.claude/skills/
+skills-lock.json
