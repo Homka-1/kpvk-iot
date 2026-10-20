@@ -33,7 +33,7 @@ const ACCOUNTS: SeedAccount[] = [
     login: 'teacher',
     role: RoleCode.TEACHER,
     lastName: 'Демо-преподаватель',
-    firstName: 'Елена',
+    firstName: 'Вера',
     middleName: 'Викторовна',
   },
   {
