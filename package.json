@@ -18,6 +18,8 @@
     "test": "pnpm build:shared && pnpm -r test",
     "test:e2e": "pnpm --filter @iot/web test:e2e",
     "test:e2e:webkit": "pnpm --filter @iot/web test:e2e:webkit",
+    "test:acceptance": "pnpm build:shared && pnpm --filter @iot/api build && pnpm --filter @iot/web test:acceptance",
+    "acceptance:stand": "pnpm build:shared && pnpm --filter @iot/api build && node apps/web/e2e/acceptance/support/stand.ts",
     "test:load:prepare": "pnpm --filter @iot/api exec tsx test/load/prepare-data.ts",
     "test:load": "docker run --rm --network host -v ./apps/api/test/load:/scripts -w /scripts -e LOAD_API_URL -e LOAD_DURATION grafana/k6:2.3.0 run screens.k6.js",
     "audit:deps": "pnpm audit --audit-level high",

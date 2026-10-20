@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // Приёмочный набор идёт на живом стенде: playwright.acceptance.config.ts.
+  testIgnore: 'acceptance/**',
   use: { baseURL: 'http://localhost:5173' },
   webServer: {
     // --force: заново собрать зависимости при старте. Иначе Vite берёт старый кэш (lockfile не менялся),

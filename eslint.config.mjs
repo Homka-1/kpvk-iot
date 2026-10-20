@@ -60,7 +60,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ['apps/api/prisma/seed.ts', 'apps/api/prisma/erd.ts', 'apps/api/test/load/*.ts'],
+    files: [
+      'apps/api/prisma/seed.ts',
+      'apps/api/prisma/erd.ts',
+      'apps/api/test/load/*.ts',
+      'apps/web/e2e/acceptance/support/stand.ts',
+    ],
     rules: { 'no-console': 'off' },
   },
   {
