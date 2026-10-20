@@ -43,6 +43,11 @@ const securityHeaders = helmet({
  */
 export function configureApp(app: NestExpressApplication, logger = new AppLogger()): void {
   app.useLogger(logger);
+  // За обратным прокси (nginx) адрес клиента берётся из X-Forwarded-For, иначе ограничение
+  // попыток входа и журнал аудита видели бы один адрес прокси. Число доверенных прокси задаётся
+  // явно: без прокси заголовок присылает сам клиент, и доверять ему нельзя.
+  const trustedProxies = Number(process.env.TRUST_PROXY ?? 0);
+  if (trustedProxies > 0) app.set('trust proxy', trustedProxies);
   app.use(securityHeaders);
   // Ответы API содержат персональные данные: не сохранять их в кэше браузера и прокси.
   app.use(
