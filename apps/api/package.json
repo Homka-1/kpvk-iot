@@ -17,7 +17,8 @@
     "db:seed": "prisma db seed",
     "db:generate": "prisma generate",
     "db:erd": "tsx prisma/erd.ts && prettier --write ../../docs/architecture/er-diagram.md",
-    "create-admin": "node dist/cli/create-admin.js"
+    "create-admin": "node dist/cli/create-admin.js",
+    "docs:openapi": "pnpm build && node dist/cli/export-openapi.js"
   },
   "dependencies": {
     "@iot/shared": "workspace:*",

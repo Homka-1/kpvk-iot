@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -27,5 +29,14 @@ describe('Служебные эндпоинты (e2e)', () => {
   it('OpenAPI-описание доступно и содержит /api/health', async () => {
     const res = await request(app.getHttpServer()).get('/api/docs/openapi.json').expect(200);
     expect(res.body.paths).toHaveProperty('/api/health');
+  });
+
+  it('п. 13: docs/api/openapi.json совпадает с описанием работающего API', async () => {
+    const res = await request(app.getHttpServer()).get('/api/docs/openapi.json').expect(200);
+    const published: unknown = JSON.parse(
+      readFileSync(resolve(import.meta.dirname, '../../../docs/api/openapi.json'), 'utf8'),
+    );
+    // Расхождение означает, что API изменился, а документацию не обновили: `pnpm docs:openapi`.
+    expect(published).toEqual(res.body);
   });
 });

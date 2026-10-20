@@ -67,6 +67,7 @@ export default tseslint.config(
       'docker/test/*.mts',
       'apps/api/test/load/*.ts',
       'apps/web/e2e/acceptance/support/stand.ts',
+      'scripts/*.mjs',
     ],
     rules: { 'no-console': 'off' },
   },

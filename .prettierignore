@@ -5,3 +5,6 @@ docs/spec/TZ.md
 docs/spec/TZ.pdf
 CLAUDE.md
 apps/api/prisma/migrations/
+
+# Генерируется командой pnpm docs:openapi
+docs/api/openapi.json

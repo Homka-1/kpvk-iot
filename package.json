@@ -29,7 +29,11 @@
     "db:migrate": "pnpm --filter @iot/api db:migrate",
     "db:seed": "pnpm build:shared && pnpm --filter @iot/api db:seed",
     "db:generate": "pnpm --filter @iot/api db:generate",
-    "db:erd": "pnpm --filter @iot/api db:erd"
+    "db:erd": "pnpm --filter @iot/api db:erd",
+    "docs:openapi": "pnpm build:shared && pnpm --filter @iot/api docs:openapi",
+    "docs:licenses": "node scripts/licenses.mjs",
+    "licenses:check": "node scripts/licenses.mjs --check",
+    "docs:screenshots": "pnpm build:shared && pnpm --filter @iot/api build && pnpm --filter @iot/web docs:screenshots"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

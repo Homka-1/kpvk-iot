@@ -17,6 +17,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
 import { Permission, PERMISSION_DESCRIPTIONS, SENSITIVE_PERMISSIONS } from '@iot/shared';
@@ -143,6 +144,7 @@ export class UsersController {
   @Delete(':id/permissions/:permission')
   @RequirePermissions(Permission.USERS_MANAGE, Permission.ROLES_MANAGE)
   @ApiOperation({ summary: 'Отзыв индивидуального разрешения' })
+  @ApiParam({ name: 'permission', enum: Permission, description: 'Код разрешения' })
   @ApiOkResponse({ type: UserDetailsDto })
   revoke(
     @Param('id', uuid) id: string,

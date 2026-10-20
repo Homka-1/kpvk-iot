@@ -1,6 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, type OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
 import { API_PREFIX, APP_NAME, REFRESH_COOKIE } from '@iot/shared';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -40,8 +40,9 @@ const securityHeaders = helmet({
 /**
  * Общая настройка приложения: используется и в `main.ts`, и в e2e-тестах,
  * чтобы тесты проверяли ту же конфигурацию, что работает в production.
+ * Возвращает описание OpenAPI, опубликованное на `/api/docs` (его же выгружает `cli/export-openapi`).
  */
-export function configureApp(app: NestExpressApplication, logger = new AppLogger()): void {
+export function configureApp(app: NestExpressApplication, logger = new AppLogger()): OpenAPIObject {
   app.useLogger(logger);
   // За обратным прокси (nginx) адрес клиента берётся из X-Forwarded-For, иначе ограничение
   // попыток входа и журнал аудита видели бы один адрес прокси. Число доверенных прокси задаётся
@@ -85,4 +86,5 @@ export function configureApp(app: NestExpressApplication, logger = new AppLogger
   SwaggerModule.setup(`${API_PREFIX}/docs`, app, document, {
     jsonDocumentUrl: `${API_PREFIX}/docs/openapi.json`,
   });
+  return document;
 }
