@@ -38,6 +38,17 @@ pnpm dev                        # API на http://localhost:3000, web на http:
 
 `pnpm db:seed` создаёт учётные записи `admin`, `teacher`, `student`, `researcher` (по одной на роль). Пароли берутся из переменных `SEED_ADMIN_PASSWORD`, `SEED_TEACHER_PASSWORD`, `SEED_STUDENT_PASSWORD`, `SEED_RESEARCHER_PASSWORD` в `.env`; если переменная не задана, пароль генерируется и выводится в консоль один раз. Сид также создаёт демо-группу «ДЕМО-21» и дисциплину «Математика (демо)», закрепляет за ними преподавателя `teacher` и зачисляет в группу студента `student`. Повторный запуск сида не меняет существующие записи. Модель прав — `docs/architecture/access-model.md`.
 
+## Рабочий сервер
+
+Рабочее окружение — Docker Compose (`docker-compose.prod.yml`): nginx с HTTPS, статика интерфейса, API, PostgreSQL и резервное копирование по расписанию. Требования к серверу, установка, обновление и восстановление из копии — `docs/deploy/README.md`.
+
+```bash
+cp .env.prod.example .env.prod  # задайте POSTGRES_PASSWORD и JWT_SECRET
+# сертификат: deploy/certs/fullchain.pem и privkey.pem (для теста — docker/nginx/self-signed-cert.sh)
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --wait
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec api node dist/cli/create-admin.js
+```
+
 ## Команды
 
 | Команда                       | Что делает                                                                                                               |
@@ -50,6 +61,7 @@ pnpm dev                        # API на http://localhost:3000, web на http:
 | `pnpm test:e2e`               | Сквозные тесты Playwright (перед первым запуском: `pnpm --filter @iot/web exec playwright install chromium`)             |
 | `pnpm test:acceptance`        | Приёмочный набор AT-01…AT-12 на живом стенде (база `iot_acceptance`, см. `docs/acceptance/checklist.md`)                 |
 | `pnpm acceptance:stand`       | Приёмочный стенд для ручной проверки: http://localhost:5273, учётные записи — `apps/web/e2e/acceptance/stand.local.json` |
+| `pnpm test:restore`           | Тест восстановления из резервной копии (AT-13) на рабочей сборке в Docker, около 4 минут                                 |
 | `pnpm db:up` / `pnpm db:down` | Запуск и остановка PostgreSQL для разработки                                                                             |
 | `pnpm db:migrate`             | Применение миграций Prisma (`prisma migrate dev`)                                                                        |
 | `pnpm db:seed`                | Заполнение демо-данными                                                                                                  |
