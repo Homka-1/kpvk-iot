@@ -1,8 +1,8 @@
 # Рабочее окружение для Coolify (ресурс Docker Compose, сборка из репозитория по deploy key,
 # обновление при пуше в main). Отличия от docker-compose.standalone.yml (сервер без Coolify):
-#   - HTTPS и сертификат у прокси перед приложением (Coolify или прокси колледжа); nginx
-#     принимает HTTP на порту сервера HTTP_PORT (в контейнере — 8080);
-#   - конфигурация nginx входит в образ (docker/nginx/Dockerfile), TRUST_PROXY=2;
+#   - nginx слушает порты HTTP_PORT и HTTPS_PORT (те же номера на сервере и в контейнере),
+#     сертификат — из каталога сервера TLS_CERT_DIR (абсолютный путь);
+#   - конфигурация nginx входит в образ (docker/nginx/Dockerfile), порты подставляются при старте;
 #   - имя проекта, сети и имена томов задаёт Coolify.
 # Переменные задаются в Coolify (Environment Variables); описание — docs/deploy/coolify.md.
 
@@ -44,8 +44,8 @@ services:
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
       LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-20}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      # Перед API два прокси: Traefik Coolify и nginx этого файла.
-      TRUST_PROXY: '2'
+      # Перед API ровно один прокси — nginx этого файла.
+      TRUST_PROXY: '1'
     volumes:
       - files:/var/lib/iot/files
     security_opt: [no-new-privileges:true]
@@ -71,10 +71,17 @@ services:
         condition: service_healthy
       web:
         condition: service_healthy
-    # Порт на сервере (HTTP_PORT) → 8080 в контейнере, сюда прокси с HTTPS передаёт запросы.
-    # Без прокси сайт открывается по HTTP, и вход не работает (cookie сессии только по HTTPS).
+    # nginx слушает эти порты внутри контейнера, на сервере они открываются под теми же номерами.
+    # HTTP_PORT только перенаправляет на HTTPS_PORT.
+    environment:
+      HTTP_PORT: ${HTTP_PORT:?Задайте HTTP_PORT в Coolify}
+      HTTPS_PORT: ${HTTPS_PORT:?Задайте HTTPS_PORT в Coolify}
     ports:
-      - '${HTTP_PORT:?Задайте HTTP_PORT в Coolify — порт на сервере для nginx}:8080'
+      - '${HTTP_PORT}:${HTTP_PORT}'
+      - '${HTTPS_PORT}:${HTTPS_PORT}'
+    volumes:
+      # Абсолютный путь на сервере с fullchain.pem и privkey.pem.
+      - ${TLS_CERT_DIR:?Задайте TLS_CERT_DIR в Coolify — каталог сертификата на сервере}:/etc/nginx/certs:ro
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     logging: *logging

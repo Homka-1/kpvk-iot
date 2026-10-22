@@ -15,7 +15,7 @@
 
 ## Состав
 
-Приложение запускается Docker Compose. Рабочий сервер колледжа использует Coolify и файл `docker-compose.prod.yml` ([coolify.md](coolify.md)): HTTPS и порты 80/443 обслуживает прокси Coolify, внутренний `nginx` принимает от него HTTP. На сервере без Coolify используется `docker-compose.standalone.yml` ([install.md](install.md)), в котором `nginx` сам обслуживает HTTPS. Остальное у файлов общее. Пять контейнеров:
+Приложение запускается Docker Compose. Рабочий сервер колледжа использует Coolify и файл `docker-compose.prod.yml` ([coolify.md](coolify.md)): `nginx` обслуживает HTTPS на портах из переменных `HTTP_PORT` и `HTTPS_PORT`, сертификат — из каталога сервера `TLS_CERT_DIR`, конфигурация nginx входит в образ. На сервере без Coolify используется `docker-compose.standalone.yml` ([install.md](install.md)), в котором `nginx` сам обслуживает HTTPS. Остальное у файлов общее. Пять контейнеров:
 
 | Сервис     | Образ                                     | Назначение                                                                                   |
 | ---------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
