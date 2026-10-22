@@ -76,9 +76,9 @@ services:
     # HTTP на порту HTTP_PORT: тот же номер внутри контейнера и на сервере. HTTPS и домен —
     # у прокси администратора сервера, который направляет запросы на этот порт.
     environment:
-      HTTP_PORT: ${HTTP_PORT:?Задайте HTTP_PORT в Coolify — порт приложения на сервере}
+      HTTP_PORT: ${HTTP_PORT:-8081}
     ports:
-      - '${HTTP_PORT}:${HTTP_PORT}'
+      - '${HTTP_PORT:-8081}:${HTTP_PORT:-8081}'
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     logging: *logging
