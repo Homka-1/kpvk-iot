@@ -327,7 +327,7 @@
 
 - **Контекст.** Сервер колледжа обслуживается Coolify: код получается из GitHub по deploy key, обновление выполняется при пуше в `main`. Путь к файлу Compose в Coolify — `docker-compose.prod.yml`. Coolify держит порты 80/443 и сертификат своим прокси (Traefik) и не монтирует файлы репозитория в контейнеры: первый деплой с файлом ADR-026 упал на монтировании `docker/nginx/default.conf`.
 - **Решение.**
-  - `docker-compose.prod.yml` — вариант для Coolify: внутренний `nginx` без портов на сервере, HTTP на 8080, конфигурация `docker/nginx/coolify.conf` входит в образ (`docker/nginx/Dockerfile`); сети, имя проекта и имена томов задаёт Coolify; переменные — в интерфейсе Coolify, `BACKUP_HOST_DIR` обязателен.
+  - `docker-compose.prod.yml` — вариант для Coolify: внутренний `nginx` по HTTP публикуется на порту сервера `HTTP_PORT` (в контейнере — 8080), HTTPS — у прокси Coolify или прокси колледжа, конфигурация `docker/nginx/coolify.conf` входит в образ (`docker/nginx/Dockerfile`); сети, имя проекта и имена томов задаёт Coolify; переменные — в интерфейсе Coolify, `BACKUP_HOST_DIR` обязателен.
   - Перед API два прокси (Traefik и nginx), поэтому `TRUST_PROXY=2`; nginx дополняет `X-Forwarded-For` и передаёт `X-Forwarded-Proto` от Traefik.
   - Файл ADR-026 переименован в `docker-compose.standalone.yml` для сервера без Coolify; на нём остаются `scripts/deploy.sh` и тест восстановления AT-13 (`docker/test/restore.test.mts`).
 - **Последствия.** Резервная копия перед обновлением в Coolify не делается автоматически: перед пушем с миграциями её запускают вручную (`backup.sh` в контейнере `backup`). Порядок — `docs/deploy/coolify.md`.

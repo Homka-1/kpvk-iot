@@ -4,7 +4,7 @@ Coolify получает код из закрытого репозитория G
 
 Отличия от установки по [install.md](install.md):
 
-- HTTPS, сертификат (Let's Encrypt или свой) и порты 80/443 обслуживает прокси Coolify. Внутренний `nginx` принимает от него HTTP на порту 8080 и делит запросы между API и интерфейсом (`docker/nginx/coolify.conf`).
+- HTTPS и сертификат обслуживает прокси перед приложением: прокси Coolify или прокси колледжа. `nginx` приложения принимает от него HTTP на порту сервера `HTTP_PORT` (внутри контейнера — 8080) и делит запросы между API и интерфейсом (`docker/nginx/coolify.conf`).
 - Переменные окружения задаются в интерфейсе Coolify, файл `.env.prod` не используется.
 - Имена проекта, сетей и томов назначает Coolify. Тома `pgdata` и `files` сохраняются между обновлениями.
 
@@ -12,18 +12,24 @@ Coolify получает код из закрытого репозитория G
 
 1. **New Resource → Private Repository (with Deploy Key)**: репозиторий `git@github.com:Homka-1/kpvk-iot.git`, ветка `main`, ключ, добавленный в репозиторий (Settings → Deploy keys, без права записи).
 2. **Build Pack**: Docker Compose; **Docker Compose Location**: `/docker-compose.prod.yml`.
-3. **Domains**: домен назначается только сервису `nginx` с указанием порта контейнера, например `https://iot.college.kz:8080` (порт 8080 — внутренний, снаружи сайт открывается по 443). Остальным сервисам домен не назначается.
+3. **Адрес сайта** — один из способов:
+   - прокси Coolify: в **Domains** сервиса `nginx` указать домен с портом контейнера, например `https://kpvk-iot.apps.kpvk.edu.kz:8080` (8080 — внутренний порт, пользователи открывают сайт по 443). Остальным сервисам домен не назначается;
+   - свой прокси с HTTPS: направить его на `http://<сервер>:<HTTP_PORT>`, домен в Coolify не назначать.
+
+   Без HTTPS вход не работает: cookie сессии передаётся только по HTTPS.
+
 4. **Environment Variables**:
 
    | Переменная                     | Значение                                                                                                                                  |
    | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
    | `POSTGRES_PASSWORD`            | обязательна; только латинские буквы и цифры: `openssl rand -hex 24`                                                                       |
    | `JWT_SECRET`                   | обязательна; не короче 32 символов: `openssl rand -hex 32`                                                                                |
+   | `HTTP_PORT`                    | обязательна; свободный порт на сервере для `nginx`, например `8089` (80 и 443 заняты прокси Coolify)                                      |
    | `BACKUP_HOST_DIR`              | обязательна; абсолютный каталог копий на сервере вне каталогов Coolify, например `/srv/iot-backups`                                       |
    | `POSTGRES_USER`, `POSTGRES_DB` | по умолчанию `iot`                                                                                                                        |
    | остальные                      | как в [environment.md](environment.md): `JWT_ACCESS_TTL_SECONDS`, `LOGIN_RATE_LIMIT`, `LOG_LEVEL`, `BACKUP_SCHEDULE`, `BACKUP_KEEP`, `TZ` |
 
-   `IOT_VERSION`, `HTTP_PORT`, `HTTPS_PORT`, `TLS_CERT_DIR` в Coolify не нужны. Сохраните копию `POSTGRES_PASSWORD` и `JWT_SECRET` вне Coolify: без пароля не восстановить базу из тома. После первого запуска `POSTGRES_PASSWORD` не меняют — PostgreSQL задаёт пароль только при создании тома.
+   `IOT_VERSION`, `HTTPS_PORT`, `TLS_CERT_DIR` в Coolify не нужны. Сохраните копию `POSTGRES_PASSWORD` и `JWT_SECRET` вне Coolify: без пароля не восстановить базу из тома. После первого запуска `POSTGRES_PASSWORD` не меняют — PostgreSQL задаёт пароль только при создании тома.
 
 5. **Auto Deploy** включён: Coolify обновляет приложение по вебхуку GitHub при пуше в `main`. Если сервер недоступен из интернета, вебхук не дойдёт — тогда обновление запускают кнопкой **Deploy** или через API Coolify.
 6. **Deploy**. При первом запуске API создаёт структуру базы миграциями. Проверка: `https://<домен>/api/health` отвечает `200`.

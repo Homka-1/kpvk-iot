@@ -1,7 +1,7 @@
 # Рабочее окружение для Coolify (ресурс Docker Compose, сборка из репозитория по deploy key,
 # обновление при пуше в main). Отличия от docker-compose.standalone.yml (сервер без Coolify):
-#   - HTTPS, сертификат и порты 80/443 у прокси Coolify; наружу публикуется только nginx:8080
-#     через домен, заданный в Coolify;
+#   - HTTPS и сертификат у прокси перед приложением (Coolify или прокси колледжа); nginx
+#     принимает HTTP на порту сервера HTTP_PORT (в контейнере — 8080);
 #   - конфигурация nginx входит в образ (docker/nginx/Dockerfile), TRUST_PROXY=2;
 #   - имя проекта, сети и имена томов задаёт Coolify.
 # Переменные задаются в Coolify (Environment Variables); описание — docs/deploy/coolify.md.
@@ -71,8 +71,10 @@ services:
         condition: service_healthy
       web:
         condition: service_healthy
-    # Портов на сервере нет: домен назначается сервису nginx в Coolify с портом 8080.
-    expose: ['8080']
+    # Порт на сервере (HTTP_PORT) → 8080 в контейнере, сюда прокси с HTTPS передаёт запросы.
+    # Без прокси сайт открывается по HTTP, и вход не работает (cookie сессии только по HTTPS).
+    ports:
+      - '${HTTP_PORT:?Задайте HTTP_PORT в Coolify — порт на сервере для nginx}:8080'
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     logging: *logging
