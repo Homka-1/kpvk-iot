@@ -1,7 +1,7 @@
 /**
  * AT-13: резервная копия → чистый стенд → восстановление → данные на месте.
  *
- * Тест поднимает рабочую сборку (docker-compose.prod.yml) отдельным проектом Docker Compose
+ * Тест поднимает рабочую сборку (docker-compose.standalone.yml) отдельным проектом Docker Compose
  * `iot-at13` на портах 18080/18443 с самоподписанным сертификатом, создаёт данные через API
  * (как пользователи), делает резервную копию контейнером backup, удаляет стенд вместе с томами,
  * поднимает его с нуля, восстанавливает копию и проверяет данные: учётные записи с паролями,
@@ -30,7 +30,16 @@ const envFile = join(work, '.env.prod');
 function compose(args: string[], options: { check?: boolean } = {}): string {
   const result = spawnSync(
     'docker',
-    ['compose', '-f', 'docker-compose.prod.yml', '-p', PROJECT, '--env-file', envFile, ...args],
+    [
+      'compose',
+      '-f',
+      'docker-compose.standalone.yml',
+      '-p',
+      PROJECT,
+      '--env-file',
+      envFile,
+      ...args,
+    ],
     { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   );
   if ((options.check ?? true) && result.status !== 0) {

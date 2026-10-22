@@ -15,7 +15,7 @@
 
 ## Состав
 
-Приложение запускается Docker Compose из файла `docker-compose.prod.yml` в корне репозитория. Пять контейнеров:
+Приложение запускается Docker Compose. Рабочий сервер колледжа использует Coolify и файл `docker-compose.prod.yml` ([coolify.md](coolify.md)): HTTPS и порты 80/443 обслуживает прокси Coolify, внутренний `nginx` принимает от него HTTP. На сервере без Coolify используется `docker-compose.standalone.yml` ([install.md](install.md)), в котором `nginx` сам обслуживает HTTPS. Остальное у файлов общее. Пять контейнеров:
 
 | Сервис     | Образ                                     | Назначение                                                                                   |
 | ---------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -39,12 +39,13 @@
 
 Рабочее окружение полностью отделено от разработки и тестов (NFR-010):
 
-| Окружение            | Как запускается                                 | База данных               | Файлы                 |
-| -------------------- | ----------------------------------------------- | ------------------------- | --------------------- |
-| Разработка           | `pnpm dev`, база из `docker-compose.dev.yml`    | `iot_dev`                 | `storage/development` |
-| Автотесты            | `pnpm test`, `pnpm test:e2e`                    | `iot_test`                | `storage/test`        |
-| Приёмочный стенд     | `pnpm acceptance:stand`, `pnpm test:acceptance` | `iot_acceptance`          | `storage/acceptance`  |
-| Тест восстановления  | `pnpm test:restore` (проект Compose `iot-at13`) | временный том             | временный том         |
-| Рабочее (production) | `docker-compose.prod.yml` + `.env.prod`         | том `pgdata` (база `iot`) | том `files`           |
+| Окружение            | Как запускается                                         | База данных               | Файлы                 |
+| -------------------- | ------------------------------------------------------- | ------------------------- | --------------------- |
+| Разработка           | `pnpm dev`, база из `docker-compose.dev.yml`            | `iot_dev`                 | `storage/development` |
+| Автотесты            | `pnpm test`, `pnpm test:e2e`                            | `iot_test`                | `storage/test`        |
+| Приёмочный стенд     | `pnpm acceptance:stand`, `pnpm test:acceptance`         | `iot_acceptance`          | `storage/acceptance`  |
+| Тест восстановления  | `pnpm test:restore` (проект Compose `iot-at13`)         | временный том             | временный том         |
+| Рабочее (production) | Coolify: `docker-compose.prod.yml` + переменные Coolify | том `pgdata` (база `iot`) | том `files`           |
+| Сервер без Coolify   | `docker-compose.standalone.yml` + `.env.prod`           | том `pgdata` (база `iot`) | том `files`           |
 
 Для тестового сервера колледжа используйте отдельную копию репозитория (или другое имя проекта Compose, `-p iot-test`) со своим `.env.prod`, своими секретами и портами: тома разных проектов Compose не пересекаются.

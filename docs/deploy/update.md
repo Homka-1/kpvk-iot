@@ -21,7 +21,7 @@ scripts/deploy.sh --mode update --ref <метка новой версии>
 
 ```sh
 cd /opt/iot
-export COMPOSE_FILE=docker-compose.prod.yml COMPOSE_ENV_FILES=.env.prod
+export COMPOSE_FILE=docker-compose.standalone.yml COMPOSE_ENV_FILES=.env.prod
 
 # 1. Резервная копия перед обновлением (обязательно).
 docker compose exec backup backup.sh

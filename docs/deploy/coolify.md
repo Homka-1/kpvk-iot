@@ -1,6 +1,6 @@
 # Развёртывание через Coolify
 
-Coolify получает код из закрытого репозитория GitHub по deploy key, собирает образы на сервере и обновляет приложение после каждого пуша в ветку `main`. Используется файл `docker-compose.coolify.yml`; скрипт `scripts/deploy.sh` при этом не нужен.
+Coolify получает код из закрытого репозитория GitHub по deploy key, собирает образы на сервере и обновляет приложение после каждого пуша в ветку `main`. Используется файл `docker-compose.prod.yml`; скрипт `scripts/deploy.sh` при этом не нужен.
 
 Отличия от установки по [install.md](install.md):
 
@@ -11,7 +11,7 @@ Coolify получает код из закрытого репозитория G
 ## Настройка ресурса
 
 1. **New Resource → Private Repository (with Deploy Key)**: репозиторий `git@github.com:Homka-1/kpvk-iot.git`, ветка `main`, ключ, добавленный в репозиторий (Settings → Deploy keys, без права записи).
-2. **Build Pack**: Docker Compose; **Docker Compose Location**: `/docker-compose.coolify.yml`.
+2. **Build Pack**: Docker Compose; **Docker Compose Location**: `/docker-compose.prod.yml`.
 3. **Domains**: домен назначается только сервису `nginx` с указанием порта контейнера, например `https://iot.college.kz:8080` (порт 8080 — внутренний, снаружи сайт открывается по 443). Остальным сервисам домен не назначается.
 4. **Environment Variables**:
 

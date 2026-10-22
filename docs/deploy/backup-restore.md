@@ -26,7 +26,7 @@
 
 ```sh
 cd /opt/iot
-export COMPOSE_FILE=docker-compose.prod.yml COMPOSE_ENV_FILES=.env.prod
+export COMPOSE_FILE=docker-compose.standalone.yml COMPOSE_ENV_FILES=.env.prod
 docker compose exec backup backup.sh
 ```
 
@@ -38,7 +38,7 @@ docker compose exec backup backup.sh
 
 ```sh
 cd /opt/iot
-export COMPOSE_FILE=docker-compose.prod.yml COMPOSE_ENV_FILES=.env.prod
+export COMPOSE_FILE=docker-compose.standalone.yml COMPOSE_ENV_FILES=.env.prod
 
 # 1. Остановить API: к базе не должно быть подключений.
 docker compose stop api

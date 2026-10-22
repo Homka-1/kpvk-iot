@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Автоматическая установка и обновление рабочего стенда (docker-compose.prod.yml + .env.prod).
+# Автоматическая установка и обновление рабочего стенда (docker-compose.standalone.yml + .env.prod).
 # Запуск из любого каталога на сервере: scripts/deploy.sh [параметры].
 # Недостающие параметры скрипт спрашивает после запуска; с --yes берёт значения по умолчанию.
 # Порядок действий повторяет docs/deploy/install.md и docs/deploy/update.md.
@@ -76,7 +76,7 @@ get_env() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
 
 cd "$(dirname "$0")/.."
 ENV_FILE=.env.prod
-export COMPOSE_FILE=docker-compose.prod.yml COMPOSE_ENV_FILES="$ENV_FILE"
+export COMPOSE_FILE=docker-compose.standalone.yml COMPOSE_ENV_FILES="$ENV_FILE"
 
 command -v docker >/dev/null || die "Docker не установлен"
 docker compose version >/dev/null 2>&1 || die "нужен Docker Compose v2 (docker compose)"

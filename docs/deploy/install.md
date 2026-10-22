@@ -1,6 +1,6 @@
 # Установка
 
-Установка на подготовленный сервер (см. [server-requirements.md](server-requirements.md)). Все команды выполняются из корня репозитория пользователем, которому разрешено запускать Docker.
+Установка на подготовленный сервер без Coolify (`docker-compose.standalone.yml`, см. [server-requirements.md](server-requirements.md)). Развёртывание через Coolify — [coolify.md](coolify.md). Все команды выполняются из корня репозитория пользователем, которому разрешено запускать Docker.
 
 ## Автоматическая установка
 
@@ -67,20 +67,20 @@ echo "JWT_SECRET=$(openssl rand -hex 32)"
 ## 4. Сборка и запуск
 
 ```sh
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --wait
+docker compose -f docker-compose.standalone.yml --env-file .env.prod up -d --build --wait
 ```
 
 Первая сборка занимает несколько минут. При старте API сам применяет миграции к пустой базе. Ключ `--wait` дожидается, пока все контейнеры станут здоровыми (`healthy`); проверить состояние можно так:
 
 ```sh
-docker compose -f docker-compose.prod.yml --env-file .env.prod ps
+docker compose -f docker-compose.standalone.yml --env-file .env.prod ps
 curl -k https://localhost/api/health      # {"status":"ok"}
 ```
 
 Чтобы не набирать параметры каждый раз, можно задать их в окружении оболочки администратора:
 
 ```sh
-export COMPOSE_FILE=docker-compose.prod.yml COMPOSE_ENV_FILES=.env.prod
+export COMPOSE_FILE=docker-compose.standalone.yml COMPOSE_ENV_FILES=.env.prod
 docker compose ps
 ```
 
@@ -91,7 +91,7 @@ docker compose ps
 На рабочем сервере демо-данные не загружаются. Администратор создаётся командой в контейнере API:
 
 ```sh
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec api node dist/cli/create-admin.js
+docker compose -f docker-compose.standalone.yml --env-file .env.prod exec api node dist/cli/create-admin.js
 ```
 
 Команда выводит временный пароль один раз. При первом входе система попросит сменить его. Другой логин — аргументом: `... create-admin.js ivanov.admin`. Повторный запуск с существующим логином ничего не меняет. Создание записывается в журнал аудита.

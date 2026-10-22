@@ -59,13 +59,15 @@
 
 ## Рабочий сервер
 
-Рабочее окружение — Docker Compose (`docker-compose.prod.yml`): nginx с HTTPS, статика интерфейса, API, PostgreSQL и резервное копирование по расписанию. Порядок установки — [docs/deploy/install.md](docs/deploy/install.md); кратко:
+Рабочий сервер разворачивается через Coolify из `docker-compose.prod.yml`: Coolify получает код по deploy key и обновляет приложение при пуше в `main`, HTTPS обслуживает его прокси. Настройка — [docs/deploy/coolify.md](docs/deploy/coolify.md).
+
+На сервере без Coolify используется `docker-compose.standalone.yml` (nginx с HTTPS, статика интерфейса, API, PostgreSQL и резервное копирование по расписанию). Порядок установки — [docs/deploy/install.md](docs/deploy/install.md); кратко:
 
 ```bash
 cp .env.prod.example .env.prod  # задайте POSTGRES_PASSWORD и JWT_SECRET
 # сертификат: deploy/certs/fullchain.pem и privkey.pem (для теста — docker/nginx/self-signed-cert.sh)
-docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build --wait
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec api node dist/cli/create-admin.js
+docker compose -f docker-compose.standalone.yml --env-file .env.prod up -d --build --wait
+docker compose -f docker-compose.standalone.yml --env-file .env.prod exec api node dist/cli/create-admin.js
 ```
 
 Последняя команда создаёт первого администратора и выводит временный пароль. Демо-данные на рабочем сервере не создаются; методики заказчика вносятся по [docs/guides/methodologies.md](docs/guides/methodologies.md).

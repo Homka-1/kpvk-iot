@@ -303,7 +303,7 @@
 
 - **Контекст.** Этап 21 (п. 8.1–8.3, NFR-007, NFR-008, NFR-010, AT-13, подготовка AT-14): установка на Linux-сервер колледжа, обновление без потери данных, резервное копирование с проверенным восстановлением.
 - **Решение.**
-  - Docker Compose (`docker-compose.prod.yml`), пять сервисов: `postgres`, `api`, `web`, `nginx`, `backup`. База и API — во внутренней сети `backend` без выхода наружу; открыты только порты nginx.
+  - Docker Compose (`docker-compose.prod.yml`; после ADR-027 — `docker-compose.standalone.yml`), пять сервисов: `postgres`, `api`, `web`, `nginx`, `backup`. База и API — во внутренней сети `backend` без выхода наружу; открыты только порты nginx.
   - Образы `api` и `web` многоступенчатые: сборка в `node:24-alpine`, в итоговом образе только production-зависимости (API) или статика (web, `nginxinc/nginx-unprivileged`). Оба работают не от root; `api`, `web`, `nginx` — без Linux-capabilities и с `no-new-privileges`.
   - Миграции применяются при старте контейнера API (`prisma migrate deploy`): применяет только новые миграции и никогда не сбрасывает базу. Для этого `prisma` перенесён в `dependencies` API — CLI нужен в рабочем образе.
   - Статика и прокси — два nginx: `web` отдаёт сборку и заголовки безопасности страниц (CSP `style-src 'self' 'unsafe-inline'` ради PrimeVue, см. ADR-025), внешний `nginx` — TLS, HSTS, gzip, лимит тела 25 МБ, маршрутизация `/api`. Адреса `api` и `web` nginx разрешает через DNS Docker с коротким TTL, чтобы пересоздание контейнера при обновлении не требовало перезапуска прокси.
@@ -322,3 +322,12 @@
   - Снимки экранов для руководств — отдельный набор Playwright (`apps/web/playwright.guides.config.ts`, `pnpm docs:screenshots`) на приёмочном стенде с вымышленными данными. В приёмочный прогон он не входит, чтобы `pnpm test:acceptance` не изменял файлы документации.
   - Руководства пишутся по ролям и сценариям UC с названиями кнопок и полей из интерфейса; итоговые документы — без сокращённого стиля журналов этапов.
 - **Последствия.** Новых зависимостей нет. После изменения API — `pnpm docs:openapi`, после изменения зависимостей — `pnpm docs:licenses`, после заметных изменений экранов — `pnpm docs:screenshots`. Пакет `buffers` (косвенная зависимость `exceljs`) не указывает лицензию — отмечен в `docs/licenses.md` для юридической проверки.
+
+## ADR-027. Развёртывание через Coolify
+
+- **Контекст.** Сервер колледжа обслуживается Coolify: код получается из GitHub по deploy key, обновление выполняется при пуше в `main`. Путь к файлу Compose в Coolify — `docker-compose.prod.yml`. Coolify держит порты 80/443 и сертификат своим прокси (Traefik) и не монтирует файлы репозитория в контейнеры: первый деплой с файлом ADR-026 упал на монтировании `docker/nginx/default.conf`.
+- **Решение.**
+  - `docker-compose.prod.yml` — вариант для Coolify: внутренний `nginx` без портов на сервере, HTTP на 8080, конфигурация `docker/nginx/coolify.conf` входит в образ (`docker/nginx/Dockerfile`); сети, имя проекта и имена томов задаёт Coolify; переменные — в интерфейсе Coolify, `BACKUP_HOST_DIR` обязателен.
+  - Перед API два прокси (Traefik и nginx), поэтому `TRUST_PROXY=2`; nginx дополняет `X-Forwarded-For` и передаёт `X-Forwarded-Proto` от Traefik.
+  - Файл ADR-026 переименован в `docker-compose.standalone.yml` для сервера без Coolify; на нём остаются `scripts/deploy.sh` и тест восстановления AT-13 (`docker/test/restore.test.mts`).
+- **Последствия.** Резервная копия перед обновлением в Coolify не делается автоматически: перед пушем с миграциями её запускают вручную (`backup.sh` в контейнере `backup`). Порядок — `docs/deploy/coolify.md`.
