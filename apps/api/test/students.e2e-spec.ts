@@ -227,7 +227,7 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
       expect(foreign.body.fields.groupId).toBe('Группа не найдена среди ваших действующих групп');
     });
 
-    it('FR-002, AT-12: чужих студентов преподаватель не видит; студент, исследователь и администратор — 403', async () => {
+    it('FR-002, AT-12: чужих студентов преподаватель не видит; студент и исследователь — 403', async () => {
       const own = (
         await addStudent(teacher, {
           lastName: 'Свой',
@@ -259,7 +259,6 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
       const studentSession = await login(app, own.login, own.temporaryPassword!);
       for (const session of [
         studentSession,
-        admin,
         await login(app, (await createUser(app, { role: RoleCode.RESEARCHER })).login),
       ]) {
         await as(session, http().get('/api/students')).expect(403);
@@ -398,6 +397,43 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
         .expect(401);
       await login(app, created.login, reset.body.temporaryPassword as string);
     });
+
+    it('ADR-028: администратор видит студентов всех групп и ведёт их карточки без закреплений', async () => {
+      const foreign = (
+        await addStudent(otherTeacher, {
+          lastName: `Админский${suffix()}`,
+          firstName: 'Тест',
+          groupId: foreignGroup.id,
+        }).expect(201)
+      ).body as StudentCreatedDto;
+      const id = foreign.student.id;
+
+      const list = await as(
+        admin,
+        http().get(`/api/students?search=${encodeURIComponent(foreign.student.lastName)}`),
+      ).expect(200);
+      expect((list.body as StudentPageDto).items.map((item) => item.id)).toEqual([id]);
+      await as(admin, http().get(`/api/students/${id}`)).expect(200);
+      await as(admin, http().get(`/api/students/${id}/profile`)).expect(200);
+
+      await addStudent(admin, {
+        lastName: 'Добавленный',
+        firstName: 'Тест',
+        groupId: groupA.id,
+      }).expect(201);
+      await as(admin, http().patch(`/api/students/${id}`))
+        .send({ lastName: 'Исправленный', firstName: 'Тест', middleName: '' })
+        .expect(200);
+      const moved = await as(admin, http().post(`/api/students/${id}/transfer`))
+        .send({ groupId: groupB.id, reason: 'Решение учебной части' })
+        .expect(200);
+      expect((moved.body as StudentDetailsDto).group?.id).toBe(groupB.id);
+      await as(admin, http().post(`/api/students/${id}/reset-password`)).expect(200);
+      await as(admin, http().post(`/api/students/${id}/archive`))
+        .send({ reason: 'Отчислен' })
+        .expect(200);
+      await as(admin, http().post(`/api/students/${id}/restore`)).expect(200);
+    });
   });
 
   describe('импорт', () => {
@@ -497,7 +533,6 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
         'Нет обязательных колонок: «Фамилия», «Имя», «Группа»',
       ]);
       await as(teacher, http().post('/api/students/import/preview')).expect(400);
-      await preview(admin, 'Фамилия;Имя;Группа\n').expect(403);
     });
   });
 });

@@ -31,10 +31,11 @@ describe('StaffLayout', () => {
     ]);
   });
 
-  it('п. 2.1: администратор видит главную и служебные разделы', async () => {
+  it('п. 2.1, ADR-028: администратор видит главную, студентов и служебные разделы', async () => {
     const { wrapper } = await mountWithApp(StaffLayout, { path: '/', user: testUser(['admin']) });
     expect(sidebarLabels(wrapper)).toEqual([
       'Главная',
+      'Студенты',
       'Дисциплины',
       'Настройки',
       'Администрирование',

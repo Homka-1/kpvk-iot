@@ -359,9 +359,11 @@ describe('Мотивационные профили (e2e)', () => {
       researcher,
       http().get(`/api/students/${student.student.id}/motivation-profile`),
     ).expect(403);
+    // ADR-028: администратор видит профиль, но не меняет его (нет profiles.manage).
     await as(admin, http().get(`/api/students/${student.student.id}/motivation-profile`)).expect(
-      403,
+      200,
     );
+    await form(student.student.id, admin).expect(403);
   });
 
   it('распределение текущих профилей в доступной области', async () => {

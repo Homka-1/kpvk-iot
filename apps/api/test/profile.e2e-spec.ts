@@ -124,13 +124,14 @@ describe('Профиль студента и педагогические наб
     ]);
   });
 
-  it('FR-002, AT-12: чужой студент — 404, студенту/исследователю/админу — 403', async () => {
+  it('FR-002, AT-12: чужой студент — 404, студенту и исследователю — 403; администратору доступен (ADR-028)', async () => {
     const foreignId = otherStudent.student.id;
     for (const path of ['profile', 'observations', 'history']) {
       await as(teacher, http().get(`/api/students/${foreignId}/${path}`)).expect(404);
-      for (const session of [studentSession, researcher, admin]) {
+      for (const session of [studentSession, researcher]) {
         await as(session, http().get(`/api/students/${student.student.id}/${path}`)).expect(403);
       }
+      await as(admin, http().get(`/api/students/${foreignId}/${path}`)).expect(200);
     }
     await as(teacher, http().post(`/api/students/${foreignId}/observations`))
       .set('Idempotency-Key', key())
