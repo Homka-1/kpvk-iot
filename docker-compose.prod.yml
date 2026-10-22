@@ -1,9 +1,10 @@
 # Рабочее окружение для Coolify (ресурс Docker Compose, сборка из репозитория по deploy key,
 # обновление при пуше в main). Отличия от docker-compose.standalone.yml (сервер без Coolify):
-#   - nginx слушает порты HTTP_PORT и HTTPS_PORT (те же номера на сервере и в контейнере),
-#     сертификат — из каталога сервера /srv/kpvk-iot/certs, копии — в /srv/kpvk-iot/backups
-#     (Coolify не допускает переменных в путях томов);
-#   - конфигурация nginx входит в образ (docker/nginx/Dockerfile), порты подставляются при старте;
+#   - nginx принимает HTTP на порту сервера HTTP_PORT (тот же номер в контейнере); HTTPS,
+#     сертификат и домен — у прокси администратора сервера, TRUST_PROXY=2;
+#   - конфигурация nginx входит в образ (docker/nginx/Dockerfile);
+#   - сервиса резервного копирования (backup) пока нет — временно отключён по решению
+#     администратора сервера, вернуть можно из docker-compose.standalone.yml;
 #   - имя проекта, сети и имена томов задаёт Coolify.
 # Переменные задаются в Coolify (Environment Variables); описание — docs/deploy/coolify.md.
 
@@ -45,8 +46,8 @@ services:
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
       LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-20}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      # Перед API ровно один прокси — nginx этого файла.
-      TRUST_PROXY: '1'
+      # Перед API два прокси: внешний с HTTPS и nginx этого файла.
+      TRUST_PROXY: '2'
     volumes:
       - files:/var/lib/iot/files
     security_opt: [no-new-privileges:true]
@@ -72,42 +73,14 @@ services:
         condition: service_healthy
       web:
         condition: service_healthy
-    # nginx слушает эти порты внутри контейнера, на сервере они открываются под теми же номерами.
-    # HTTP_PORT только перенаправляет на HTTPS_PORT.
+    # HTTP на порту HTTP_PORT: тот же номер внутри контейнера и на сервере. HTTPS и домен —
+    # у прокси администратора сервера, который направляет запросы на этот порт.
     environment:
-      HTTP_PORT: ${HTTP_PORT:?Задайте HTTP_PORT в Coolify}
-      HTTPS_PORT: ${HTTPS_PORT:?Задайте HTTPS_PORT в Coolify}
+      HTTP_PORT: ${HTTP_PORT:?Задайте HTTP_PORT в Coolify — порт приложения на сервере}
     ports:
       - '${HTTP_PORT}:${HTTP_PORT}'
-      - '${HTTPS_PORT}:${HTTPS_PORT}'
-    volumes:
-      # Каталог на сервере с fullchain.pem и privkey.pem. Coolify не допускает переменных
-      # в путях томов, поэтому путь задан здесь.
-      - /srv/kpvk-iot/certs:/etc/nginx/certs:ro
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
-    logging: *logging
-
-  backup:
-    build:
-      context: .
-      dockerfile: docker/backup/Dockerfile
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGHOST: postgres
-      PGUSER: ${POSTGRES_USER:-iot}
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-      PGDATABASE: ${POSTGRES_DB:-iot}
-      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-30 2 * * *}
-      BACKUP_KEEP: ${BACKUP_KEEP:-14}
-      TZ: ${TZ:-Asia/Almaty}
-    volumes:
-      - files:/data/files
-      # Каталог копий на сервере вне каталогов Coolify (переменные в путях томов Coolify запрещает).
-      - /srv/kpvk-iot/backups:/backups
     logging: *logging
 
 volumes:

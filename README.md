@@ -59,7 +59,7 @@
 
 ## Рабочий сервер
 
-Рабочий сервер разворачивается через Coolify из `docker-compose.prod.yml`: Coolify получает код по deploy key и обновляет приложение при пуше в `main`; nginx приложения обслуживает HTTPS на портах `HTTP_PORT` и `HTTPS_PORT`. Настройка — [docs/deploy/coolify.md](docs/deploy/coolify.md).
+Рабочий сервер разворачивается через Coolify из `docker-compose.prod.yml`: Coolify получает код по deploy key и обновляет приложение при пуше в `main`; nginx приложения принимает HTTP на порту сервера `HTTP_PORT`, домен и HTTPS обслуживает прокси администратора сервера. Настройка — [docs/deploy/coolify.md](docs/deploy/coolify.md).
 
 На сервере без Coolify используется `docker-compose.standalone.yml` (nginx с HTTPS, статика интерфейса, API, PostgreSQL и резервное копирование по расписанию). Порядок установки — [docs/deploy/install.md](docs/deploy/install.md); кратко:
 

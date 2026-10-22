@@ -1,7 +1,8 @@
-# nginx для развёртывания через Coolify (docker-compose.prod.yml): как default.conf, но порты
-# задаются переменными HTTP_PORT и HTTPS_PORT. Образ подставляет их при старте контейнера
-# (envsubst шаблонов /etc/nginx/templates); переменные nginx вида $host не затрагиваются.
-# Сертификат монтируется в /etc/nginx/certs: fullchain.pem (с цепочкой) и privkey.pem.
+# nginx для развёртывания через Coolify (docker-compose.prod.yml). HTTPS, сертификат и
+# перенаправление с HTTP выполняет прокси перед приложением; этот nginx принимает от него HTTP
+# на порту HTTP_PORT и, как default.conf, делит запросы между API (/api) и статикой интерфейса, сжимает ответы и
+# ограничивает размер загрузки. Образ подставляет HTTP_PORT при старте контейнера (envsubst
+# шаблонов /etc/nginx/templates); переменные nginx вида $host не затрагиваются.
 
 # Файлы библиотеки — до 20 МБ (FILE_UPLOAD_MAX_BYTES), запас на заголовки multipart.
 client_max_body_size 25m;
@@ -24,24 +25,7 @@ server {
         return 200 "ok\n";
     }
 
-    location / {
-        return 301 https://$host:${HTTPS_PORT}$request_uri;
-    }
-}
-
-server {
-    listen ${HTTPS_PORT} ssl;
-    http2 on;
-    server_name _;
-
-    ssl_certificate /etc/nginx/certs/fullchain.pem;
-    ssl_certificate_key /etc/nginx/certs/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers off;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 1d;
-
-    # HSTS ставится здесь для всех ответов; одноимённый заголовок API скрывается, чтобы не дублировать.
+    # Браузер учитывает HSTS только в ответах по HTTPS, а снаружи их отдаёт прокси.
     add_header Strict-Transport-Security "max-age=31536000" always;
 
     # Встроенный DNS Docker: адреса api и web перечитываются, если контейнер пересоздан
@@ -52,11 +36,10 @@ server {
 
     proxy_http_version 1.1;
     proxy_set_header Host $host;
-    # Заголовок перезаписывается, а не дополняется: API доверяет одному прокси (TRUST_PROXY=1)
-    # и берёт адрес клиента отсюда; подделать его из браузера нельзя.
-    proxy_set_header X-Forwarded-For $remote_addr;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Real-IP $remote_addr;
+    # Перед API два прокси (внешний и этот nginx), поэтому TRUST_PROXY=2: API берёт адрес
+    # клиента, который записал внешний прокси, и не доверяет значениям, присланным из браузера.
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
 
     location /api/ {
         proxy_pass $api_upstream;
