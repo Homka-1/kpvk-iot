@@ -1,0 +1,104 @@
+# Рабочее окружение для Coolify (ресурс Docker Compose, сборка из репозитория по deploy key,
+# обновление при пуше в main). Отличия от docker-compose.prod.yml:
+#   - HTTPS, сертификат и порты 80/443 у прокси Coolify; наружу публикуется только nginx:8080
+#     через домен, заданный в Coolify;
+#   - конфигурация nginx входит в образ (docker/nginx/Dockerfile), TRUST_PROXY=2;
+#   - имя проекта, сети и имена томов задаёт Coolify.
+# Переменные задаются в Coolify (Environment Variables); описание — docs/deploy/coolify.md.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в Coolify}
+      POSTGRES_DB: ${POSTGRES_DB:-iot}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-iot}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET в Coolify}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Перед API два прокси: Traefik Coolify и nginx этого файла.
+      TRUST_PROXY: '2'
+    volumes:
+      - files:/var/lib/iot/files
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    # Портов на сервере нет: домен назначается сервису nginx в Coolify с портом 8080.
+    expose: ['8080']
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+
+  backup:
+    build:
+      context: .
+      dockerfile: docker/backup/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-iot}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-iot}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-30 2 * * *}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      TZ: ${TZ:-Asia/Almaty}
+    volumes:
+      - files:/data/files
+      # Абсолютный путь на сервере: копии должны лежать вне каталогов, которыми управляет Coolify.
+      - ${BACKUP_HOST_DIR:?Задайте BACKUP_HOST_DIR в Coolify, например /srv/iot-backups}:/backups
+    logging: *logging
+
+volumes:
+  pgdata:
+  files:

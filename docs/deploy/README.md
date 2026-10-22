@@ -8,8 +8,8 @@
 | [install.md](install.md)                                       | Установка с нуля: сертификат, переменные, запуск, первая учётная запись |
 | [environment.md](environment.md)                               | Переменные окружения `.env.prod`                                        |
 | [update.md](update.md)                                         | Обновление до новой версии без потери данных (NFR-007), откат           |
-| [autodeploy.md](autodeploy.md)                                 | Автоматическое обновление при пуше в `main` (deploy key, таймер)        |
 | `scripts/deploy.sh`                                            | Автоматическая установка и обновление; недостающие параметры спрашивает |
+| [coolify.md](coolify.md)                                       | Развёртывание через Coolify: deploy key, обновление при пуше в `main`   |
 | [backup-restore.md](backup-restore.md)                         | Резервное копирование по расписанию, восстановление, проверка (AT-13)   |
 | [../acceptance/at-14-server.md](../acceptance/at-14-server.md) | Проверка работы на сервере колледжа (AT-14)                             |
 

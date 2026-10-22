@@ -36,6 +36,3 @@ apps/api/src/generated/
 .agents/
 **/.claude/skills/
 skills-lock.json
-
-# Блокировка scripts/deploy.sh
-.deploy.lock

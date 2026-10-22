@@ -76,11 +76,6 @@ get_env() { sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1; }
 
 cd "$(dirname "$0")/.."
 ENV_FILE=.env.prod
-
-# Один запуск за раз: при автодеплое пуши подряд встают в очередь, а не обновляют стенд одновременно.
-command -v flock >/dev/null || die "нужен flock (пакет util-linux)"
-exec 9>.deploy.lock
-flock -w 1800 9 || die "другой запуск deploy.sh не завершился за 30 минут"
 export COMPOSE_FILE=docker-compose.prod.yml COMPOSE_ENV_FILES="$ENV_FILE"
 
 command -v docker >/dev/null || die "Docker не установлен"
@@ -103,8 +98,6 @@ if [ "$MODE" = update ] && [ "$BACKUP" = 1 ]; then
     info "Копия: $BACKUP_NAME"
   else
     echo "Контейнер backup не запущен, резервную копию сделать нельзя."
-    # Без вопросов (автодеплой) не обновляем без копии: решение принимает администратор.
-    [ "$ASSUME_YES" = 0 ] || die "обновление без резервной копии отменено (явно: --no-backup)"
     confirm "Продолжить обновление без копии?" || die "обновление отменено"
   fi
 fi
@@ -191,17 +184,6 @@ if [ "$MODE" = install ]; then
   ask ADMIN "Логин первого администратора" admin
   info "Создание администратора $ADMIN"
   docker compose exec -T api node dist/cli/create-admin.js "$ADMIN"
-fi
-
-# 7. Старые образы: оставляем текущую и прежнюю версию (для отката), остальные удаляем,
-#    иначе автодеплой при каждом пуше заполняет диск.
-if [ "$MODE" = update ]; then
-  for repo in iot-api iot-web iot-backup; do
-    docker image ls "$repo" --format '{{.Tag}}' |
-      { grep -vxF -e "$VERSION" -e "${PREV_VERSION:-$VERSION}" || true; } |
-      while read -r tag; do docker image rm "$repo:$tag" >/dev/null || true; done
-  done
-  docker builder prune -f --filter until=168h >/dev/null || true
 fi
 
 docker compose ps
