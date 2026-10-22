@@ -1,7 +1,8 @@
 # Рабочее окружение для Coolify (ресурс Docker Compose, сборка из репозитория по deploy key,
 # обновление при пуше в main). Отличия от docker-compose.standalone.yml (сервер без Coolify):
 #   - nginx слушает порты HTTP_PORT и HTTPS_PORT (те же номера на сервере и в контейнере),
-#     сертификат — из каталога сервера TLS_CERT_DIR (абсолютный путь);
+#     сертификат — из каталога сервера /srv/kpvk-iot/certs, копии — в /srv/kpvk-iot/backups
+#     (Coolify не допускает переменных в путях томов);
 #   - конфигурация nginx входит в образ (docker/nginx/Dockerfile), порты подставляются при старте;
 #   - имя проекта, сети и имена томов задаёт Coolify.
 # Переменные задаются в Coolify (Environment Variables); описание — docs/deploy/coolify.md.
@@ -80,8 +81,9 @@ services:
       - '${HTTP_PORT}:${HTTP_PORT}'
       - '${HTTPS_PORT}:${HTTPS_PORT}'
     volumes:
-      # Абсолютный путь на сервере с fullchain.pem и privkey.pem.
-      - ${TLS_CERT_DIR:?Задайте TLS_CERT_DIR в Coolify — каталог сертификата на сервере}:/etc/nginx/certs:ro
+      # Каталог на сервере с fullchain.pem и privkey.pem. Coolify не допускает переменных
+      # в путях томов, поэтому путь задан здесь.
+      - /srv/kpvk-iot/certs:/etc/nginx/certs:ro
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     logging: *logging
@@ -104,8 +106,8 @@ services:
       TZ: ${TZ:-Asia/Almaty}
     volumes:
       - files:/data/files
-      # Абсолютный путь на сервере: копии должны лежать вне каталогов, которыми управляет Coolify.
-      - ${BACKUP_HOST_DIR:?Задайте BACKUP_HOST_DIR в Coolify, например /srv/iot-backups}:/backups
+      # Каталог копий на сервере вне каталогов Coolify (переменные в путях томов Coolify запрещает).
+      - /srv/kpvk-iot/backups:/backups
     logging: *logging
 
 volumes:

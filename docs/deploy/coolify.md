@@ -4,7 +4,7 @@ Coolify получает код из закрытого репозитория G
 
 Отличия от установки по [install.md](install.md):
 
-- `nginx` приложения сам обслуживает HTTPS на порту `HTTPS_PORT` и перенаправляет на него с порта `HTTP_PORT`; номера портов одинаковы на сервере и внутри контейнера. Сертификат берётся из каталога сервера `TLS_CERT_DIR`. Конфигурация nginx входит в образ (`docker/nginx/coolify.conf.template`), порты подставляются при старте контейнера: Coolify не монтирует файлы репозитория в контейнеры.
+- `nginx` приложения сам обслуживает HTTPS на порту `HTTPS_PORT` и перенаправляет на него с порта `HTTP_PORT`; номера портов одинаковы на сервере и внутри контейнера. Сертификат берётся из каталога сервера `/srv/kpvk-iot/certs`. Конфигурация nginx входит в образ (`docker/nginx/coolify.conf.template`), порты подставляются при старте контейнера: Coolify не монтирует файлы репозитория в контейнеры.
 - Переменные окружения задаются в интерфейсе Coolify, файл `.env.prod` не используется.
 - Имена проекта, сетей и томов назначает Coolify. Тома `pgdata` и `files` сохраняются между обновлениями.
 
@@ -13,7 +13,7 @@ Coolify получает код из закрытого репозитория G
 1. **New Resource → Private Repository (with Deploy Key)**: репозиторий `git@github.com:Homka-1/kpvk-iot.git`, ветка `main`, ключ, добавленный в репозиторий (Settings → Deploy keys, без права записи).
 2. **Build Pack**: Docker Compose; **Docker Compose Location**: `/docker-compose.prod.yml`.
 3. **Domains**: ни одному сервису не назначается — прокси Coolify в работе приложения не участвует, пользователи открывают `https://<домен>:<HTTPS_PORT>` (при `HTTPS_PORT=443` — без порта). Порты не должны совпадать с занятыми на сервере (в том числе портами 80/443 прокси Coolify, если он запущен).
-   Сертификат для домена кладётся на сервер в каталог `TLS_CERT_DIR`: `fullchain.pem` (сертификат с цепочкой) и `privkey.pem` (закрытый ключ, права `600`). Для теста — самоподписанный: `docker/nginx/self-signed-cert.sh <каталог> <домен>`. После замены сертификата перезапустите сервис `nginx`.
+   Сертификат для домена кладётся на сервер в каталог `/srv/kpvk-iot/certs`: `fullchain.pem` (сертификат с цепочкой) и `privkey.pem` (закрытый ключ, права `600`). Для теста — самоподписанный: `docker/nginx/self-signed-cert.sh <каталог> <домен>`. После замены сертификата перезапустите сервис `nginx`.
 
 4. **Environment Variables**:
 
@@ -23,12 +23,10 @@ Coolify получает код из закрытого репозитория G
    | `JWT_SECRET`                   | обязательна; не короче 32 символов: `openssl rand -hex 32`                                                                                |
    | `HTTP_PORT`                    | обязательна; порт HTTP (перенаправление на HTTPS), например `8089`                                                                        |
    | `HTTPS_PORT`                   | обязательна; порт HTTPS, по которому открывается сайт, например `8449`                                                                    |
-   | `TLS_CERT_DIR`                 | обязательна; абсолютный каталог на сервере с `fullchain.pem` и `privkey.pem`, например `/etc/ssl/kpvk-iot`                                |
-   | `BACKUP_HOST_DIR`              | обязательна; абсолютный каталог копий на сервере вне каталогов Coolify, например `/srv/iot-backups`                                       |
    | `POSTGRES_USER`, `POSTGRES_DB` | по умолчанию `iot`                                                                                                                        |
    | остальные                      | как в [environment.md](environment.md): `JWT_ACCESS_TTL_SECONDS`, `LOGIN_RATE_LIMIT`, `LOG_LEVEL`, `BACKUP_SCHEDULE`, `BACKUP_KEEP`, `TZ` |
 
-   `IOT_VERSION` в Coolify не нужна. Сохраните копию `POSTGRES_PASSWORD` и `JWT_SECRET` вне Coolify: без пароля не восстановить базу из тома. После первого запуска `POSTGRES_PASSWORD` не меняют — PostgreSQL задаёт пароль только при создании тома.
+   `IOT_VERSION`, `TLS_CERT_DIR`, `BACKUP_HOST_DIR` в Coolify не нужны: Coolify не допускает переменных в путях томов, поэтому каталоги сертификата (`/srv/kpvk-iot/certs`) и копий (`/srv/kpvk-iot/backups`) заданы в `docker-compose.prod.yml`. Создайте их до первого развёртывания (`sudo mkdir -p /srv/kpvk-iot/certs /srv/kpvk-iot/backups`); другие пути меняются в самом файле. Сохраните копию `POSTGRES_PASSWORD` и `JWT_SECRET` вне Coolify: без пароля не восстановить базу из тома. После первого запуска `POSTGRES_PASSWORD` не меняют — PostgreSQL задаёт пароль только при создании тома.
 
 5. **Auto Deploy** включён: Coolify обновляет приложение по вебхуку GitHub при пуше в `main`. Если сервер недоступен из интернета, вебхук не дойдёт — тогда обновление запускают кнопкой **Deploy** или через API Coolify.
 6. **Deploy**. При первом запуске API создаёт структуру базы миграциями. Проверка: `https://<домен>:<HTTPS_PORT>/api/health` отвечает `200`.
@@ -57,4 +55,4 @@ backup.sh
 
 ## Резервные копии
 
-Контейнер `backup` делает копии базы и файлов по расписанию `BACKUP_SCHEDULE` в каталог `BACKUP_HOST_DIR` на сервере и хранит `BACKUP_KEEP` последних. Порядок восстановления и проверки — [backup-restore.md](backup-restore.md); команды выполняются в терминале контейнера `backup` в Coolify.
+Контейнер `backup` делает копии базы и файлов по расписанию `BACKUP_SCHEDULE` в каталог `/srv/kpvk-iot/backups` на сервере и хранит `BACKUP_KEEP` последних. Порядок восстановления и проверки — [backup-restore.md](backup-restore.md); команды выполняются в терминале контейнера `backup` в Coolify.
