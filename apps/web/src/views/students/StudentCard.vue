@@ -135,6 +135,16 @@ a.student-card__name:hover {
   margin: 0;
 }
 
+.student-card__facts > div {
+  min-width: 0;
+}
+
+/* Длинный статус («Требуется дополнительная диагностика») переносится внутри своей колонки. */
+.student-card__facts :deep(.status-badge) {
+  max-width: 100%;
+  white-space: normal;
+}
+
 .student-card__facts dt {
   color: var(--iot-color-muted);
   font-size: 0.75rem;
