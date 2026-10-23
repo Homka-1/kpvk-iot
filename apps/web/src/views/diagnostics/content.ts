@@ -115,6 +115,7 @@ export function newScale(index: number): ScaleContent {
     name: '',
     description: null,
     aggregation: 'SUM',
+    motivationRole: 'REFERENCE',
     keys: [],
     rules: [],
   };

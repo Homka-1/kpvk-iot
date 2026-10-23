@@ -5,10 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  combineMethodologyLevels,
   type CurrentUser,
   DEFAULT_MOTIVATION_STRATEGIES,
   formatFullName,
   type MeasurementType,
+  type MethodologyLevelDto,
+  methodologyLevel,
   type MotivationLevel,
   type MotivationProfileDto,
   type MotivationProfileHistoryDto,
@@ -20,11 +23,16 @@ import {
   type ProfileBasisItemDto,
   type ProfileDistributionDto,
   proposeMotivationLevel,
+  type ScaleAggregation,
+  type ScaleMotivationRole,
+  scaleScoreRange,
   type StudentMotivationDto,
+  usesIntrinsicRule,
 } from '@iot/shared';
 import { AccessScopeService } from '../auth/access-scope.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { IdempotencyService } from '../common/idempotency.service.js';
+import { readContent, versionContentInclude } from '../diagnostics/questionnaire-content.js';
 import { toVersionLabel, versionLabelSelect } from '../diagnostics/sessions.service.js';
 import type { MotivationProfile, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -46,6 +54,8 @@ const basisSessionInclude = {
           code: true,
           name: true,
           sortOrder: true,
+          aggregation: true,
+          motivationRole: true,
           interpretationRules: { select: { motivationLevel: true } },
         },
       },
@@ -65,10 +75,17 @@ type BasisSession = Prisma.DiagnosticSessionGetPayload<{ include: typeof basisSe
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((item) => b.includes(item));
 
-/** Показатели шкал, участвующих в профиле: у правил интерпретации шкалы задан уровень профиля. */
-function basisItems(session: BasisSession): ProfileBasisItemDto[] {
+/**
+ * Показатели шкал, участвующих в профиле. Прежнее правило — шкалы, у правил интерпретации которых
+ * задан уровень профиля; новое — внутренние и внешние шкалы (справочные не показываются).
+ */
+function basisItems(session: BasisSession, intrinsicRule: boolean): ProfileBasisItemDto[] {
   return session.version.scales
-    .filter((scale) => scale.interpretationRules.some((rule) => rule.motivationLevel))
+    .filter((scale) =>
+      intrinsicRule
+        ? scale.motivationRole !== 'REFERENCE'
+        : scale.interpretationRules.some((rule) => rule.motivationLevel),
+    )
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((scale) => {
       const score = session.scores.find(
@@ -86,7 +103,10 @@ function basisItems(session: BasisSession): ProfileBasisItemDto[] {
         levelLabel: rule?.levelLabel ?? null,
         description: rule?.description ?? null,
         studentText: rule?.studentText ?? null,
-        motivationLevel: (rule?.motivationLevel as MotivationLevel | null) ?? null,
+        motivationLevel: intrinsicRule
+          ? null
+          : ((rule?.motivationLevel as MotivationLevel | null) ?? null),
+        ...(intrinsicRule ? { motivationRole: scale.motivationRole as ScaleMotivationRole } : {}),
       };
     });
 }
@@ -365,7 +385,12 @@ export class MotivationProfilesService {
 
   // ── Внутреннее ──
 
-  /** Последнее завершённое прохождение каждой методики и предложение уровня по нему. */
+  /**
+   * Последнее завершённое прохождение каждой методики и предложение уровня по нему. Если хотя бы у
+   * одной из этих версий заданы шкалы внутренней мотивации, действует правило этапа 24: уровень
+   * каждой такой методики по её внутренним шкалам, затем сведение уровней методик; версии без ролей
+   * шкал в нём не участвуют. Иначе — прежнее правило (голосование шкал, `profiles.minScales`).
+   */
   private async collectBasis(studentId: string): Promise<{
     level: MotivationLevel | null;
     dto: ProfileBasisDto;
@@ -381,13 +406,85 @@ export class MotivationProfilesService {
       const questionnaireId = session.version.questionnaire.id;
       if (!latest.has(questionnaireId)) latest.set(questionnaireId, session);
     }
-    const items = [...latest.values()].flatMap(basisItems);
     const minScales = await this.settings.get('profiles.minScales');
+    const intrinsicSessions = [...latest.values()].filter((session) =>
+      usesIntrinsicRule(session.version.scales as { motivationRole: ScaleMotivationRole }[]),
+    );
+    if (intrinsicSessions.length > 0) {
+      return this.intrinsicBasis(intrinsicSessions, minScales);
+    }
+
+    const items = [...latest.values()].flatMap((session) => basisItems(session, false));
     const proposal = proposeMotivationLevel(items, minScales);
     return {
       level: proposal.level,
-      dto: { minScales, items, counts: proposal.counts, reason: proposal.reason },
+      dto: {
+        rule: 'SCALE_VOTES',
+        minScales,
+        items,
+        counts: proposal.counts,
+        reason: proposal.reason,
+      },
       sessionIds: [...new Set(items.map((item) => item.sessionId))],
+    };
+  }
+
+  /** Правило этапа 24: уровни методик по внутренним шкалам и их сведение (FR-027, FR-028). */
+  private async intrinsicBasis(
+    sessions: BasisSession[],
+    minScales: number,
+  ): Promise<{ level: MotivationLevel | null; dto: ProfileBasisDto; sessionIds: string[] }> {
+    // Максимум шкалы нужен для процента от максимума: считается по ключам версии.
+    const versions = await this.prisma.questionnaireVersion.findMany({
+      where: { id: { in: sessions.map((session) => session.versionId) } },
+      include: versionContentInclude,
+    });
+    const maxByScale = new Map<string, number | null>();
+    for (const version of versions) {
+      const content = readContent(version);
+      for (const scale of content.scales) {
+        maxByScale.set(scale.key, scaleScoreRange(content, scale)?.max ?? null);
+      }
+    }
+
+    const methodologies = sessions.map((session): MethodologyLevelDto => {
+      const result = methodologyLevel(
+        session.version.scales.map((scale) => {
+          const score = session.scores.find(
+            (item) => item.scaleId === scale.id && item.revision === session.currentRevision,
+          );
+          return {
+            name: scale.name,
+            role: scale.motivationRole as ScaleMotivationRole,
+            aggregation: scale.aggregation as ScaleAggregation,
+            rawScore: score?.rawScore == null ? null : score.rawScore.toNumber(),
+            maxScore: maxByScale.get(scale.id) ?? null,
+          };
+        }),
+      );
+      return {
+        sessionId: session.id,
+        questionnaire: toVersionLabel(session.version),
+        measurementType: session.measurementType as MeasurementType,
+        completedAt: session.completedAt!.toISOString(),
+        ...result,
+      };
+    });
+    const proposal = combineMethodologyLevels(methodologies.map((item) => item.level));
+    const items = sessions.flatMap((session) => basisItems(session, true));
+    return {
+      level: proposal.level,
+      dto: {
+        rule: 'METHODOLOGIES',
+        minScales,
+        items,
+        counts: proposal.counts,
+        reason: proposal.reason,
+        methodologies,
+        outcome: proposal.outcome,
+        explanation: proposal.explanation,
+      },
+      sessionIds: sessions.map((session) => session.id),
     };
   }
 

@@ -379,6 +379,7 @@ erDiagram
     String name
     String description "null"
     enum_ScaleAggregation aggregation
+    enum_ScaleMotivationRole motivation_role
     Int sort_order
   }
   scoring_keys {

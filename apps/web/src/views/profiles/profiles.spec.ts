@@ -126,6 +126,81 @@ describe('StudentMotivationTab', () => {
     wrapper.unmount();
   });
 
+  it('FR-027, FR-028: уровни методик по внутренним шкалам и предупреждение о внешней мотивации', async () => {
+    const methodology = {
+      sessionId: 's1',
+      questionnaire: item().questionnaire,
+      measurementType: 'PRIMARY' as const,
+      completedAt: '2026-10-01T10:00:00.000Z',
+      extrinsicPrevails: false,
+      reason: null,
+    };
+    const profile: MotivationProfileDto = {
+      ...proposed,
+      proposedLevel: 'MEDIUM',
+      basis: {
+        rule: 'METHODOLOGIES',
+        minScales: 1,
+        items: [
+          item({ motivationLevel: null, motivationRole: 'INTRINSIC', rawScore: 4.5 }),
+          item({
+            scaleCode: 'EXT',
+            scaleName: 'Мотивы престижа',
+            motivationLevel: null,
+            motivationRole: 'EXTRINSIC',
+            rawScore: 4.8,
+          }),
+        ],
+        counts: { HIGH: 1, MEDIUM: 1, LOW: 0 },
+        reason: null,
+        outcome: 'ONE_STEP_LOWER',
+        explanation:
+          'Уровни методик различаются на одну ступень (высокий и средний): предложен более низкий — средний.',
+        methodologies: [
+          {
+            ...methodology,
+            method: 'INTRINSIC_MEAN',
+            intrinsic: 4.5,
+            extrinsic: 4.8,
+            level: 'HIGH',
+            extrinsicPrevails: true,
+          },
+          {
+            ...methodology,
+            sessionId: 's2',
+            method: 'INTRINSIC_PERCENT',
+            intrinsic: 50,
+            extrinsic: null,
+            level: 'MEDIUM',
+          },
+        ],
+      },
+    };
+    mockApi({
+      'GET /students/st1/motivation-profile': state(profile),
+      'GET /motivation-strategies': DEFAULT_MOTIVATION_STRATEGIES,
+    });
+    const { wrapper } = await mountWithApp(StudentMotivationTab, {
+      props: { studentId: 'st1', archived: false },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    const text = wrapper.text();
+    expect(wrapper.get('[data-testid="rule-outcome"]').text()).toContain('более низкий');
+    expect(wrapper.get('[data-testid="extrinsic-warning"]').text()).toContain(
+      'Преобладает внешняя мотивация',
+    );
+    expect(wrapper.findAll('[data-testid="extrinsic-warning"]')).toHaveLength(1);
+    expect(text).toContain('Среднее внутренних шкал');
+    expect(text).toContain('Процент от максимума');
+    expect(text).toContain('50 %');
+    expect(text).toContain('Внутренняя мотивация');
+    expect(text).toContain('Внешняя мотивация');
+    // Внешних шкал нет — «Нет данных», а не ноль.
+    expect(text).toContain('Нет данных');
+    wrapper.unmount();
+  });
+
   it('AT-04, FR-029: корректировка без причины не отправляется', async () => {
     const fetchMock = mockApi({
       'GET /students/st1/motivation-profile': state(proposed),

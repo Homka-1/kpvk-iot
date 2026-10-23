@@ -29,10 +29,12 @@ export function loadDefinitions(dir = DEFINITIONS_DIR): QuestionnaireDefinition[
         QuestionnaireDefinition,
         'slug' | 'version'
       >;
-      // Файлы, написанные до появления способа расчёта, считают шкалы суммой.
+      // Файлы, написанные до появления способа расчёта и роли шкалы, считают шкалы суммой
+      // и справочными.
       const scales = data.content.scales.map((scale) => ({
         ...scale,
         aggregation: scale.aggregation ?? 'SUM',
+        motivationRole: scale.motivationRole ?? 'REFERENCE',
       }));
       definitions.push({
         slug,

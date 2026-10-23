@@ -68,6 +68,7 @@ export function readContent(version: VersionWithContent): QuestionnaireContent {
       name: scale.name,
       description: scale.description,
       aggregation: scale.aggregation,
+      motivationRole: scale.motivationRole,
       keys: scale.scoringKeys.map((key) => ({
         questionKey: key.questionId,
         optionKey: key.answerOptionId,
@@ -157,6 +158,7 @@ export async function replaceContent(
         name: scale.name,
         description: scale.description,
         aggregation: scale.aggregation,
+        motivationRole: scale.motivationRole,
         interpretationRules: {
           create: scale.rules.map((rule, ruleIndex) => ({
             sortOrder: ruleIndex + 1,

@@ -58,6 +58,7 @@ function sampleContent(): QuestionnaireContent {
         name: 'Познавательная',
         description: null,
         aggregation: 'SUM',
+        motivationRole: 'REFERENCE',
         keys: [
           { questionKey: 'q1', optionKey: null, points: null, isReverse: false, weight: 1 },
           { questionKey: 'q2', optionKey: 'o1', points: 1, isReverse: false, weight: 1 },

@@ -7,6 +7,8 @@ import {
   SCALE_MEAN_DECIMALS,
   ScaleAggregation,
   type ScaleContent,
+  SCALE_MOTIVATION_ROLE_LABELS,
+  ScaleMotivationRole,
   type ScoringKeyContent,
   scaleScoreRange,
 } from '@iot/shared';
@@ -93,6 +95,18 @@ function aggregationHint(scale: ScaleContent): string {
     : 'Баллы по всем ключам шкалы складываются.';
 }
 
+const roleOptions = Object.values(ScaleMotivationRole).map((value) => ({
+  value,
+  label: SCALE_MOTIVATION_ROLE_LABELS[value],
+}));
+
+const ROLE_HINTS: Record<ScaleMotivationRole, string> = {
+  INTRINSIC: 'Определяет уровень методики в мотивационном профиле.',
+  EXTRINSIC:
+    'Уровень не повышает; если внешняя мотивация выше внутренней, преподаватель увидит предупреждение.',
+  REFERENCE: 'В мотивационном профиле не участвует.',
+};
+
 function rangeText(scale: ScaleContent): string | null {
   const range = scaleScoreRange(content.value, scale);
   return range && scale.keys.length > 0
@@ -167,6 +181,22 @@ function rangeText(scale: ScaleContent): string | null {
           />
           <small :id="`s-${index}-aggregation-hint`" class="iot-field-hint">
             {{ aggregationHint(scale) }}
+          </small>
+        </div>
+        <div class="iot-field">
+          <label :for="`s-${index}-role`">Роль в мотивационном профиле</label>
+          <Select
+            v-model="scale.motivationRole"
+            :input-id="`s-${index}-role`"
+            :options="roleOptions"
+            option-label="label"
+            option-value="value"
+            :disabled="readonly"
+            :aria-describedby="`s-${index}-role-hint`"
+            fluid
+          />
+          <small :id="`s-${index}-role-hint`" class="iot-field-hint">
+            {{ ROLE_HINTS[scale.motivationRole] }}
           </small>
         </div>
       </div>

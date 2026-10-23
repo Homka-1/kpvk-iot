@@ -4,9 +4,11 @@ import {
   MOTIVATION_LEVEL_LABELS,
   MOTIVATION_LEVELS,
   MOTIVATION_PROFILE_STATUS_LABELS,
+  type MethodologyLevelDto,
   type MotivationProfileDto,
   type MotivationStrategiesDto,
   Permission,
+  SCALE_MOTIVATION_ROLE_LABELS,
   type StudentMotivationDto,
 } from '@iot/shared';
 import Button from 'primevue/button';
@@ -45,6 +47,24 @@ const current = computed(() => data.value?.current ?? null);
 const decided = computed(() => data.value?.lastDecided ?? null);
 /** Предложение системы, по которому нужно решение преподавателя. */
 const pending = computed(() => (current.value?.status === 'PROPOSED' ? current.value : null));
+
+/** Основания по правилу этапа 24: уровни методик по внутренним шкалам. */
+const methodologies = computed(() =>
+  current.value?.basis?.rule === 'METHODOLOGIES' ? (current.value.basis.methodologies ?? []) : null,
+);
+const extrinsicWarnings = computed(() =>
+  (methodologies.value ?? []).filter((item) => item.extrinsicPrevails),
+);
+
+const METHOD_LABELS: Record<MethodologyLevelDto['method'], string> = {
+  INTRINSIC_MEAN: 'Среднее внутренних шкал',
+  INTRINSIC_PERCENT: 'Процент от максимума',
+};
+
+function measureText(item: MethodologyLevelDto, value: number | null): string {
+  if (value === null) return NO_DATA;
+  return item.method === 'INTRINSIC_PERCENT' ? `${formatNumber(value)} %` : formatNumber(value);
+}
 
 const message = (caught: unknown, fallback: string) =>
   caught instanceof ApiError ? caught.message : fallback;
@@ -180,7 +200,64 @@ const levelText = (level: keyof typeof MOTIVATION_LEVEL_LABELS | null) =>
 
       <section v-if="current.basis" aria-labelledby="motivation-basis">
         <h2 id="motivation-basis" class="motivation__title">Основания профиля</h2>
-        <p class="motivation__muted">
+        <template v-if="methodologies">
+          <p class="motivation__muted">
+            Последнее завершённое прохождение каждой методики. Уровень методики считается только по
+            шкалам внутренней мотивации: среднее шкал (не ниже 4,0 — высокий, 3,0–3,9 — средний,
+            ниже 3,0 — низкий) или процент от максимума (не ниже 67 % — высокий, 34–66 % — средний,
+            ниже 34 % — низкий). Внешняя мотивация уровень не повышает. Уровни методик сводятся:
+            совпали — этот уровень, разница в одну ступень — более низкий.
+          </p>
+          <p v-if="current.basis.explanation" class="motivation__text" data-testid="rule-outcome">
+            <i class="pi pi-info-circle" aria-hidden="true" /> {{ current.basis.explanation }}
+          </p>
+          <Message
+            v-for="item in extrinsicWarnings"
+            :key="`warn-${item.sessionId}`"
+            severity="warn"
+            :closable="false"
+            data-testid="extrinsic-warning"
+          >
+            <i class="pi pi-exclamation-triangle" aria-hidden="true" />
+            Преобладает внешняя мотивация: {{ item.questionnaire.title }} — внешние шкалы
+            {{ measureText(item, item.extrinsic) }}, внутренние
+            {{ measureText(item, item.intrinsic) }}. Уровень профиля от этого не повышается; учтите
+            это при выборе сопровождения.
+          </Message>
+          <p v-if="methodologies.length === 0" class="motivation__muted">{{ NO_DATA }}</p>
+          <div v-else class="motivation__table-wrap">
+            <table class="motivation__table" aria-label="Уровни методик">
+              <thead>
+                <tr>
+                  <th scope="col">Методика и замер</th>
+                  <th scope="col">Способ</th>
+                  <th scope="col">Внутренняя мотивация</th>
+                  <th scope="col">Внешняя мотивация</th>
+                  <th scope="col">Уровень методики</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in methodologies" :key="item.sessionId">
+                  <td>
+                    {{ item.questionnaire.title }}, версия {{ item.questionnaire.versionNumber }}
+                    <span class="motivation__muted">
+                      {{ MEASUREMENT_TYPE_LABELS[item.measurementType] }} ·
+                      {{ formatDate(item.completedAt) }}
+                    </span>
+                  </td>
+                  <td>{{ METHOD_LABELS[item.method] }}</td>
+                  <td>{{ measureText(item, item.intrinsic) }}</td>
+                  <td>{{ measureText(item, item.extrinsic) }}</td>
+                  <td>
+                    {{ item.level ? MOTIVATION_LEVEL_LABELS[item.level] : NO_DATA }}
+                    <span v-if="item.reason" class="motivation__muted">{{ item.reason }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+        <p v-else class="motivation__muted">
           Последнее завершённое прохождение каждой методики; учитываются шкалы, для которых в
           правилах интерпретации задан уровень профиля. Уровень предлагается, если на него указало
           большинство шкал (не меньше {{ current.basis.minScales }}).
@@ -188,13 +265,16 @@ const levelText = (level: keyof typeof MOTIVATION_LEVEL_LABELS | null) =>
         <p v-if="current.basis.items.length === 0" class="motivation__muted">{{ NO_DATA }}</p>
         <div v-else class="motivation__table-wrap">
           <table class="motivation__table" aria-label="Показатели, повлиявшие на профиль">
+            <caption v-if="methodologies" class="motivation__muted motivation__caption">
+              Баллы шкал
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Методика и замер</th>
                 <th scope="col">Шкала</th>
                 <th scope="col">Балл</th>
                 <th scope="col">Уровень шкалы</th>
-                <th scope="col">Указывает на</th>
+                <th scope="col">{{ methodologies ? 'Роль шкалы' : 'Указывает на' }}</th>
               </tr>
             </thead>
             <tbody>
@@ -215,9 +295,14 @@ const levelText = (level: keyof typeof MOTIVATION_LEVEL_LABELS | null) =>
                   </span>
                 </td>
                 <td>
-                  {{
-                    item.motivationLevel ? MOTIVATION_LEVEL_LABELS[item.motivationLevel] : NO_DATA
-                  }}
+                  <template v-if="item.motivationRole">
+                    {{ SCALE_MOTIVATION_ROLE_LABELS[item.motivationRole] }}
+                  </template>
+                  <template v-else>
+                    {{
+                      item.motivationLevel ? MOTIVATION_LEVEL_LABELS[item.motivationLevel] : NO_DATA
+                    }}
+                  </template>
                 </td>
               </tr>
             </tbody>
@@ -320,6 +405,11 @@ const levelText = (level: keyof typeof MOTIVATION_LEVEL_LABELS | null) =>
   margin: 0;
   color: var(--iot-color-muted);
   font-size: 0.875rem;
+}
+
+.motivation__caption {
+  margin-bottom: var(--iot-space-2);
+  text-align: left;
 }
 
 .motivation__status .motivation__muted {

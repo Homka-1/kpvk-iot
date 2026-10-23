@@ -13,11 +13,14 @@ import {
 } from 'class-validator';
 import {
   MeasurementType,
+  MethodologyLevelMethod,
   MotivationLevel,
   MotivationProfileStatus,
   PROFILE_REASON_MAX,
   PROFILE_STUDENT_SUMMARY_MAX,
   STRATEGY_ITEM_MAX,
+  ProfileRuleOutcome,
+  ScaleMotivationRole,
   STRATEGY_ITEMS_MAX,
 } from '@iot/shared';
 import { emptyToNull } from '../common/dto.js';
@@ -115,8 +118,49 @@ class BasisItemResponseDto {
   @ApiProperty({ nullable: true, type: String }) levelLabel: string | null;
   @ApiProperty({ nullable: true, type: String }) description: string | null;
   @ApiProperty({ nullable: true, type: String }) studentText: string | null;
-  @levelProperty('Вклад показателя в профиль; null — не определяет профиль')
+  @levelProperty(
+    'Вклад показателя в профиль по прежнему правилу (голосование шкал); null — не определяет профиль',
+  )
   motivationLevel: MotivationLevel | null;
+  @ApiPropertyOptional({
+    enum: Object.values(ScaleMotivationRole),
+    description: 'Роль шкалы в профиле (правило этапа 24); нет поля — прежнее правило',
+  })
+  motivationRole?: ScaleMotivationRole;
+}
+
+class MethodologyLevelResponseDto {
+  @ApiProperty() sessionId: string;
+  @ApiProperty({ type: VersionLabelResponseDto }) questionnaire: VersionLabelResponseDto;
+  @ApiProperty({ enum: Object.values(MeasurementType) }) measurementType: MeasurementType;
+  @ApiProperty({ format: 'date-time' }) completedAt: string;
+  @ApiProperty({
+    enum: Object.values(MethodologyLevelMethod),
+    description:
+      'INTRINSIC_MEAN — среднее внутренних шкал (≥ 4,0 высокий, 3,0–3,9 средний, < 3,0 низкий); INTRINSIC_PERCENT — процент от максимума внутренних шкал (≥ 67 % высокий, 34–66 % средний, < 34 % низкий)',
+  })
+  method: MethodologyLevelMethod;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Среднее (до 0,1) или процент (целый) внутренних шкал; null — нет данных',
+  })
+  intrinsic: number | null;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'То же для внешних шкал; null — внешних шкал нет или нет данных',
+  })
+  extrinsic: number | null;
+  @levelProperty('Уровень методики; null — не определён') level: MotivationLevel | null;
+  @ApiProperty({ description: 'Внешняя мотивация выше внутренней — предупреждение преподавателю' })
+  extrinsicPrevails: boolean;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Почему уровень методики не определён',
+  })
+  reason: string | null;
 }
 
 class LevelCountsResponseDto {
@@ -126,11 +170,26 @@ class LevelCountsResponseDto {
 }
 
 class BasisResponseDto {
+  @ApiPropertyOptional({
+    enum: ['SCALE_VOTES', 'METHODOLOGIES'],
+    description:
+      'SCALE_VOTES — прежнее правило (голосование шкал); METHODOLOGIES — уровни методик по внутренним шкалам и их сведение. Нет поля — профиль сформирован до этапа 24 (прежнее правило).',
+  })
+  rule?: 'SCALE_VOTES' | 'METHODOLOGIES';
   @ApiProperty() minScales: number;
   @ApiProperty({ type: [BasisItemResponseDto] }) items: BasisItemResponseDto[];
   @ApiProperty({ type: LevelCountsResponseDto }) counts: LevelCountsResponseDto;
   @ApiProperty({ nullable: true, type: String, description: 'Почему уровень не предложен' })
   reason: string | null;
+  @ApiPropertyOptional({ type: [MethodologyLevelResponseDto] })
+  methodologies?: MethodologyLevelResponseDto[];
+  @ApiPropertyOptional({
+    enum: Object.values(ProfileRuleOutcome),
+    description:
+      'Итог сведения: совпали; разница в одну ступень (более низкий); высокий и низкий (требуется дополнительная диагностика); одна методика (недостаточно данных); нет данных',
+  })
+  outcome?: ProfileRuleOutcome;
+  @ApiPropertyOptional({ description: 'Как получен итог (FR-028)' }) explanation?: string;
 }
 
 export class MotivationProfileResponseDto {

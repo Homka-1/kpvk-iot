@@ -74,6 +74,19 @@ export const SCALE_AGGREGATION_LABELS: Record<ScaleAggregation, string> = {
   MEAN: 'Среднее по пунктам',
 };
 
+/** Роль шкалы в мотивационном профиле (этап 24): уровень методики считается по внутренним шкалам. */
+export const ScaleMotivationRole = {
+  INTRINSIC: 'INTRINSIC',
+  EXTRINSIC: 'EXTRINSIC',
+  REFERENCE: 'REFERENCE',
+} as const;
+export type ScaleMotivationRole = ValueOf<typeof ScaleMotivationRole>;
+export const SCALE_MOTIVATION_ROLE_LABELS: Record<ScaleMotivationRole, string> = {
+  INTRINSIC: 'Внутренняя мотивация',
+  EXTRINSIC: 'Внешняя мотивация',
+  REFERENCE: 'Справочная',
+};
+
 export const MeasurementType = {
   PRIMARY: 'PRIMARY',
   INTERMEDIATE: 'INTERMEDIATE',

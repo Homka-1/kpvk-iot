@@ -5,19 +5,22 @@ import {
   QUESTIONNAIRE_LIMITS,
   type QuestionnaireContent,
   scaleScoreRange,
+  usesIntrinsicRule,
 } from '@iot/shared';
 import Button from 'primevue/button';
 import InputNumber from 'primevue/inputnumber';
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 import Textarea from 'primevue/textarea';
+import { computed } from 'vue';
 import EmptyState from '@/components/EmptyState.vue';
 import { formatScore, moveItem, newRule } from './content';
 
 /**
  * Правила интерпретации: диапазон балла шкалы (границы включительно) → уровень, текст для
  * преподавателя и понятная студенту интерпретация (FR-016). Вклад уровня в мотивационный
- * профиль используется на этапе 09.
+ * профиль — прежнее правило (этап 09): если у версии заданы шкалы внутренней мотивации, профиль
+ * считается по ролям шкал (этап 24) и это поле не используется.
  */
 defineProps<{ readonly: boolean }>();
 const content = defineModel<QuestionnaireContent>('content', { required: true });
@@ -29,6 +32,8 @@ const MOTIVATION_OPTIONS = [
     label: MOTIVATION_LEVEL_LABELS[value],
   })),
 ];
+
+const intrinsicRule = computed(() => usesIntrinsicRule(content.value.scales));
 
 function rangeText(index: number): string {
   const range = scaleScoreRange(content.value, content.value.scales[index]!);
@@ -145,8 +150,19 @@ function rangeText(index: number): string {
               option-label="label"
               option-value="value"
               :disabled="readonly"
+              :aria-describedby="
+                intrinsicRule ? `r-${index}-${ruleIndex}-motivation-hint` : undefined
+              "
               fluid
             />
+            <small
+              v-if="intrinsicRule"
+              :id="`r-${index}-${ruleIndex}-motivation-hint`"
+              class="iot-field-hint"
+            >
+              В версии заданы шкалы внутренней мотивации: профиль считается по ролям шкал, это поле
+              не используется.
+            </small>
           </div>
         </div>
         <div class="iot-field">

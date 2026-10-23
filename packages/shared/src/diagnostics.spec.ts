@@ -82,6 +82,7 @@ function content(): QuestionnaireContent {
         name: 'Первая',
         description: null,
         aggregation: 'SUM',
+        motivationRole: 'REFERENCE',
         keys: [
           { questionKey: 'a', optionKey: null, points: null, isReverse: false, weight: 1 },
           { questionKey: 'b', optionKey: null, points: null, isReverse: true, weight: 1 },
@@ -99,6 +100,7 @@ function content(): QuestionnaireContent {
         name: 'Вторая',
         description: null,
         aggregation: 'SUM',
+        motivationRole: 'REFERENCE',
         keys: [
           { questionKey: 'm', optionKey: 'm2', points: null, isReverse: false, weight: 1 },
           { questionKey: 'm', optionKey: 'm1', points: 4, isReverse: false, weight: 0.5 },
@@ -183,6 +185,16 @@ describe('движок расчёта методик', () => {
       rawScore: null,
       missingAnswers: 1,
     });
+  });
+
+  it('диапазон шкалы: ключи на разные варианты одного вопроса с одним ответом не складываются', () => {
+    const data = content();
+    // как у Ильиной: «да» — 3,6, «не знаю» — 1,2; выбирается один вариант, максимум 3,6
+    data.scales[0]!.keys = [
+      { questionKey: 'c', optionKey: 'c1', points: 3.6, isReverse: false, weight: 1 },
+      { questionKey: 'c', optionKey: 'c2', points: 1.2, isReverse: false, weight: 1 },
+    ];
+    expect(scaleScoreRange(data, data.scales[0]!)).toEqual({ min: 1.2, max: 3.6 });
   });
 
   it('диапазон баллов шкалы по ключам', () => {

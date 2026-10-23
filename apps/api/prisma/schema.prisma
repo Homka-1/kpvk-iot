@@ -59,6 +59,13 @@ enum ScaleAggregation {
   MEAN
 }
 
+/// Роль шкалы в мотивационном профиле (этап 24).
+enum ScaleMotivationRole {
+  INTRINSIC
+  EXTRINSIC
+  REFERENCE
+}
+
 enum MeasurementType {
   PRIMARY
   INTERMEDIATE
@@ -595,6 +602,8 @@ model QuestionnaireScale {
   description String?
   /// Сумма баллов по ключам или среднее по пунктам шкалы (среднее округляется до 0,1).
   aggregation ScaleAggregation @default(SUM)
+  /// Роль в мотивационном профиле: внутренняя, внешняя мотивация или справочная шкала.
+  motivationRole ScaleMotivationRole @default(REFERENCE) @map("motivation_role")
   sortOrder   Int     @default(0) @map("sort_order")
 
   version             QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)

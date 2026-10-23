@@ -10,6 +10,7 @@ import type {
   QuestionnaireVersionStatus,
   QuestionType,
   ScaleAggregation,
+  ScaleMotivationRole,
 } from './enums.js';
 
 /** Обязательная пометка демо-методики в названии и источнике (огр. 1 ТЗ, ADR-003). */
@@ -121,6 +122,11 @@ export interface ScaleContent {
    * модификации Бадмаевой).
    */
   aggregation: ScaleAggregation;
+  /**
+   * Роль шкалы в мотивационном профиле: уровень методики считается только по внутренним шкалам,
+   * внешние дают предупреждение о преобладании внешней мотивации, справочные не участвуют.
+   */
+  motivationRole: ScaleMotivationRole;
   keys: ScoringKeyContent[];
   rules: InterpretationRuleContent[];
 }
@@ -606,38 +612,46 @@ export function publishIssues(content: QuestionnaireContent, isDemo: boolean): C
   return issues;
 }
 
-/** Диапазон баллов шкалы, который допускают ключи (для подсказки при задании интерпретации). */
+/**
+ * Диапазон баллов шкалы, который допускают ключи (подсказка при задании интерпретации, максимум
+ * для процента в мотивационном профиле). Ключи одного вопроса считаются вместе: у вопроса с одним
+ * вариантом ответа выбирается ровно один вариант, поэтому ключи на разные его варианты не
+ * складываются.
+ */
 export function scaleScoreRange(
   content: QuestionnaireContent,
   scale: ScaleContent,
 ): { min: number; max: number } | null {
   const questions = new Map(content.questions.map((question) => [question.key, question]));
+  const keysByQuestion = new Map<string, ScoringKeyContent[]>();
+  for (const key of scale.keys) {
+    keysByQuestion.set(key.questionKey, [...(keysByQuestion.get(key.questionKey) ?? []), key]);
+  }
   let min = 0;
   let max = 0;
-  for (const key of scale.keys) {
-    const question = questions.get(key.questionKey);
+  for (const [questionKey, keys] of keysByQuestion) {
+    const question = questions.get(questionKey);
     if (!question || question.type === 'SHORT_TEXT') return null;
-    let low: number;
-    let high: number;
-    if (key.optionKey !== null) {
-      const option = question.options.find((item) => item.key === key.optionKey);
-      const points = key.points ?? option?.value ?? 0;
-      low = Math.min(0, points);
-      high = Math.max(0, points);
+    const total = (value: AnswerValue) =>
+      keys.reduce((sum, key) => sum + keyContribution(key, question, value), 0);
+    let values: number[];
+    if (question.type === 'SINGLE_CHOICE') {
+      if (question.options.length === 0) return null;
+      values = question.options.map((option) => total(option.key));
     } else if (question.type === 'MULTIPLE_CHOICE') {
-      const values = question.options.map((option) => option.value);
-      low = values.filter((value) => value < 0).reduce((sum, value) => sum + value, 0);
-      high = values.filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
+      // Варианты выбираются независимо: худший и лучший случаи — по знаку вклада варианта.
+      const contributions = question.options.map((option) => total([option.key]));
+      values = [
+        contributions.filter((value) => value < 0).reduce((sum, value) => sum + value, 0),
+        contributions.filter((value) => value > 0).reduce((sum, value) => sum + value, 0),
+      ];
     } else {
-      const bounds = reverseBounds(question);
-      if (!bounds) return null;
-      low = bounds.min;
-      high = bounds.max;
+      if (question.minValue === null || question.maxValue === null) return null;
+      // Вклад линеен по значению ответа: крайние значения дают границы.
+      values = [total(question.minValue), total(question.maxValue)];
     }
-    const a = low * key.weight;
-    const b = high * key.weight;
-    min += Math.min(a, b);
-    max += Math.max(a, b);
+    min += Math.min(...values);
+    max += Math.max(...values);
   }
   const items = new Set(scale.keys.map((key) => key.questionKey)).size;
   if (items === 0) return { min: 0, max: 0 };

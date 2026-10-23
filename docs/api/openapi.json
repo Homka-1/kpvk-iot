@@ -3839,7 +3839,7 @@
     },
     "/api/students/{id}/motivation-profiles": {
       "post": {
-        "description": "Берётся последнее завершённое прохождение каждой методики; учитываются шкалы, у правил интерпретации которых задан уровень профиля. Уровень предлагается, если на него указало большинство шкал и шкал не меньше настройки «profiles.minScales»; иначе статус «Требуется дополнительная диагностика». Если данные не изменились, возвращается текущая запись.",
+        "description": "Берётся последнее завершённое прохождение каждой методики. Если у версии методики заданы шкалы внутренней мотивации, уровень методики считается только по ним: среднее внутренних шкал (≥ 4,0 высокий, 3,0–3,9 средний, < 3,0 низкий), если шкалы — средние по пунктам, иначе процент от максимума (≥ 67 % высокий, 34–66 % средний, < 34 % низкий); внешние шкалы уровень не повышают, при их преобладании — предупреждение. Уровни методик сводятся: совпали — этот уровень, разница в одну ступень — более низкий, «высокий» и «низкий» или одна методика — статус «Требуется дополнительная диагностика». Версии без ролей шкал считаются прежним правилом: большинство шкал с уровнем профиля в правилах интерпретации, не меньше настройки «profiles.minScales». Если данные не изменились, возвращается текущая запись.",
         "operationId": "StudentMotivationController_form",
         "parameters": [
           {
@@ -11016,6 +11016,16 @@
             "default": "SUM",
             "description": "Способ расчёта балла шкалы: сумма баллов по ключам или среднее по пунктам шкалы (округляется до 0,1). По умолчанию — сумма."
           },
+          "motivationRole": {
+            "type": "string",
+            "enum": [
+              "INTRINSIC",
+              "EXTRINSIC",
+              "REFERENCE"
+            ],
+            "default": "REFERENCE",
+            "description": "Роль шкалы в мотивационном профиле: внутренняя мотивация (определяет уровень методики), внешняя мотивация (только предупреждение о её преобладании) или справочная. По умолчанию — справочная."
+          },
           "keys": {
             "type": "array",
             "items": {
@@ -12601,7 +12611,16 @@
               "LOW"
             ],
             "nullable": true,
-            "description": "Вклад показателя в профиль; null — не определяет профиль"
+            "description": "Вклад показателя в профиль по прежнему правилу (голосование шкал); null — не определяет профиль"
+          },
+          "motivationRole": {
+            "type": "string",
+            "enum": [
+              "INTRINSIC",
+              "EXTRINSIC",
+              "REFERENCE"
+            ],
+            "description": "Роль шкалы в профиле (правило этапа 24); нет поля — прежнее правило"
           }
         },
         "required": [
@@ -12637,9 +12656,89 @@
           "LOW"
         ]
       },
+      "MethodologyLevelResponseDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "questionnaire": {
+            "$ref": "#/components/schemas/VersionLabelResponseDto"
+          },
+          "measurementType": {
+            "type": "string",
+            "enum": [
+              "PRIMARY",
+              "INTERMEDIATE",
+              "REPEATED"
+            ]
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "INTRINSIC_MEAN",
+              "INTRINSIC_PERCENT"
+            ],
+            "description": "INTRINSIC_MEAN — среднее внутренних шкал (≥ 4,0 высокий, 3,0–3,9 средний, < 3,0 низкий); INTRINSIC_PERCENT — процент от максимума внутренних шкал (≥ 67 % высокий, 34–66 % средний, < 34 % низкий)"
+          },
+          "intrinsic": {
+            "type": "number",
+            "nullable": true,
+            "description": "Среднее (до 0,1) или процент (целый) внутренних шкал; null — нет данных"
+          },
+          "extrinsic": {
+            "type": "number",
+            "nullable": true,
+            "description": "То же для внешних шкал; null — внешних шкал нет или нет данных"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ],
+            "nullable": true,
+            "description": "Уровень методики; null — не определён"
+          },
+          "extrinsicPrevails": {
+            "type": "boolean",
+            "description": "Внешняя мотивация выше внутренней — предупреждение преподавателю"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Почему уровень методики не определён"
+          }
+        },
+        "required": [
+          "sessionId",
+          "questionnaire",
+          "measurementType",
+          "completedAt",
+          "method",
+          "intrinsic",
+          "extrinsic",
+          "level",
+          "extrinsicPrevails",
+          "reason"
+        ]
+      },
       "BasisResponseDto": {
         "type": "object",
         "properties": {
+          "rule": {
+            "type": "string",
+            "enum": [
+              "SCALE_VOTES",
+              "METHODOLOGIES"
+            ],
+            "description": "SCALE_VOTES — прежнее правило (голосование шкал); METHODOLOGIES — уровни методик по внутренним шкалам и их сведение. Нет поля — профиль сформирован до этапа 24 (прежнее правило)."
+          },
           "minScales": {
             "type": "number"
           },
@@ -12656,6 +12755,27 @@
             "type": "string",
             "nullable": true,
             "description": "Почему уровень не предложен"
+          },
+          "methodologies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MethodologyLevelResponseDto"
+            }
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "MATCH",
+              "ONE_STEP_LOWER",
+              "CONFLICT",
+              "SINGLE_METHODOLOGY",
+              "NO_DATA"
+            ],
+            "description": "Итог сведения: совпали; разница в одну ступень (более низкий); высокий и низкий (требуется дополнительная диагностика); одна методика (недостаточно данных); нет данных"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "Как получен итог (FR-028)"
           }
         },
         "required": [

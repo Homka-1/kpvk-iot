@@ -99,6 +99,7 @@ function normalize(dto: QuestionnaireContentDto): QuestionnaireContent {
       ...scale,
       description: scale.description ?? null,
       aggregation: scale.aggregation ?? 'SUM',
+      motivationRole: scale.motivationRole ?? 'REFERENCE',
       rules: scale.rules.map((rule) => ({
         ...rule,
         description: rule.description ?? null,

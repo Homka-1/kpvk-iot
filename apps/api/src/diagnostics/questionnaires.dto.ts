@@ -6,6 +6,7 @@ import {
   QuestionnaireVersionStatus,
   QuestionType,
   ScaleAggregation,
+  ScaleMotivationRole,
 } from '@iot/shared';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -225,6 +226,16 @@ export class ScaleContentDto {
   @IsOptional()
   @IsIn(Object.values(ScaleAggregation), { message: 'Выберите способ расчёта шкалы' })
   aggregation?: ScaleAggregation;
+
+  @ApiPropertyOptional({
+    enum: Object.values(ScaleMotivationRole),
+    default: ScaleMotivationRole.REFERENCE,
+    description:
+      'Роль шкалы в мотивационном профиле: внутренняя мотивация (определяет уровень методики), внешняя мотивация (только предупреждение о её преобладании) или справочная. По умолчанию — справочная.',
+  })
+  @IsOptional()
+  @IsIn(Object.values(ScaleMotivationRole), { message: 'Выберите роль шкалы' })
+  motivationRole?: ScaleMotivationRole;
 
   @ApiProperty({ type: [ScoringKeyContentDto] })
   @IsArray()
