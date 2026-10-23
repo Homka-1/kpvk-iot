@@ -25,6 +25,7 @@ erDiagram
   disciplines ||--o{ teacher_assignments : discipline
   users |o--o{ students : user
   groups |o--o{ students : currentGroup
+  motivation_profiles |o--o{ students : currentMotivationProfile
   students ||--o{ enrollments : student
   groups ||--o{ enrollments : group
   students ||--o{ pedagogical_observations : student
@@ -251,6 +252,7 @@ erDiagram
     String current_group_id FK "null"
     enum_SupportStatus support_status
     String interests "null"
+    String current_motivation_profile_id FK,UK "null"
     DateTime archived_at "null"
     String archive_reason "null"
     String created_by "null"
@@ -376,6 +378,7 @@ erDiagram
     String code
     String name
     String description "null"
+    enum_ScaleAggregation aggregation
     Int sort_order
   }
   scoring_keys {

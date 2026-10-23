@@ -81,6 +81,7 @@ function content(): QuestionnaireContent {
         code: 'S1',
         name: 'Первая',
         description: null,
+        aggregation: 'SUM',
         keys: [
           { questionKey: 'a', optionKey: null, points: null, isReverse: false, weight: 1 },
           { questionKey: 'b', optionKey: null, points: null, isReverse: true, weight: 1 },
@@ -97,6 +98,7 @@ function content(): QuestionnaireContent {
         code: 'S2',
         name: 'Вторая',
         description: null,
+        aggregation: 'SUM',
         keys: [
           { questionKey: 'm', optionKey: 'm2', points: null, isReverse: false, weight: 1 },
           { questionKey: 'm', optionKey: 'm1', points: 4, isReverse: false, weight: 0.5 },
@@ -160,6 +162,27 @@ describe('движок расчёта методик', () => {
     ];
     expect(scoreQuestionnaire(data, { c: 'c1' })[0]!.rawScore).toBe(0);
     expect(scoreQuestionnaire(data, { c: 'c2' })[0]!.rawScore).toBe(2);
+  });
+
+  it('FR-021: среднее по пунктам шкалы округляется до 0,1', () => {
+    const data = content();
+    for (const scale of data.scales) scale.aggregation = 'MEAN';
+    const [s1, s2] = scoreQuestionnaire(data, { a: 4, b: 2, c: 'c1', m: ['m1', 'm2'], n: 7 });
+    // 10 / 3 вопроса = 3,33… → 3,3
+    expect(s1).toMatchObject({ rawScore: 3.3, missingAnswers: 0 });
+    // два ключа на варианты вопроса m — один пункт: 5,7 / 2 = 2,85 → 2,9
+    expect(s2).toMatchObject({ rawScore: 2.9 });
+    // 2 / 3 = 0,67 → 0,7; 12 / 3 = 4
+    expect(scaleScoreRange(data, data.scales[0]!)).toEqual({ min: 0.7, max: 4 });
+  });
+
+  it('FR-074: пропуск ответа при среднем — балл не рассчитывается', () => {
+    const data = content();
+    data.scales[0]!.aggregation = 'MEAN';
+    expect(scoreQuestionnaire(data, { a: 4, c: 'c2' })[0]).toMatchObject({
+      rawScore: null,
+      missingAnswers: 1,
+    });
   });
 
   it('диапазон баллов шкалы по ключам', () => {

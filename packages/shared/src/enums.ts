@@ -66,6 +66,14 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   SHORT_TEXT: 'Короткий текстовый ответ',
 };
 
+/** Способ расчёта балла шкалы: сумма баллов по ключам или среднее по пунктам шкалы. */
+export const ScaleAggregation = { SUM: 'SUM', MEAN: 'MEAN' } as const;
+export type ScaleAggregation = ValueOf<typeof ScaleAggregation>;
+export const SCALE_AGGREGATION_LABELS: Record<ScaleAggregation, string> = {
+  SUM: 'Сумма баллов',
+  MEAN: 'Среднее по пунктам',
+};
+
 export const MeasurementType = {
   PRIMARY: 'PRIMARY',
   INTERMEDIATE: 'INTERMEDIATE',

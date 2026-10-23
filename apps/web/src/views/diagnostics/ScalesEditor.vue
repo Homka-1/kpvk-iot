@@ -3,6 +3,9 @@ import {
   isChoiceQuestion,
   QUESTIONNAIRE_LIMITS,
   type QuestionnaireContent,
+  SCALE_AGGREGATION_LABELS,
+  SCALE_MEAN_DECIMALS,
+  ScaleAggregation,
   type ScaleContent,
   type ScoringKeyContent,
   scaleScoreRange,
@@ -19,7 +22,7 @@ import { formatScore, newScale, questionLabel } from './content';
 
 /**
  * Шкалы и ключи начисления баллов (FR-021): несколько шкал, ключ на весь вопрос (с обратным
- * кодированием) или на отдельный вариант ответа, вес ключа.
+ * кодированием) или на отдельный вариант ответа, вес ключа, способ расчёта балла шкалы.
  */
 defineProps<{ readonly: boolean }>();
 const content = defineModel<QuestionnaireContent>('content', { required: true });
@@ -77,6 +80,17 @@ function addKey(scale: ScaleContent): void {
     isReverse: false,
     weight: 1,
   });
+}
+
+const aggregationOptions = Object.values(ScaleAggregation).map((value) => ({
+  value,
+  label: SCALE_AGGREGATION_LABELS[value],
+}));
+
+function aggregationHint(scale: ScaleContent): string {
+  return scale.aggregation === ScaleAggregation.MEAN
+    ? `Сумма баллов делится на число вопросов шкалы и округляется до ${SCALE_MEAN_DECIMALS} знака после запятой.`
+    : 'Баллы по всем ключам шкалы складываются.';
 }
 
 function rangeText(scale: ScaleContent): string | null {
@@ -138,6 +152,22 @@ function rangeText(scale: ScaleContent): string | null {
             fluid
             @update:model-value="(value) => (scale.code = (value ?? '').toUpperCase())"
           />
+        </div>
+        <div class="iot-field">
+          <label :for="`s-${index}-aggregation`">Способ расчёта</label>
+          <Select
+            v-model="scale.aggregation"
+            :input-id="`s-${index}-aggregation`"
+            :options="aggregationOptions"
+            option-label="label"
+            option-value="value"
+            :disabled="readonly"
+            :aria-describedby="`s-${index}-aggregation-hint`"
+            fluid
+          />
+          <small :id="`s-${index}-aggregation-hint`" class="iot-field-hint">
+            {{ aggregationHint(scale) }}
+          </small>
         </div>
       </div>
       <div class="iot-field">

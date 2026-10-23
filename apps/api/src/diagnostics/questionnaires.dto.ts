@@ -5,6 +5,7 @@ import {
   QuestionnaireStatus,
   QuestionnaireVersionStatus,
   QuestionType,
+  ScaleAggregation,
 } from '@iot/shared';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -214,6 +215,16 @@ export class ScaleContentDto {
   @ApiProperty({ nullable: true, type: String })
   @OptionalText(2000)
   description: string | null;
+
+  @ApiPropertyOptional({
+    enum: Object.values(ScaleAggregation),
+    default: ScaleAggregation.SUM,
+    description:
+      'Способ расчёта балла шкалы: сумма баллов по ключам или среднее по пунктам шкалы (округляется до 0,1). По умолчанию — сумма.',
+  })
+  @IsOptional()
+  @IsIn(Object.values(ScaleAggregation), { message: 'Выберите способ расчёта шкалы' })
+  aggregation?: ScaleAggregation;
 
   @ApiProperty({ type: [ScoringKeyContentDto] })
   @IsArray()

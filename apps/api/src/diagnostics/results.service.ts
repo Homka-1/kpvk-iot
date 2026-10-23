@@ -94,12 +94,32 @@ export class DiagnosticResultsService {
     }
     const versions = await this.prisma.questionnaireVersion.findMany({
       where: { id: { in: [dto.versionAId, dto.versionBId] }, status: { in: EVER_PUBLISHED } },
-      select: { id: true, questionnaireId: true, versionNumber: true },
+      select: {
+        id: true,
+        questionnaireId: true,
+        versionNumber: true,
+        scales: { select: { code: true, name: true, aggregation: true } },
+      },
     });
     if (versions.length !== 2 || versions[0]!.questionnaireId !== versions[1]!.questionnaireId) {
       throw new BadRequestException({
         message: 'Сопоставимость утверждается для опубликованных версий одной методики',
         fields: { versionBId: 'Выберите опубликованную версию той же методики' },
+      });
+    }
+    // Сумму и среднее по одной шкале сравнивать нельзя: баллы в разных единицах.
+    const aggregationA = new Map(
+      versions[0]!.scales.map((scale) => [scale.code, scale.aggregation]),
+    );
+    const mismatched = versions[1]!.scales.filter(
+      (scale) => aggregationA.has(scale.code) && aggregationA.get(scale.code) !== scale.aggregation,
+    );
+    if (mismatched.length > 0) {
+      throw new BadRequestException({
+        message: `Шкалы считаются по-разному (сумма или среднее), баллы несопоставимы: ${mismatched
+          .map((scale) => scale.name)
+          .join(', ')}`,
+        fields: { versionBId: 'Способ расчёта шкал в версиях различается' },
       });
     }
     const [older, newer] = versions.sort((a, b) => a.versionNumber - b.versionNumber) as [

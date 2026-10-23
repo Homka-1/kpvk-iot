@@ -9,6 +9,7 @@ import type {
   QuestionnaireStatus,
   QuestionnaireVersionStatus,
   QuestionType,
+  ScaleAggregation,
 } from './enums.js';
 
 /** Обязательная пометка демо-методики в названии и источнике (огр. 1 ТЗ, ADR-003). */
@@ -114,6 +115,12 @@ export interface ScaleContent {
   code: string;
   name: string;
   description: string | null;
+  /**
+   * Сумма баллов по ключам или среднее по пунктам шкалы (число вопросов шкалы). Среднее
+   * округляется до 0,1: так считают методики со средним показателем по шкале (Реан — Якунин в
+   * модификации Бадмаевой).
+   */
+  aggregation: ScaleAggregation;
   keys: ScoringKeyContent[];
   rules: InterpretationRuleContent[];
 }
@@ -313,6 +320,20 @@ export function roundScore(value: number): number {
   return Math.round(value * 1000) / 1000 + 0;
 }
 
+/** Знаков после запятой у среднего по шкале. */
+export const SCALE_MEAN_DECIMALS = 1;
+
+/**
+ * Итог шкалы из суммы баллов по ключам. Для среднего делитель — число вопросов шкалы (несколько
+ * ключей на варианты одного вопроса дают один пункт).
+ */
+function scaleTotal(sum: number, aggregation: ScaleAggregation, items: number): number {
+  if (aggregation === 'SUM') return roundScore(sum);
+  const factor = 10 ** SCALE_MEAN_DECIMALS;
+  // roundScore до умножения убирает хвосты вроде 3.4999999 перед округлением до 0,1.
+  return Math.round(roundScore(sum / items) * factor) / factor + 0;
+}
+
 /**
  * Расчёт баллов по всем шкалам версии (FR-020, FR-021). Недопустимый ответ считается пропуском;
  * ответы проверяет вызывающая сторона (`answerError`). Если хотя бы на один вопрос шкалы нет
@@ -336,7 +357,7 @@ export function scoreQuestionnaire(
       for (const key of scale.keys) {
         sum += keyContribution(key, questions.get(key.questionKey)!, answers[key.questionKey]!);
       }
-      rawScore = roundScore(sum);
+      rawScore = scaleTotal(sum, scale.aggregation, keyedQuestions.size);
     }
     return {
       scaleKey: scale.key,
@@ -618,5 +639,10 @@ export function scaleScoreRange(
     min += Math.min(a, b);
     max += Math.max(a, b);
   }
-  return { min: roundScore(min), max: roundScore(max) };
+  const items = new Set(scale.keys.map((key) => key.questionKey)).size;
+  if (items === 0) return { min: 0, max: 0 };
+  return {
+    min: scaleTotal(min, scale.aggregation, items),
+    max: scaleTotal(max, scale.aggregation, items),
+  };
 }

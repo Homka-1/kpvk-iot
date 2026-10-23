@@ -53,6 +53,12 @@ enum QuestionType {
   SHORT_TEXT
 }
 
+/// Способ расчёта балла шкалы (этап 23).
+enum ScaleAggregation {
+  SUM
+  MEAN
+}
+
 enum MeasurementType {
   PRIMARY
   INTERMEDIATE
@@ -587,6 +593,8 @@ model QuestionnaireScale {
   code        String
   name        String
   description String?
+  /// Сумма баллов по ключам или среднее по пунктам шкалы (среднее округляется до 0,1).
+  aggregation ScaleAggregation @default(SUM)
   sortOrder   Int     @default(0) @map("sort_order")
 
   version             QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)

@@ -11007,6 +11007,15 @@
             "type": "string",
             "nullable": true
           },
+          "aggregation": {
+            "type": "string",
+            "enum": [
+              "SUM",
+              "MEAN"
+            ],
+            "default": "SUM",
+            "description": "Способ расчёта балла шкалы: сумма баллов по ключам или среднее по пунктам шкалы (округляется до 0,1). По умолчанию — сумма."
+          },
           "keys": {
             "type": "array",
             "items": {

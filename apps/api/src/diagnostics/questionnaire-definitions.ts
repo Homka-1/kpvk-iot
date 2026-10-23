@@ -29,7 +29,17 @@ export function loadDefinitions(dir = DEFINITIONS_DIR): QuestionnaireDefinition[
         QuestionnaireDefinition,
         'slug' | 'version'
       >;
-      definitions.push({ slug, version: Number(match[1]), ...data });
+      // Файлы, написанные до появления способа расчёта, считают шкалы суммой.
+      const scales = data.content.scales.map((scale) => ({
+        ...scale,
+        aggregation: scale.aggregation ?? 'SUM',
+      }));
+      definitions.push({
+        slug,
+        version: Number(match[1]),
+        ...data,
+        content: { ...data.content, scales },
+      });
     }
   }
   return definitions;

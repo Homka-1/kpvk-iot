@@ -303,6 +303,69 @@ describe('Конструктор диагностических методик (
     ).toBe(v1.id);
   });
 
+  it('FR-021, FR-026: способ расчёта шкалы «среднее» — только новой версией, старая считает суммой', async () => {
+    // Запрос без способа расчёта (как до этапа 23) сохраняет шкалы суммой.
+    const legacy = sampleContent();
+    const scales = legacy.scales.map(({ aggregation: _omit, ...scale }) => scale);
+    const q = await create({ ...legacy, scales } as unknown as QuestionnaireContent);
+    const v1 = await version(q);
+    expect(v1.content.scales.map((scale) => scale.aggregation)).toEqual(scales.map(() => 'SUM'));
+    await publish(q, v1.id).expect(200);
+
+    // Опубликованную версию не изменить ни через API, ни напрямую в БД (FR-026).
+    const edited = structuredClone(v1.content);
+    edited.scales[0]!.aggregation = 'MEAN';
+    await as(teacher, http().put(`/api/questionnaires/${q.id}/versions/${v1.id}`))
+      .send(edited)
+      .expect(409);
+    await expect(
+      prisma.questionnaireScale.update({
+        where: { id: v1.content.scales[0]!.key },
+        data: { aggregation: 'MEAN' },
+      }),
+    ).rejects.toThrow();
+
+    const v2 = (
+      await as(teacher, http().post(`/api/questionnaires/${q.id}/versions`))
+        .send({ changeNote: 'Шкалы считаются средним' })
+        .expect(201)
+    ).body as QuestionnaireVersionDto;
+    const changed = structuredClone(v2.content);
+    for (const scale of changed.scales) scale.aggregation = 'MEAN';
+    await as(teacher, http().put(`/api/questionnaires/${q.id}/versions/${v2.id}`))
+      .send(changed)
+      .expect(200);
+    await publish(q, v2.id).expect(200);
+
+    const saved = (await version(q, v2.id)).content;
+    expect(saved.scales.every((scale) => scale.aggregation === 'MEAN')).toBe(true);
+    expect((await version(q, v1.id)).content).toEqual(v1.content);
+
+    // Одинаковые ответы: версия 1 даёт сумму, версия 2 — среднее с округлением до 0,1.
+    const scale = v1.content.scales[0]!;
+    const items = new Set(scale.keys.map((item) => item.questionKey));
+    const answers = (content: QuestionnaireContent): AnswerMap =>
+      Object.fromEntries(
+        content.questions.map((question) => [
+          question.key,
+          question.type === 'MULTIPLE_CHOICE'
+            ? [question.options[0]!.key]
+            : question.options.length > 0
+              ? question.options[0]!.key
+              : question.minValue!,
+        ]),
+      );
+    const sum = scoreQuestionnaire(v1.content, answers(v1.content))[0]!.rawScore!;
+    const mean = scoreQuestionnaire(saved, answers(saved))[0]!.rawScore!;
+    expect(mean).toBe(Math.round((sum / items.size) * 10) / 10);
+
+    // Сумму и среднее по одной шкале нельзя объявить сопоставимыми (UC-06).
+    const res = await as(researcher, http().post('/api/questionnaire-comparabilities'))
+      .send({ versionAId: v1.id, versionBId: v2.id })
+      .expect(400);
+    expect(res.body.message).toContain('баллы несопоставимы');
+  });
+
   it('черновик новой версии можно удалить, первую версию — нет', async () => {
     const q = await create();
     await as(
