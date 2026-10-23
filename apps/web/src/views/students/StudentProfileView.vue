@@ -28,6 +28,7 @@ import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
 import StudentAssignmentsTab from '@/views/assignments/StudentAssignmentsTab.vue';
 import StudentTrajectoriesTab from '@/views/trajectories/StudentTrajectoriesTab.vue';
 import StudentSupportTab from '@/views/feedback/StudentSupportTab.vue';
+import StudentLessonJournal from '@/views/lessons/StudentLessonJournal.vue';
 import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
 
@@ -366,6 +367,7 @@ function onStudentChanged(): void {
                   </li>
                 </ul>
               </section>
+              <StudentLessonJournal :student-id="studentId" />
               <StudentSupportTab
                 v-if="canFeedback"
                 :student-id="studentId"

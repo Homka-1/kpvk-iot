@@ -126,6 +126,13 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/views/monitoring/MonitoringDetailView.vue'),
         meta: { title: 'Мониторинг ИОТ', permission: Permission.MONITORING_READ },
       },
+      // Журнал наблюдений на занятии — вложенная страница раздела «Дисциплины» (вкладка «Занятия»).
+      {
+        path: 'disciplines/lessons/:id',
+        name: 'lesson-journal',
+        component: () => import('@/views/lessons/LessonJournalView.vue'),
+        meta: { title: 'Журнал занятия', permission: Permission.OBSERVATIONS_MANAGE },
+      },
       // Исследование — вложенная страница раздела «Аналитика».
       {
         path: 'analytics/research/:id',

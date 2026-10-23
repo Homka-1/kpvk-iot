@@ -85,6 +85,7 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
       ['/api/cabinet/files/', { id: 'submissionFile' }],
       ['/api/materials/', { id: 'material' }],
       ['/api/library-assignments/', { id: 'libraryAssignment' }],
+      ['/api/lessons/', { id: 'lesson' }],
     ];
     const entry = byPrefix.find(([prefix]) => route.path.startsWith(prefix));
     if (!entry) return undefined;
@@ -161,6 +162,7 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
         supportStatus: 'ADDITIONAL_SUPPORT',
       },
       'PUT /api/trajectories/:id': { ...revision, stages },
+      'PUT /api/lessons/:id/journal': { entries: [] },
       'POST /api/trajectories/:id/corrections': { ...revision, ...reason, stages },
       'POST /api/trajectories/:id/approve': revision,
       'POST /api/trajectories/:id/submit': revision,
@@ -427,6 +429,16 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
       await as(ownerStudent, http().post('/api/cabinet/feedback/consultations'))
         .set('Idempotency-Key', key())
         .send({ topic: 'Подготовка к контрольной', trajectoryId: ids.trajectory })
+        .expect(201)
+    ).body.id as string;
+    ids.lesson = (
+      await as(ownerTeacher, http().post('/api/lessons'))
+        .send({
+          date: new Date(Date.now() - DAY).toISOString().slice(0, 10),
+          startTime: '08:30',
+          groupId: groupB,
+          disciplineId: disciplineB,
+        })
         .expect(201)
     ).body.id as string;
     const notifications = (await as(ownerStudent, http().get('/api/notifications')).expect(200))

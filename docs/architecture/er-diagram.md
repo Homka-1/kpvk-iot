@@ -30,6 +30,13 @@ erDiagram
   groups ||--o{ enrollments : group
   students ||--o{ pedagogical_observations : student
   disciplines |o--o{ pedagogical_observations : discipline
+  groups ||--o{ lessons : group
+  disciplines ||--o{ lessons : discipline
+  users ||--o{ lessons : teacher
+  lessons ||--o{ lesson_journal_entries : lesson
+  students ||--o{ lesson_journal_entries : student
+  lesson_journal_entries ||--o{ lesson_ratings : entry
+  observation_criteria ||--o{ lesson_ratings : criterion
   diagnostic_directions |o--o{ questionnaires : direction
   questionnaires |o--o{ questionnaires : copiedFrom
   questionnaires ||--o{ questionnaire_versions : questionnaire
@@ -209,6 +216,10 @@ erDiagram
 - `students` — Профили студентов. ФИО — ПДн; в исследовательских выборках используется код участника.
 - `enrollments` — Принадлежность студента к группе во времени: перевод закрывает запись и открывает новую (FR-010).
 - `pedagogical_observations` — Педагогические наблюдения с датой и автором (FR-014). По умолчанию — служебные (FR-016).
+- `lessons` — Занятия по расписанию (этап 25): группа, дисциплина, преподаватель, дата и время начала. Время хранится строкой «ЧЧ:ММ» местного времени колледжа, чтобы не зависеть от часового пояса.
+- `observation_criteria` — Критерии наблюдения на занятии; список ведётся в разделе «Настройки». Критерий с оценками не удаляется, а архивируется, чтобы история наблюдений сохранялась.
+- `lesson_journal_entries` — Строка журнала занятия по студенту: присутствие и автор последнего изменения.
+- `lesson_ratings` — Оценка студента по критерию на занятии: 1–5 или «Не наблюдалось» (score = NULL). Отсутствие строки — «нет данных», а не ноль (FR-074).
 
 ```mermaid
 erDiagram
@@ -280,6 +291,40 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  lessons {
+    String id PK
+    String group_id FK
+    String discipline_id FK
+    String teacher_id FK
+    DateTime date
+    String start_time
+    String created_by "null"
+    DateTime created_at
+    DateTime updated_at
+  }
+  observation_criteria {
+    String id PK
+    String name UK
+    Int sort_order
+    DateTime archived_at "null"
+    DateTime created_at
+    DateTime updated_at
+  }
+  lesson_journal_entries {
+    String id PK
+    String lesson_id FK
+    String student_id FK
+    Boolean absent
+    String updated_by "null"
+    DateTime created_at
+    DateTime updated_at
+  }
+  lesson_ratings {
+    String id PK
+    String entry_id FK
+    String criterion_id FK
+    Int score "null"
+  }
   groups ||--o{ teacher_assignments : group
   disciplines ||--o{ teacher_assignments : discipline
   groups |o--o{ students : currentGroup
@@ -287,6 +332,12 @@ erDiagram
   groups ||--o{ enrollments : group
   students ||--o{ pedagogical_observations : student
   disciplines |o--o{ pedagogical_observations : discipline
+  groups ||--o{ lessons : group
+  disciplines ||--o{ lessons : discipline
+  lessons ||--o{ lesson_journal_entries : lesson
+  students ||--o{ lesson_journal_entries : student
+  lesson_journal_entries ||--o{ lesson_ratings : entry
+  observation_criteria ||--o{ lesson_ratings : criterion
 ```
 
 ## Диагностика

@@ -19,3 +19,4 @@ export * from './statistics.js';
 export * from './analytics.js';
 export * from './research.js';
 export * from './reports.js';
+export * from './lessons.js';

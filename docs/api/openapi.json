@@ -833,6 +833,7 @@
                 "students.read",
                 "students.manage",
                 "observations.manage",
+                "lessons.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -2345,6 +2346,450 @@
         "summary": "Изменение своих интересов (п. 2.3)",
         "tags": [
           "Кабинет студента"
+        ]
+      }
+    },
+    "/api/lessons": {
+      "get": {
+        "description": "Администратору — все занятия, преподавателю — занятия его групп и дисциплин (FR-002). Сначала последние.",
+        "operationId": "LessonsController_list",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "disciplineId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Начало периода (включительно)",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Конец периода (включительно)",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Занятия по расписанию с заполненностью журнала",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      },
+      "post": {
+        "description": "Преподаватель добавляет занятия только по своим группам и дисциплинам.",
+        "operationId": "LessonsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Добавление занятия вручную",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      }
+    },
+    "/api/lessons/options": {
+      "get": {
+        "operationId": "LessonsController_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonOptionsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Группы, дисциплины и преподаватели для формы занятия",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      }
+    },
+    "/api/lessons/import/preview": {
+      "post": {
+        "description": "Разбирает файл и сопоставляет группы, дисциплины и преподавателей по названию и ФИО. Ничего не сохраняет.",
+        "operationId": "LessonsController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV или XLSX до 2 МБ: Дата | Время | Группа | Дисциплина | Преподаватель"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonImportPreviewResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Предпросмотр импорта расписания",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      }
+    },
+    "/api/lessons/import": {
+      "post": {
+        "description": "Строки проверяются заново; при любой ошибке не создаётся ни одного занятия. Занятия, которые уже есть, пропускаются.",
+        "operationId": "LessonsController_import",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Ключ формы: повторная отправка не создаёт дублей (NFR-006)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonImportCommitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonImportResultResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Импорт расписания после предпросмотра",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      }
+    },
+    "/api/lessons/{id}": {
+      "delete": {
+        "description": "Только если в журнале занятия нет записей; иначе 409.",
+        "operationId": "LessonsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Удаление занятия",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      }
+    },
+    "/api/lessons/{id}/journal": {
+      "get": {
+        "description": "Все студенты группы, критерии и оценки 1–5, «Не наблюдалось» (null), отметка «Отсутствовал». Студентам не передаётся (FR-016).",
+        "operationId": "LessonsController_journal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonJournalResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Журнал педагогических наблюдений на занятии",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      },
+      "put": {
+        "description": "Журнал передаётся целиком; повторная отправка не создаёт дублей. Изменение записывается в журнал аудита.",
+        "operationId": "LessonsController_saveJournal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonJournalInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LessonJournalResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Сохранение журнала занятия",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      }
+    },
+    "/api/students/{id}/lesson-journal": {
+      "get": {
+        "description": "История по занятиям и средние оценки по критериям; «Не наблюдалось» и пропуски не дают нулей (FR-074). Только сотрудникам.",
+        "operationId": "StudentLessonJournalController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentLessonJournalResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Наблюдения о студенте на занятиях",
+        "tags": [
+          "Занятия и журнал наблюдений"
+        ]
+      }
+    },
+    "/api/observation-criteria": {
+      "get": {
+        "operationId": "ObservationCriteriaController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ObservationCriterionResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Критерии наблюдения на занятиях, включая архивные",
+        "tags": [
+          "Настройки"
+        ]
+      },
+      "put": {
+        "description": "Передаются все критерии в порядке показа. Критерии не удаляются, а архивируются: оценки сохраняются. Изменение записывается в журнал аудита.",
+        "operationId": "ObservationCriteriaController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObservationCriteriaInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ObservationCriterionResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Изменение списка критериев наблюдения",
+        "tags": [
+          "Настройки"
         ]
       }
     },
@@ -8737,6 +9182,7 @@
                 "students.read",
                 "students.manage",
                 "observations.manage",
+                "lessons.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -8991,6 +9437,7 @@
               "students.read",
               "students.manage",
               "observations.manage",
+              "lessons.manage",
               "diagnostics.manage",
               "diagnostics.answers.read",
               "profiles.manage",
@@ -9122,6 +9569,7 @@
                 "students.read",
                 "students.manage",
                 "observations.manage",
+                "lessons.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -9253,6 +9701,7 @@
               "students.read",
               "students.manage",
               "observations.manage",
+              "lessons.manage",
               "diagnostics.manage",
               "diagnostics.answers.read",
               "profiles.manage",
@@ -9315,6 +9764,7 @@
                 "students.read",
                 "students.manage",
                 "observations.manage",
+                "lessons.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -9358,6 +9808,7 @@
               "students.read",
               "students.manage",
               "observations.manage",
+              "lessons.manage",
               "diagnostics.manage",
               "diagnostics.answers.read",
               "profiles.manage",
@@ -10670,6 +11121,654 @@
         },
         "required": [
           "interests"
+        ]
+      },
+      "NamedRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "LessonJournalSummaryDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "EMPTY",
+              "PARTIAL",
+              "COMPLETE"
+            ]
+          },
+          "done": {
+            "type": "number",
+            "description": "Отмечено студентов: отсутствие или все критерии"
+          },
+          "total": {
+            "type": "number",
+            "description": "Студентов в журнале"
+          }
+        },
+        "required": [
+          "status",
+          "done",
+          "total"
+        ]
+      },
+      "LessonResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "startTime": {
+            "type": "string",
+            "example": "08:30"
+          },
+          "group": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "teacher": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "journal": {
+            "$ref": "#/components/schemas/LessonJournalSummaryDto"
+          },
+          "canObserve": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "startTime",
+          "group",
+          "discipline",
+          "teacher",
+          "journal",
+          "canObserve",
+          "canDelete"
+        ]
+      },
+      "LessonListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonResponseDto"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Показаны последние занятия; сузьте период или группу"
+          }
+        },
+        "required": [
+          "items",
+          "truncated"
+        ]
+      },
+      "PairDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "disciplineId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "groupId",
+          "disciplineId"
+        ]
+      },
+      "LessonOptionsResponseDto": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRefDto"
+            }
+          },
+          "disciplines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRefDto"
+            }
+          },
+          "teachers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonRefDto"
+            }
+          },
+          "pairs": {
+            "nullable": true,
+            "description": "null — любые пары",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PairDto"
+            }
+          }
+        },
+        "required": [
+          "groups",
+          "disciplines",
+          "teachers",
+          "pairs"
+        ]
+      },
+      "LessonInputDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Дата занятия, YYYY-MM-DD"
+          },
+          "startTime": {
+            "type": "string",
+            "example": "08:30",
+            "description": "Время начала, ЧЧ:ММ"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "disciplineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "teacherId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Преподаватель занятия; преподаватель создаёт занятия только от своего имени"
+          }
+        },
+        "required": [
+          "date",
+          "startTime",
+          "groupId",
+          "disciplineId"
+        ]
+      },
+      "LessonImportResolvedDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "group": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "teacher": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          }
+        },
+        "required": [
+          "date",
+          "startTime",
+          "group",
+          "discipline",
+          "teacher"
+        ]
+      },
+      "LessonImportRowResponseDto": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "number",
+            "description": "Номер строки в исходном файле"
+          },
+          "date": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "disciplineName": {
+            "type": "string"
+          },
+          "teacherName": {
+            "type": "string"
+          },
+          "resolved": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LessonImportResolvedDto"
+              }
+            ]
+          },
+          "duplicate": {
+            "type": "boolean",
+            "description": "Занятие уже есть в расписании — строка будет пропущена"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "line",
+          "date",
+          "time",
+          "groupName",
+          "disciplineName",
+          "teacherName",
+          "resolved",
+          "duplicate",
+          "errors"
+        ]
+      },
+      "LessonImportPreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonImportRowResponseDto"
+            }
+          },
+          "validCount": {
+            "type": "number"
+          },
+          "duplicateCount": {
+            "type": "number"
+          },
+          "invalidCount": {
+            "type": "number"
+          },
+          "fileErrors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "rows",
+          "validCount",
+          "duplicateCount",
+          "invalidCount",
+          "fileErrors"
+        ]
+      },
+      "LessonImportRowInputDto": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "number",
+            "description": "Номер строки в исходном файле"
+          },
+          "date": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "disciplineName": {
+            "type": "string"
+          },
+          "teacherName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "date",
+          "time",
+          "groupName",
+          "disciplineName",
+          "teacherName"
+        ]
+      },
+      "LessonImportCommitDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonImportRowInputDto"
+            }
+          }
+        },
+        "required": [
+          "rows"
+        ]
+      },
+      "LessonImportResultResponseDto": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "number"
+          },
+          "skipped": {
+            "type": "number",
+            "description": "Пропущено: занятия уже были в расписании"
+          },
+          "replayed": {
+            "type": "boolean",
+            "description": "Повторная отправка: импорт уже выполнен ранее"
+          }
+        },
+        "required": [
+          "created",
+          "skipped",
+          "replayed"
+        ]
+      },
+      "ObservationCriterionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "archived"
+        ]
+      },
+      "LessonJournalStudentResponseDto": {
+        "type": "object",
+        "properties": {
+          "student": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "absent": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "null — не отмечен"
+          },
+          "ratings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 1,
+              "maximum": 5
+            },
+            "description": "Оценки по id критерия: 1–5 или null («Не наблюдалось»). Нет ключа — оценки нет («нет данных»)."
+          }
+        },
+        "required": [
+          "student",
+          "absent",
+          "ratings"
+        ]
+      },
+      "LessonJournalResponseDto": {
+        "type": "object",
+        "properties": {
+          "lesson": {
+            "$ref": "#/components/schemas/LessonResponseDto"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObservationCriterionResponseDto"
+            }
+          },
+          "students": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonJournalStudentResponseDto"
+            }
+          }
+        },
+        "required": [
+          "lesson",
+          "criteria",
+          "students"
+        ]
+      },
+      "LessonRatingInputDto": {
+        "type": "object",
+        "properties": {
+          "criterionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "score": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Оценка 1–5 или null — «Не наблюдалось»"
+          }
+        },
+        "required": [
+          "criterionId",
+          "score"
+        ]
+      },
+      "LessonJournalEntryInputDto": {
+        "type": "object",
+        "properties": {
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "absent": {
+            "type": "boolean",
+            "description": "Отсутствовал на занятии: оценки не ставятся"
+          },
+          "ratings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonRatingInputDto"
+            }
+          }
+        },
+        "required": [
+          "studentId",
+          "absent",
+          "ratings"
+        ]
+      },
+      "LessonJournalInputDto": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "description": "Журнал целиком: студенты, которых нет в списке, считаются не отмеченными",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LessonJournalEntryInputDto"
+            }
+          }
+        },
+        "required": [
+          "entries"
+        ]
+      },
+      "StudentLessonRecordResponseDto": {
+        "type": "object",
+        "properties": {
+          "lessonId": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "teacher": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "absent": {
+            "type": "boolean"
+          },
+          "ratings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 1,
+              "maximum": 5
+            },
+            "description": "Оценки по id критерия: 1–5 или null («Не наблюдалось»). Нет ключа — оценки нет («нет данных»)."
+          }
+        },
+        "required": [
+          "lessonId",
+          "date",
+          "startTime",
+          "discipline",
+          "teacher",
+          "absent",
+          "ratings"
+        ]
+      },
+      "CriterionSummaryResponseDto": {
+        "type": "object",
+        "properties": {
+          "criterionId": {
+            "type": "string"
+          },
+          "mean": {
+            "type": "number",
+            "nullable": true,
+            "description": "Средняя оценка; null — нет данных"
+          },
+          "rated": {
+            "type": "number",
+            "description": "Число оценок 1–5"
+          },
+          "notObserved": {
+            "type": "number",
+            "description": "Отметок «Не наблюдалось»"
+          }
+        },
+        "required": [
+          "criterionId",
+          "mean",
+          "rated",
+          "notObserved"
+        ]
+      },
+      "StudentLessonJournalResponseDto": {
+        "type": "object",
+        "properties": {
+          "criteria": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObservationCriterionResponseDto"
+            }
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentLessonRecordResponseDto"
+            }
+          },
+          "summary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CriterionSummaryResponseDto"
+            }
+          },
+          "lessons": {
+            "type": "number",
+            "description": "Занятий, на которых студент отмечен"
+          },
+          "absences": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "criteria",
+          "records",
+          "summary",
+          "lessons",
+          "absences"
+        ]
+      },
+      "ObservationCriterionInputDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Нет — новый критерий"
+          },
+          "name": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Архивный критерий не предлагается в новых журналах"
+          }
+        },
+        "required": [
+          "name",
+          "archived"
+        ]
+      },
+      "ObservationCriteriaInputDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Все критерии в порядке показа в журнале; действующих — от 1 до 12",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ObservationCriterionInputDto"
+            }
+          }
+        },
+        "required": [
+          "items"
         ]
       },
       "DirectionResponseDto": {

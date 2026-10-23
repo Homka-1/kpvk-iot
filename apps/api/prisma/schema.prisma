@@ -227,6 +227,7 @@ model User {
   authSessions    AuthSession[]
   student         Student?            @relation("StudentUser")
   teacherAssigns  TeacherAssignment[]
+  lessons         Lesson[]
   notifications   Notification[]
   auditLogs       AuditLog[]
   idempotencyKeys IdempotencyKey[]
@@ -341,6 +342,7 @@ model Group {
   enrollments           Enrollment[]
   teacherAssignments    TeacherAssignment[]
   diagnosticAssignments DiagnosticAssignment[]
+  lessons               Lesson[]
 
   @@map("groups")
 }
@@ -362,6 +364,7 @@ model Discipline {
   materials          Material[]
   academicResults    AcademicResult[]
   observations       PedagogicalObservation[]
+  lessons            Lesson[]
 
   @@map("disciplines")
 }
@@ -423,6 +426,7 @@ model Student {
   reflections              Reflection[]
   academicResults          AcademicResult[]
   researchParticipants     ResearchParticipant[]
+  lessonEntries            LessonJournalEntry[]
 
   @@index([lastName])
   @@index([currentGroupId])
@@ -465,6 +469,80 @@ model PedagogicalObservation {
 
   @@index([studentId, observedAt])
   @@map("pedagogical_observations")
+}
+
+/// Занятия по расписанию (этап 25): группа, дисциплина, преподаватель, дата и время начала.
+/// Время хранится строкой «ЧЧ:ММ» местного времени колледжа, чтобы не зависеть от часового пояса.
+model Lesson {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  groupId      String   @map("group_id") @db.Uuid
+  disciplineId String   @map("discipline_id") @db.Uuid
+  teacherId    String   @map("teacher_id") @db.Uuid
+  date         DateTime @db.Date
+  startTime    String   @map("start_time")
+  createdById  String?  @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  group      Group                @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  discipline Discipline           @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  teacher    User                 @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  entries    LessonJournalEntry[]
+
+  @@unique([groupId, disciplineId, date, startTime])
+  @@index([date])
+  @@index([teacherId])
+  @@map("lessons")
+}
+
+/// Критерии наблюдения на занятии; список ведётся в разделе «Настройки». Критерий с оценками
+/// не удаляется, а архивируется, чтобы история наблюдений сохранялась.
+model ObservationCriterion {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  name       String    @unique
+  sortOrder  Int       @default(0) @map("sort_order")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  ratings LessonRating[]
+
+  @@map("observation_criteria")
+}
+
+/// Строка журнала занятия по студенту: присутствие и автор последнего изменения.
+model LessonJournalEntry {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  lessonId    String   @map("lesson_id") @db.Uuid
+  studentId   String   @map("student_id") @db.Uuid
+  absent      Boolean  @default(false)
+  updatedById String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  lesson  Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  student Student        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  ratings LessonRating[]
+
+  @@unique([lessonId, studentId])
+  @@index([studentId])
+  @@map("lesson_journal_entries")
+}
+
+/// Оценка студента по критерию на занятии: 1–5 или «Не наблюдалось» (score = NULL).
+/// Отсутствие строки — «нет данных», а не ноль (FR-074).
+model LessonRating {
+  id          String @id @default(uuid(7)) @db.Uuid
+  entryId     String @map("entry_id") @db.Uuid
+  criterionId String @map("criterion_id") @db.Uuid
+  score       Int?
+
+  entry     LessonJournalEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  criterion ObservationCriterion @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+
+  @@unique([entryId, criterionId])
+  @@index([criterionId])
+  @@map("lesson_ratings")
 }
 
 // ───────────────────────────── Диагностика ─────────────────────────────

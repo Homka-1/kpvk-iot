@@ -6,6 +6,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { api, ApiError } from '@/api/http';
 import ErrorState from '@/components/ErrorState.vue';
+import ObservationCriteriaSettings from '@/views/lessons/ObservationCriteriaSettings.vue';
 import StrategiesSettings from '@/views/profiles/StrategiesSettings.vue';
 
 interface SettingItem {
@@ -132,6 +133,10 @@ onMounted(load);
     <section class="settings iot-card" aria-labelledby="settings-strategies">
       <h2 id="settings-strategies">Стратегии сопровождения для мотивационных профилей</h2>
       <StrategiesSettings />
+    </section>
+    <section class="settings iot-card" aria-labelledby="settings-criteria">
+      <h2 id="settings-criteria">Критерии педагогических наблюдений на занятиях</h2>
+      <ObservationCriteriaSettings />
     </section>
   </div>
 </template>
