@@ -147,6 +147,16 @@ export interface AcademicPeriodDto extends AcademicPeriodRef {
   label: string;
 }
 
+/** Учебный период для ответа API: с подписью. */
+export function academicPeriodDto(row: AcademicPeriodRef & { id: string }): AcademicPeriodDto {
+  return {
+    id: row.id,
+    academicYear: row.academicYear,
+    semester: row.semester,
+    label: formatAcademicPeriod(row),
+  };
+}
+
 export interface NamedRef {
   id: string;
   name: string;

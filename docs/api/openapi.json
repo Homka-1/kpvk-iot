@@ -8670,6 +8670,90 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "name": "gradesBeforePeriodId",
+            "required": false,
+            "in": "query",
+            "description": "Семестр «до» для среднего балла. Если не указан ни один семестр — два последних семестра с оценками участников",
+            "schema": {
+              "format": "uuid",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "gradesAfterPeriodId",
+            "required": false,
+            "in": "query",
+            "description": "Семестр «после» для среднего балла",
+            "schema": {
+              "format": "uuid",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsBeforeFrom",
+            "required": false,
+            "in": "query",
+            "description": "Начало периода наблюдений «до». Если не указана ни одна граница — «до» заканчивается накануне начала исследования, «после» идёт с начала до окончания исследования",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsBeforeTo",
+            "required": false,
+            "in": "query",
+            "description": "Конец периода наблюдений «до»",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsAfterFrom",
+            "required": false,
+            "in": "query",
+            "description": "Начало периода наблюдений «после»",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsAfterTo",
+            "required": false,
+            "in": "query",
+            "description": "Конец периода наблюдений «после»",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -8733,6 +8817,90 @@
             }
           },
           {
+            "name": "gradesBeforePeriodId",
+            "required": false,
+            "in": "query",
+            "description": "Семестр «до» для среднего балла. Если не указан ни один семестр — два последних семестра с оценками участников",
+            "schema": {
+              "format": "uuid",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "gradesAfterPeriodId",
+            "required": false,
+            "in": "query",
+            "description": "Семестр «после» для среднего балла",
+            "schema": {
+              "format": "uuid",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsBeforeFrom",
+            "required": false,
+            "in": "query",
+            "description": "Начало периода наблюдений «до». Если не указана ни одна граница — «до» заканчивается накануне начала исследования, «после» идёт с начала до окончания исследования",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsBeforeTo",
+            "required": false,
+            "in": "query",
+            "description": "Конец периода наблюдений «до»",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsAfterFrom",
+            "required": false,
+            "in": "query",
+            "description": "Начало периода наблюдений «после»",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "observationsAfterTo",
+            "required": false,
+            "in": "query",
+            "description": "Конец периода наблюдений «после»",
+            "schema": {
+              "format": "date",
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
             "name": "format",
             "required": true,
             "in": "query",
@@ -8748,12 +8916,13 @@
             "name": "dataset",
             "required": true,
             "in": "query",
-            "description": "raw — исходные данные по участникам, aggregate — сводные показатели",
+            "description": "raw — исходные данные по участникам, aggregate — сводные показатели, wide — широкая таблица «до/после» (строка — участник: шкалы, средний балл за семестры, наблюдения)",
             "schema": {
               "type": "string",
               "enum": [
                 "raw",
-                "aggregate"
+                "aggregate",
+                "wide"
               ]
             }
           }
@@ -20679,6 +20848,151 @@
           "title"
         ]
       },
+      "ResearchDateRangeResponseDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "nullable": true,
+            "format": "date"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      },
+      "ResearchIndicatorResponseDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "grades, observations или observations:<id критерия>"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name"
+        ]
+      },
+      "ResearchOutcomeStatsResponseDto": {
+        "type": "object",
+        "properties": {
+          "indicatorKey": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "EXPERIMENTAL",
+              "CONTROL"
+            ]
+          },
+          "before": {
+            "$ref": "#/components/schemas/DescriptiveStatsResponseDto"
+          },
+          "after": {
+            "$ref": "#/components/schemas/DescriptiveStatsResponseDto"
+          },
+          "change": {
+            "description": "Разность «после − до» у участников с обоими значениями",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DescriptiveStatsResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "indicatorKey",
+          "group",
+          "before",
+          "after",
+          "change"
+        ]
+      },
+      "ResearchOutcomesResponseDto": {
+        "type": "object",
+        "properties": {
+          "periods": {
+            "description": "Семестры с оценками участников; сначала последние",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcademicPeriodResponseDto"
+            }
+          },
+          "gradesBefore": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AcademicPeriodResponseDto"
+              }
+            ]
+          },
+          "gradesAfter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AcademicPeriodResponseDto"
+              }
+            ]
+          },
+          "observationsBefore": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResearchDateRangeResponseDto"
+              }
+            ]
+          },
+          "observationsAfter": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResearchDateRangeResponseDto"
+              }
+            ]
+          },
+          "indicators": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResearchIndicatorResponseDto"
+            }
+          },
+          "stats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResearchOutcomeStatsResponseDto"
+            }
+          },
+          "values": {
+            "type": "object",
+            "description": "По коду участника и ключу показателя: { before: число | null, after: число | null }"
+          }
+        },
+        "required": [
+          "periods",
+          "gradesBefore",
+          "gradesAfter",
+          "observationsBefore",
+          "observationsAfter",
+          "indicators",
+          "stats",
+          "values"
+        ]
+      },
       "ResearchScaleResponseDto": {
         "type": "object",
         "properties": {
@@ -20849,6 +21163,14 @@
       "ResearchDataResponseDto": {
         "type": "object",
         "properties": {
+          "outcomes": {
+            "description": "Средний балл за семестры и наблюдения на занятиях «до» и «после» по ЭГ и КГ",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResearchOutcomesResponseDto"
+              }
+            ]
+          },
           "measurements": {
             "type": "array",
             "items": {
@@ -20890,6 +21212,7 @@
           }
         },
         "required": [
+          "outcomes",
           "measurements",
           "scales",
           "observations",

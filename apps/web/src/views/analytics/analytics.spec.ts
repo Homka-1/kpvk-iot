@@ -287,7 +287,81 @@ describe('страница исследования', () => {
     changes: [],
     excludedParticipants: 0,
     rows: [],
+    outcomes: {
+      periods: [
+        { id: 'p2', academicYear: '2025/2026', semester: 2, label: '2025/2026, 2 семестр' },
+        { id: 'p1', academicYear: '2025/2026', semester: 1, label: '2025/2026, 1 семестр' },
+      ],
+      gradesBefore: {
+        id: 'p1',
+        academicYear: '2025/2026',
+        semester: 1,
+        label: '2025/2026, 1 семестр',
+      },
+      gradesAfter: {
+        id: 'p2',
+        academicYear: '2025/2026',
+        semester: 2,
+        label: '2025/2026, 2 семестр',
+      },
+      observationsBefore: { from: null, to: '2026-08-31' },
+      observationsAfter: { from: '2026-09-01', to: null },
+      indicators: [
+        { key: 'grades', name: 'Средний балл за семестр' },
+        { key: 'observations', name: 'Наблюдения: средняя по критериям' },
+      ],
+      stats: [
+        {
+          indicatorKey: 'grades',
+          group: 'EXPERIMENTAL',
+          before: descriptiveStats([70]),
+          after: descriptiveStats([80]),
+          change: descriptiveStats([10]),
+        },
+        { indicatorKey: 'grades', group: 'CONTROL', before: empty, after: empty, change: empty },
+        {
+          indicatorKey: 'observations',
+          group: 'EXPERIMENTAL',
+          before: empty,
+          after: empty,
+          change: empty,
+        },
+        {
+          indicatorKey: 'observations',
+          group: 'CONTROL',
+          before: empty,
+          after: empty,
+          change: empty,
+        },
+      ],
+      values: {},
+    },
   };
+
+  it('этап 27: успеваемость и наблюдения «до/после»; значения по умолчанию без повторной загрузки', async () => {
+    const fetchMock = mockApi({
+      [`GET /research-projects/${project.id}`]: project,
+      [`GET /research-projects/${project.id}/participants`]: participants,
+      [`GET /research-projects/${project.id}/data`]: data,
+      'GET /research-projects/candidate-groups': [],
+    });
+    const { wrapper } = await mountWithApp(ResearchProjectView, {
+      path: `/analytics/research/${project.id}`,
+      user: testUser(['researcher']),
+    });
+    await flushPromises();
+    const text = wrapper.text();
+    expect(text).toContain('Средний балл за семестр');
+    expect(text).toContain('До: 2025/2026, 1 семестр');
+    expect(text).toContain('До: по 31.08.2026');
+    expect(text).toContain('После: с 01.09.2026');
+    expect(text).toContain('Изменение (после − до)');
+    expect(text).toContain('Нет данных');
+    expect(wrapper.find('#research-grades-before').exists()).toBe(true);
+    expect(called(fetchMock).filter((path) => path?.endsWith('/data'))).toHaveLength(1);
+    const exportLabels = wrapper.findAll('.research-data__radio label').map((item) => item.text());
+    expect(exportLabels).toContain('Широкая таблица «до/после» (строка — участник)');
+  });
 
   it('п. 2.4, FR-073, AT-11: коды без ФИО, полные и неполные наблюдения, экспорт', async () => {
     mockApi({

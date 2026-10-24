@@ -3,12 +3,20 @@ import {
   buildMotivationAnalytics,
   buildResearchAggregateTable,
   buildResearchData,
+  buildResearchOutcomes,
   buildResearchRawTable,
+  buildResearchWideTable,
   comparabilityKey,
   compareGroups,
+  dateRangesOverlap,
   descriptiveStats,
+  formatDateRange,
+  inDateRange,
   quantile,
+  RESEARCH_GRADES_KEY,
+  RESEARCH_OBSERVATIONS_KEY,
   researchCode,
+  researchCriterionKey,
   type ResearchMeasurementDto,
   type ResearchSessionInput,
   type ScaleResultDto,
@@ -310,5 +318,164 @@ describe('данные исследования', () => {
     expect(aggregate.rows).toHaveLength(6);
     expect(aggregate.rows[4]![0]).toBe('Изменение (последний − первый замер)');
     expect(researchCode(7)).toBe('R007');
+  });
+
+  describe('этап 27: успеваемость и наблюдения «до/после», широкая выгрузка', () => {
+    const before = {
+      id: 'p1',
+      academicYear: '2025/2026',
+      semester: 1,
+      label: '2025/2026, 1 семестр',
+    };
+    const after = {
+      id: 'p2',
+      academicYear: '2025/2026',
+      semester: 2,
+      label: '2025/2026, 2 семестр',
+    };
+    const grade = (studentId: string, periodId: string, disciplineId: string, score: number) => ({
+      studentId,
+      periodId,
+      disciplineId,
+      score,
+    });
+    const rating = (studentId: string, date: string, criterionId: string, score: number) => ({
+      studentId,
+      date,
+      criterionId,
+      score,
+    });
+    const outcomesInput = {
+      participants,
+      periods: [after, before],
+      gradesBefore: before,
+      gradesAfter: after,
+      grades: [
+        // s1: «до» — математика (60, 80 → 70) и история 90 → среднее средних 80; «после» — 85.
+        grade('s1', 'p1', 'math', 60),
+        grade('s1', 'p1', 'math', 80),
+        grade('s1', 'p1', 'hist', 90),
+        grade('s1', 'p2', 'math', 85),
+        // s2: только «до» — изменение не считается.
+        grade('s2', 'p1', 'math', 70),
+        grade('s3', 'p1', 'math', 50),
+        grade('s3', 'p2', 'math', 55),
+        // Исключённый участник не учитывается.
+        grade('s4', 'p1', 'math', 100),
+      ],
+      observationsBefore: { from: null, to: '2026-08-31' },
+      observationsAfter: { from: '2026-09-01', to: '2026-12-31' },
+      criteria: [
+        { id: 'act', name: 'Активность' },
+        { id: 'ind', name: 'Самостоятельность' },
+        { id: 'arch', name: 'Без оценок' },
+      ],
+      ratings: [
+        rating('s1', '2026-05-10', 'act', 3),
+        rating('s1', '2026-05-12', 'act', 4),
+        rating('s1', '2026-05-12', 'ind', 2),
+        rating('s1', '2026-10-01', 'act', 5),
+        rating('s1', '2026-10-01', 'ind', 4),
+        // Вне обоих периодов — не учитывается.
+        rating('s1', '2027-01-15', 'act', 1),
+        rating('s3', '2026-10-02', 'act', 2),
+      ],
+    };
+
+    it('FR-074: средний балл — по общему баллу семестра, наблюдения — по критериям; пропуск ≠ 0', () => {
+      const outcomes = buildResearchOutcomes(outcomesInput);
+      expect(outcomes.indicators.map((item) => item.key)).toEqual([
+        RESEARCH_GRADES_KEY,
+        RESEARCH_OBSERVATIONS_KEY,
+        researchCriterionKey('act'),
+        researchCriterionKey('ind'),
+      ]);
+      expect(outcomes.values.R001![RESEARCH_GRADES_KEY]).toEqual({ before: 80, after: 85 });
+      expect(outcomes.values.R002![RESEARCH_GRADES_KEY]).toEqual({ before: 70, after: null });
+      expect(outcomes.values.R004).toBeUndefined();
+      // «до»: активность 3,5, самостоятельность 2 → средняя 2,75 → 2,8; «после»: 5 и 4 → 4,5.
+      expect(outcomes.values.R001![RESEARCH_OBSERVATIONS_KEY]).toEqual({ before: 2.8, after: 4.5 });
+      expect(outcomes.values.R001![researchCriterionKey('act')]).toEqual({ before: 3.5, after: 5 });
+      expect(outcomes.values.R002![RESEARCH_OBSERVATIONS_KEY]).toEqual({
+        before: null,
+        after: null,
+      });
+      const gradesEg = outcomes.stats.find(
+        (row) => row.indicatorKey === RESEARCH_GRADES_KEY && row.group === 'EXPERIMENTAL',
+      )!;
+      expect(gradesEg.before).toMatchObject({ n: 2, mean: 75 });
+      expect(gradesEg.after).toMatchObject({ n: 1, missing: 1, mean: 85 });
+      expect(gradesEg.change).toMatchObject({ n: 1, missing: 1, mean: 5 });
+      const observationsCg = outcomes.stats.find(
+        (row) => row.indicatorKey === RESEARCH_OBSERVATIONS_KEY && row.group === 'CONTROL',
+      )!;
+      expect(observationsCg.before).toMatchObject({ n: 0, mean: null });
+      expect(observationsCg.change).toMatchObject({ n: 0, missing: 1 });
+    });
+
+    it('периоды без границ и невыбранные семестры — нет данных, а не нули', () => {
+      const outcomes = buildResearchOutcomes({
+        ...outcomesInput,
+        gradesBefore: null,
+        observationsBefore: { from: null, to: null },
+      });
+      expect(outcomes.observationsBefore).toBeNull();
+      expect(outcomes.values.R001![RESEARCH_GRADES_KEY]).toEqual({ before: null, after: 85 });
+      expect(outcomes.values.R001![RESEARCH_OBSERVATIONS_KEY]!.before).toBeNull();
+    });
+
+    it('границы периодов включительно; пересечение периодов', () => {
+      expect(inDateRange('2026-09-01', { from: '2026-09-01', to: '2026-09-01' })).toBe(true);
+      expect(inDateRange('2026-08-31', { from: '2026-09-01', to: null })).toBe(false);
+      expect(
+        dateRangesOverlap({ from: null, to: '2026-08-31' }, { from: '2026-09-01', to: null }),
+      ).toBe(false);
+      expect(
+        dateRangesOverlap({ from: null, to: '2026-09-01' }, { from: '2026-09-01', to: null }),
+      ).toBe(true);
+      expect(formatDateRange({ from: '2026-09-01', to: null })).toBe('с 01.09.2026');
+    });
+
+    it('FR-075: широкая таблица — строка на участника, «до/после», без ФИО', () => {
+      const diagnostics = buildResearchData({
+        participants,
+        measurements: [
+          measurement('m1', 'PRIMARY', 'v1', 1, '2026-09-01', '2026-09-30'),
+          measurement('m2', 'REPEATED', 'v1', 1, '2026-12-01', '2026-12-31'),
+        ],
+        versionScales: new Map([['v1', scales]]),
+        sessions,
+        approved: new Set(),
+        scaleKeys: ['q1:INT'],
+      });
+      const data = { ...diagnostics, outcomes: buildResearchOutcomes(outcomesInput) };
+      const wide = buildResearchWideTable(data);
+      expect(wide.header).toEqual([
+        'Код участника',
+        'Группа исследования',
+        'Интерес (INT; Учебная мотивация, версия 1) — до',
+        'Интерес (INT; Учебная мотивация, версия 1) — после',
+        'Средний балл за семестр — до (семестр: 2025/2026, 1 семестр)',
+        'Средний балл за семестр — после (семестр: 2025/2026, 2 семестр)',
+        'Наблюдения: средняя по критериям — до (период: по 31.08.2026)',
+        'Наблюдения: средняя по критериям — после (период: 01.09.2026 – 31.12.2026)',
+        'Наблюдения: Активность — до (период: по 31.08.2026)',
+        'Наблюдения: Активность — после (период: 01.09.2026 – 31.12.2026)',
+        'Наблюдения: Самостоятельность — до (период: по 31.08.2026)',
+        'Наблюдения: Самостоятельность — после (период: 01.09.2026 – 31.12.2026)',
+      ]);
+      expect(wide.rows).toEqual([
+        ['R001', 'ЭГ', 10, 16, 80, 85, 2.8, 4.5, 3.5, 5, 2, 4],
+        ['R002', 'ЭГ', 12, 14, 70, null, null, null, null, null, null, null],
+        ['R003', 'КГ', 11, null, 50, 55, null, 2, null, 2, null, null],
+      ]);
+      const aggregate = buildResearchAggregateTable(data);
+      // Диагностика: 6 строк; показатели: 4 × 2 группы × (до, после, изменение).
+      expect(aggregate.rows).toHaveLength(6 + 4 * 2 * 3);
+      expect(aggregate.rows[6]!.slice(0, 2)).toEqual([
+        'Средний балл за семестр — до',
+        '2025/2026, 1 семестр',
+      ]);
+    });
   });
 });

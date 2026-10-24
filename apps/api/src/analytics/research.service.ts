@@ -5,11 +5,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  type AcademicPeriodDto,
+  academicPeriodDto,
   buildResearchAggregateTable,
   buildResearchData,
+  buildResearchOutcomes,
   buildResearchRawTable,
+  buildResearchWideTable,
   comparabilityKey,
+  compareAcademicPeriods,
   type CurrentUser,
+  dateRangeSet,
+  dateRangesOverlap,
+  type ExportTable,
   formatFullName,
   type MeasurementType,
   Permission,
@@ -21,8 +29,11 @@ import {
   researchCode,
   type ResearchDataDto,
   ResearchDataset,
+  type ResearchDateRange,
   type ResearchGroup,
   type ResearchMeasurementDto,
+  type ResearchOutcomesDto,
+  type ResearchOutcomesInput,
   type ResearchParticipantDto,
   type ResearchProjectDetailDto,
   type ResearchProjectDto,
@@ -73,6 +84,8 @@ type MeasurementRow = Prisma.ResearchMeasurementGetPayload<{ include: typeof mea
 
 const isoDate = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
 const toDate = (value: string | null | undefined) => (value ? new Date(value) : null);
+/** Период для журнала аудита: `[с, по]`. */
+const rangeJson = (range: ResearchDateRange | null) => (range ? [range.from, range.to] : null);
 
 function toProjectDto(row: ProjectRow): ResearchProjectDto {
   return {
@@ -103,6 +116,20 @@ function toMeasurementDto(row: MeasurementRow): ResearchMeasurementDto {
     createdAt: row.createdAt.toISOString(),
   };
 }
+
+/** Наборы обезличенной выгрузки (FR-071, FR-075): построение таблицы, имя файла и листа. */
+const EXPORT_DATASETS: Record<
+  ResearchDataset,
+  { build: (data: ResearchDataDto) => ExportTable; fileName: string; sheet: string }
+> = {
+  raw: { build: buildResearchRawTable, fileName: 'research-raw', sheet: 'Исходные данные' },
+  aggregate: {
+    build: buildResearchAggregateTable,
+    fileName: 'research-aggregate',
+    sheet: 'Сводные показатели',
+  },
+  wide: { build: buildResearchWideTable, fileName: 'research-wide', sheet: 'До и после' },
+};
 
 /** Перемешивание Фишера — Йетса: порядок кодов не повторяет алфавитный список группы. */
 function shuffled<T>(items: readonly T[]): T[] {
@@ -490,7 +517,7 @@ export class ResearchService {
   // ── Данные и выгрузка (UC-07) ──
 
   async data(id: string, query: ResearchDataQueryDto): Promise<ResearchDataDto> {
-    await this.findProject(id);
+    const project = await this.findProject(id);
     const measurements = await this.prisma.researchMeasurement.findMany({
       where: {
         projectId: id,
@@ -535,13 +562,14 @@ export class ResearchService {
       list.push({ code: scale.code, name: scale.name });
       versionScales.set(scale.versionId, list);
     }
-    return buildResearchData({
-      participants: participants.map((item) => ({
-        studentId: item.studentId,
-        code: item.code,
-        group: item.group as ResearchGroup,
-        excluded: item.excludedAt !== null,
-      })),
+    const included = participants.map((item) => ({
+      studentId: item.studentId,
+      code: item.code,
+      group: item.group as ResearchGroup,
+      excluded: item.excludedAt !== null,
+    }));
+    const diagnostics = buildResearchData({
+      participants: included,
       measurements: measurements.map(toMeasurementDto),
       versionScales,
       sessions: sessions.map((session) => ({
@@ -554,19 +582,180 @@ export class ResearchService {
       approved: new Set(pairs.map((pair) => comparabilityKey(pair.versionAId, pair.versionBId))),
       scaleKeys: query.scaleKeys ?? undefined,
     });
+    return { ...diagnostics, outcomes: await this.outcomes(project, included, query) };
+  }
+
+  /**
+   * Успеваемость и наблюдения участников «до» и «после» (этап 27). Семестры и периоды выбирает
+   * исследователь; если не выбраны — два последних семестра с оценками участников и периоды
+   * относительно дат исследования: «до» — по день накануне начала, «после» — с начала до окончания.
+   */
+  private async outcomes(
+    project: { startsAt: Date | null; endsAt: Date | null },
+    participants: ResearchOutcomesInput['participants'],
+    query: ResearchDataQueryDto,
+  ): Promise<ResearchOutcomesDto> {
+    const studentIds = participants.map((item) => item.studentId);
+    const periods = (
+      await this.prisma.academicPeriod.findMany({
+        where: {
+          academicResults: { some: { source: 'SEMESTER_IMPORT', studentId: { in: studentIds } } },
+        },
+      })
+    )
+      .sort((a, b) => compareAcademicPeriods(b, a))
+      .map(academicPeriodDto);
+
+    const choosePeriods = query.gradesBeforePeriodId || query.gradesAfterPeriodId;
+    const [gradesBefore, gradesAfter] = choosePeriods
+      ? await Promise.all([
+          this.academicPeriod(query.gradesBeforePeriodId, 'gradesBeforePeriodId'),
+          this.academicPeriod(query.gradesAfterPeriodId, 'gradesAfterPeriodId'),
+        ])
+      : [periods[1] ?? null, periods[0] ?? null];
+    if (gradesBefore && gradesAfter && gradesBefore.id === gradesAfter.id) {
+      throw new BadRequestException({
+        message: 'Выберите разные семестры «до» и «после»',
+        fields: { gradesAfterPeriodId: 'Семестр «после» совпадает с семестром «до»' },
+      });
+    }
+
+    const [observationsBefore, observationsAfter] = this.observationPeriods(project, query);
+    const ranges = [observationsBefore, observationsAfter].filter(dateRangeSet);
+    const gradePeriodIds = [gradesBefore?.id, gradesAfter?.id].filter((item) => item !== undefined);
+    const [grades, ratings, criteria] = await Promise.all([
+      gradePeriodIds.length
+        ? this.prisma.academicResult.findMany({
+            where: {
+              source: 'SEMESTER_IMPORT',
+              studentId: { in: studentIds },
+              periodId: { in: gradePeriodIds },
+            },
+            select: { studentId: true, periodId: true, disciplineId: true, score: true },
+          })
+        : [],
+      ranges.length
+        ? this.prisma.lessonRating.findMany({
+            where: {
+              score: { not: null },
+              entry: {
+                absent: false,
+                studentId: { in: studentIds },
+                OR: ranges.map((range) => ({
+                  lesson: {
+                    date: {
+                      ...(range.from ? { gte: new Date(range.from) } : {}),
+                      ...(range.to ? { lte: new Date(range.to) } : {}),
+                    },
+                  },
+                })),
+              },
+            },
+            select: {
+              criterionId: true,
+              score: true,
+              entry: { select: { studentId: true, lesson: { select: { date: true } } } },
+            },
+          })
+        : [],
+      this.prisma.observationCriterion.findMany({
+        select: { id: true, name: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      }),
+    ]);
+
+    return buildResearchOutcomes({
+      participants,
+      periods,
+      gradesBefore,
+      gradesAfter,
+      grades: grades.map((grade) => ({
+        studentId: grade.studentId,
+        periodId: grade.periodId!,
+        disciplineId: grade.disciplineId,
+        score: Number(grade.score),
+      })),
+      observationsBefore,
+      observationsAfter,
+      criteria,
+      ratings: ratings.map((rating) => ({
+        studentId: rating.entry.studentId,
+        date: isoDate(rating.entry.lesson.date)!,
+        criterionId: rating.criterionId,
+        score: rating.score!,
+      })),
+    });
+  }
+
+  private async academicPeriod(
+    id: string | null | undefined,
+    field: string,
+  ): Promise<AcademicPeriodDto | null> {
+    if (!id) return null;
+    const row = await this.prisma.academicPeriod.findUnique({ where: { id } });
+    if (!row) {
+      throw new BadRequestException({
+        message: 'Семестр не найден',
+        fields: { [field]: 'Выберите семестр из списка' },
+      });
+    }
+    return academicPeriodDto(row);
+  }
+
+  private observationPeriods(
+    project: { startsAt: Date | null; endsAt: Date | null },
+    query: ResearchDataQueryDto,
+  ): [ResearchDateRange | null, ResearchDateRange | null] {
+    const chosen = [
+      query.observationsBeforeFrom,
+      query.observationsBeforeTo,
+      query.observationsAfterFrom,
+      query.observationsAfterTo,
+    ].some(Boolean);
+    if (!chosen) {
+      const startsOn = isoDate(project.startsAt);
+      if (!startsOn) return [null, null];
+      const dayBefore = isoDate(new Date(project.startsAt!.getTime() - 24 * 60 * 60 * 1000));
+      return [
+        { from: null, to: dayBefore },
+        { from: startsOn, to: isoDate(project.endsAt) },
+      ];
+    }
+    const before = {
+      from: query.observationsBeforeFrom ?? null,
+      to: query.observationsBeforeTo ?? null,
+    };
+    const after = {
+      from: query.observationsAfterFrom ?? null,
+      to: query.observationsAfterTo ?? null,
+    };
+    for (const [range, field] of [
+      [before, 'observationsBeforeTo'],
+      [after, 'observationsAfterTo'],
+    ] as const) {
+      if (range.from && range.to && range.from > range.to) {
+        throw new BadRequestException({
+          message: 'Дата окончания периода раньше даты начала',
+          fields: { [field]: 'Дата окончания раньше даты начала' },
+        });
+      }
+    }
+    if (dateRangeSet(before) && dateRangeSet(after) && dateRangesOverlap(before, after)) {
+      throw new BadRequestException({
+        message: 'Периоды наблюдений «до» и «после» пересекаются',
+        fields: { observationsAfterFrom: 'Период «после» должен начинаться после периода «до»' },
+      });
+    }
+    return [dateRangeSet(before) ? before : null, dateRangeSet(after) ? after : null];
   }
 
   /** Обезличенная выгрузка (FR-071, FR-075): коды участников вместо ФИО; пишется в аудит. */
   async export(id: string, query: ResearchExportQueryDto): Promise<ExportFile> {
     const data = await this.data(id, query);
-    const raw = query.dataset === ResearchDataset.RAW;
-    const table = raw ? buildResearchRawTable(data) : buildResearchAggregateTable(data);
-    const file = await exportFile(
-      table,
-      query.format,
-      raw ? 'research-raw' : 'research-aggregate',
-      raw ? 'Исходные данные' : 'Сводные показатели',
-    );
+    const { build, fileName, sheet } = EXPORT_DATASETS[query.dataset];
+    const table = build(data);
+    const file = await exportFile(table, query.format, fileName, sheet);
+    const { outcomes } = data;
     await this.audit.log({
       action: 'research_data.exported',
       entityType: 'research_project',
@@ -576,6 +765,14 @@ export class ResearchService {
         dataset: query.dataset,
         measurements: data.measurements.map((item) => item.id),
         scales: data.scales.map((item) => item.key),
+        ...(query.dataset === ResearchDataset.RAW
+          ? {}
+          : {
+              gradesBefore: outcomes.gradesBefore?.id ?? null,
+              gradesAfter: outcomes.gradesAfter?.id ?? null,
+              observationsBefore: rangeJson(outcomes.observationsBefore),
+              observationsAfter: rangeJson(outcomes.observationsAfter),
+            }),
         rowCount: table.rows.length,
       },
     });

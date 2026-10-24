@@ -10,6 +10,7 @@ import {
   type AcademicPeriodRef,
   compareAcademicPeriods,
   type CurrentUser,
+  academicPeriodDto,
   formatAcademicPeriod,
   formatFullName,
   GRADE_IMPORT_COLUMNS,
@@ -47,12 +48,6 @@ const personSelect = { id: true, lastName: true, firstName: true, middleName: tr
 const toPerson = (row: PersonRow): PersonRef => ({ id: row.id, fullName: formatFullName(row) });
 const byName = (a: PersonRef, b: PersonRef) => a.fullName.localeCompare(b.fullName, 'ru');
 const periodKey = (period: AcademicPeriodRef) => `${period.academicYear}|${period.semester}`;
-const toPeriod = (row: { id: string; academicYear: string; semester: number }) => ({
-  id: row.id,
-  academicYear: row.academicYear,
-  semester: row.semester,
-  label: formatAcademicPeriod(row),
-});
 
 /** Строка импорта после предпросмотра (для повторной проверки при подтверждении). */
 export interface GradeImportRowInput {
@@ -96,7 +91,7 @@ export class GradesService {
 
   private async periods(): Promise<AcademicPeriodDto[]> {
     const rows = await this.prisma.academicPeriod.findMany();
-    return rows.sort((a, b) => compareAcademicPeriods(b, a)).map(toPeriod);
+    return rows.sort((a, b) => compareAcademicPeriods(b, a)).map(academicPeriodDto);
   }
 
   async options(user: CurrentUser): Promise<GradeOptionsDto> {
@@ -143,7 +138,7 @@ export class GradesService {
       const summary = summarizeSemester(grades);
       const groups = new Map(items.map((item) => [item.group!.id, item.group!]));
       return {
-        period: toPeriod(items[0]!.period!),
+        period: academicPeriodDto(items[0]!.period!),
         groups: [...groups.values()],
         disciplines: summary.disciplines
           .map((item) => ({
@@ -238,8 +233,8 @@ export class GradesService {
 
     return {
       group,
-      period: toPeriod(period),
-      comparePeriod: comparePeriod ? toPeriod(comparePeriod) : null,
+      period: academicPeriodDto(period),
+      comparePeriod: comparePeriod ? academicPeriodDto(comparePeriod) : null,
       overall,
       compareOverall,
       delta: gradeDelta(overall, compareOverall),

@@ -191,6 +191,16 @@ test.describe('исследовательский режим', () => {
           changes: [],
           excludedParticipants: 0,
           rows: [],
+          outcomes: {
+            periods: [],
+            gradesBefore: null,
+            gradesAfter: null,
+            observationsBefore: null,
+            observationsAfter: null,
+            indicators: [],
+            stats: [],
+            values: {},
+          },
         };
         return route.fulfill({ json: data });
       }

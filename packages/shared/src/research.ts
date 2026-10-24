@@ -3,6 +3,7 @@
 // и версиям методик, обезличенная выгрузка. Расчёт данных и таблицы выгрузки — чистые функции.
 import { z } from 'zod';
 import { versionsComparable, type ExportCell, type ExportTable } from './diagnostic-results.js';
+import { type AcademicPeriodDto, summarizeSemester } from './grades.js';
 import type { QuestionnaireVersionLabel, ScaleResultDto } from './diagnostic-sessions.js';
 import {
   MEASUREMENT_TYPE_LABELS,
@@ -235,7 +236,8 @@ export interface ResearchParticipantRowDto {
   complete: boolean;
 }
 
-export interface ResearchDataDto {
+/** Данные диагностических замеров исследования. */
+export interface ResearchDiagnosticDataDto {
   measurements: ResearchMeasurementDto[];
   scales: ResearchScaleDto[];
   observations: ResearchObservationCountsDto[];
@@ -245,6 +247,11 @@ export interface ResearchDataDto {
   excludedParticipants: number;
   /** Исходные обезличенные данные по участникам (для выгрузки). */
   rows: ResearchParticipantRowDto[];
+}
+
+/** Данные исследования: диагностические замеры, успеваемость и наблюдения на занятиях. */
+export interface ResearchDataDto extends ResearchDiagnosticDataDto {
+  outcomes: ResearchOutcomesDto;
 }
 
 /** Завершённое прохождение участника — исходные данные исследования. */
@@ -321,7 +328,7 @@ function sessionFor(
  * утверждённых сопоставимыми версий (FR-072). Незавершённые прохождения в расчёт не входят;
  * пропуск — пропуск, а не ноль (FR-074). Исключённые участники не учитываются.
  */
-export function buildResearchData(input: ResearchDataInput): ResearchDataDto {
+export function buildResearchData(input: ResearchDataInput): ResearchDiagnosticDataDto {
   const measurements = sortMeasurements(input.measurements);
   const allScales: ResearchScaleDto[] = [];
   for (const measurement of measurements) {
@@ -462,14 +469,225 @@ export function buildResearchData(input: ResearchDataInput): ResearchDataDto {
   };
 }
 
+// ── Успеваемость и наблюдения ЭГ и КГ (этап 27) ──
+
+/** Период дат включительно; пустая граница — без ограничения с этой стороны. */
+export interface ResearchDateRange {
+  from: string | null;
+  to: string | null;
+}
+
+/** Ключи показателей: средний балл за семестр, средняя по наблюдениям, отдельный критерий. */
+export const RESEARCH_GRADES_KEY = 'grades';
+export const RESEARCH_OBSERVATIONS_KEY = 'observations';
+export const researchCriterionKey = (criterionId: string) =>
+  `${RESEARCH_OBSERVATIONS_KEY}:${criterionId}`;
+
+export interface ResearchIndicatorDto {
+  key: string;
+  name: string;
+}
+
+/** Значения показателя у участника «до» и «после»; null — нет данных (FR-074). */
+export interface ResearchOutcomeValueDto {
+  before: number | null;
+  after: number | null;
+}
+
+/** Статистики показателя по группе: «до», «после» и разность у участников с обоими значениями. */
+export interface ResearchOutcomeStatsDto {
+  indicatorKey: string;
+  group: ResearchGroup;
+  before: DescriptiveStats;
+  after: DescriptiveStats;
+  change: DescriptiveStats;
+}
+
+export interface ResearchOutcomesDto {
+  /** Семестры, по которым у участников есть оценки; сначала последние. */
+  periods: AcademicPeriodDto[];
+  gradesBefore: AcademicPeriodDto | null;
+  gradesAfter: AcademicPeriodDto | null;
+  observationsBefore: ResearchDateRange | null;
+  observationsAfter: ResearchDateRange | null;
+  indicators: ResearchIndicatorDto[];
+  stats: ResearchOutcomeStatsDto[];
+  /** По коду участника и ключу показателя. Исключённых участников нет. */
+  values: Record<string, Record<string, ResearchOutcomeValueDto>>;
+}
+
+export interface ResearchOutcomesInput {
+  participants: ResearchDataInput['participants'];
+  periods: AcademicPeriodDto[];
+  gradesBefore: AcademicPeriodDto | null;
+  gradesAfter: AcademicPeriodDto | null;
+  /** Оценки за семестр (0–100) участников по выбранным семестрам. */
+  grades: readonly { studentId: string; periodId: string; disciplineId: string; score: number }[];
+  observationsBefore: ResearchDateRange | null;
+  observationsAfter: ResearchDateRange | null;
+  /** Критерии наблюдения в порядке списка из настроек. */
+  criteria: readonly { id: string; name: string }[];
+  /** Оценки 1–5 на занятиях (без «Не наблюдалось»); `date` — дата занятия `YYYY-MM-DD`. */
+  ratings: readonly { studentId: string; date: string; criterionId: string; score: number }[];
+}
+
+const roundTenth = (value: number) => Math.round(value * 10) / 10;
+const exactMean = (values: readonly number[]) =>
+  values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+
+/** Период задан хотя бы одной границей; период без границ считается не заданным. */
+export const dateRangeSet = (range: ResearchDateRange | null): range is ResearchDateRange =>
+  Boolean(range && (range.from || range.to));
+
+/** Дата попадает в период (границы включительно). */
+export function inDateRange(date: string, range: ResearchDateRange): boolean {
+  return (!range.from || date >= range.from) && (!range.to || date <= range.to);
+}
+
+/** Периоды пересекаются (пустая граница — без ограничения). */
+export function dateRangesOverlap(a: ResearchDateRange, b: ResearchDateRange): boolean {
+  return (!a.from || !b.to || a.from <= b.to) && (!b.from || !a.to || b.from <= a.to);
+}
+
+/** Подпись периода дат: «01.09.2025 – 31.12.2025», «с 01.09.2025», «по 31.12.2025». */
+export function formatDateRange(range: ResearchDateRange): string {
+  const ru = (value: string) => value.split('-').reverse().join('.');
+  if (range.from && range.to) return `${ru(range.from)} – ${ru(range.to)}`;
+  if (range.from) return `с ${ru(range.from)}`;
+  return range.to ? `по ${ru(range.to)}` : 'весь период';
+}
+
+/**
+ * Наблюдения за период: по каждому критерию — средняя оценок 1–5; общая — среднее неокруглённых
+ * средних по критериям (каждый критерий весит одинаково, как дисциплины в общем балле за семестр).
+ * Округление до 0,1. Нет оценок — показателя нет (FR-074).
+ */
+function observationValues(
+  ratings: readonly { criterionId: string; score: number }[],
+): Map<string, number> {
+  const byCriterion = new Map<string, number[]>();
+  for (const rating of ratings) {
+    byCriterion.set(rating.criterionId, [
+      ...(byCriterion.get(rating.criterionId) ?? []),
+      rating.score,
+    ]);
+  }
+  const result = new Map<string, number>();
+  const exact: number[] = [];
+  for (const [criterionId, scores] of byCriterion) {
+    const mean = exactMean(scores)!;
+    exact.push(mean);
+    result.set(researchCriterionKey(criterionId), roundTenth(mean));
+  }
+  const overall = exactMean(exact);
+  if (overall !== null) result.set(RESEARCH_OBSERVATIONS_KEY, roundTenth(overall));
+  return result;
+}
+
+/**
+ * Показатели ЭГ и КГ вне диагностики (этап 27): средний балл за семестры «до» и «после» (общий
+ * балл за семестр, как в разделе успеваемости — ADR-032) и средние оценки педагогических
+ * наблюдений на занятиях за периоды «до» и «после» — общая и по критериям. По каждому показателю
+ * и группе — описательные статистики «до», «после» и разности у участников с обоими значениями
+ * (парные данные для внешнего расчёта критериев). Пропуск — пропуск, не ноль (FR-074);
+ * исключённые участники не учитываются.
+ */
+export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOutcomesDto {
+  const included = input.participants
+    .filter((participant) => !participant.excluded)
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const observationsBefore = dateRangeSet(input.observationsBefore)
+    ? input.observationsBefore
+    : null;
+  const observationsAfter = dateRangeSet(input.observationsAfter) ? input.observationsAfter : null;
+  const ratedCriteria = new Set(input.ratings.map((rating) => rating.criterionId));
+  const indicators: ResearchIndicatorDto[] = [
+    { key: RESEARCH_GRADES_KEY, name: 'Средний балл за семестр' },
+    { key: RESEARCH_OBSERVATIONS_KEY, name: 'Наблюдения: средняя по критериям' },
+    ...input.criteria
+      .filter((criterion) => ratedCriteria.has(criterion.id))
+      .map((criterion) => ({
+        key: researchCriterionKey(criterion.id),
+        name: `Наблюдения: ${criterion.name}`,
+      })),
+  ];
+
+  const semester = (studentId: string, period: AcademicPeriodDto | null) =>
+    period
+      ? summarizeSemester(
+          input.grades.filter(
+            (grade) => grade.studentId === studentId && grade.periodId === period.id,
+          ),
+        ).overall
+      : null;
+  const observed = (studentId: string, range: ResearchDateRange | null) =>
+    range
+      ? observationValues(
+          input.ratings.filter(
+            (rating) => rating.studentId === studentId && inDateRange(rating.date, range),
+          ),
+        )
+      : new Map<string, number>();
+
+  const values: ResearchOutcomesDto['values'] = {};
+  for (const participant of included) {
+    const before = observed(participant.studentId, observationsBefore);
+    const after = observed(participant.studentId, observationsAfter);
+    values[participant.code] = Object.fromEntries(
+      indicators.map((indicator): [string, ResearchOutcomeValueDto] => [
+        indicator.key,
+        indicator.key === RESEARCH_GRADES_KEY
+          ? {
+              before: semester(participant.studentId, input.gradesBefore),
+              after: semester(participant.studentId, input.gradesAfter),
+            }
+          : { before: before.get(indicator.key) ?? null, after: after.get(indicator.key) ?? null },
+      ]),
+    );
+  }
+
+  const stats = indicators.flatMap((indicator) =>
+    RESEARCH_GROUPS.map((group): ResearchOutcomeStatsDto => {
+      const own = included
+        .filter((participant) => participant.group === group)
+        .map((participant) => values[participant.code]![indicator.key]!);
+      return {
+        indicatorKey: indicator.key,
+        group,
+        before: descriptiveStats(own.map((value) => value.before)),
+        after: descriptiveStats(own.map((value) => value.after)),
+        change: descriptiveStats(
+          own.map((value) =>
+            value.before === null || value.after === null
+              ? null
+              : roundTenth(value.after - value.before),
+          ),
+        ),
+      };
+    }),
+  );
+
+  return {
+    periods: input.periods,
+    gradesBefore: input.gradesBefore,
+    gradesAfter: input.gradesAfter,
+    observationsBefore,
+    observationsAfter,
+    indicators,
+    stats,
+    values,
+  };
+}
+
 // ── Выгрузка (FR-071, FR-075) ──
 
-export const ResearchDataset = { RAW: 'raw', AGGREGATE: 'aggregate' } as const;
+export const ResearchDataset = { RAW: 'raw', AGGREGATE: 'aggregate', WIDE: 'wide' } as const;
 export type ResearchDataset = (typeof ResearchDataset)[keyof typeof ResearchDataset];
 
 export const RESEARCH_DATASET_LABELS: Record<ResearchDataset, string> = {
   raw: 'Исходные данные по участникам',
   aggregate: 'Сводные показатели',
+  wide: 'Широкая таблица «до/после» (строка — участник)',
 };
 
 const measurementLabel = (measurement: ResearchMeasurementDto) =>
@@ -480,7 +698,7 @@ const measurementLabel = (measurement: ResearchMeasurementDto) =>
  * данных); по каждому замеру — версия методики, дата прохождения и баллы шкал. Пропуск — пустая
  * ячейка (FR-074), признак полноты наблюдения — отдельная колонка (FR-073).
  */
-export function buildResearchRawTable(data: ResearchDataDto): ExportTable {
+export function buildResearchRawTable(data: ResearchDiagnosticDataDto): ExportTable {
   const columns = data.measurements.map((measurement) => {
     const scales = data.scales.filter(
       (scale) => scale.questionnaireId === measurement.questionnaire.questionnaireId,
@@ -517,9 +735,12 @@ export function buildResearchRawTable(data: ResearchDataDto): ExportTable {
 
 /**
  * Сводные показатели (FR-069–FR-072): по замерам, шкалам и группам — описательные статистики,
- * затем изменение между первым и последним замером. В каждой строке — методика и версия.
+ * затем изменение между первым и последним замером. В каждой строке — методика и версия. Затем
+ * успеваемость и наблюдения на занятиях ЭГ и КГ: «до», «после» и изменение (этап 27).
  */
-export function buildResearchAggregateTable(data: ResearchDataDto): ExportTable {
+export function buildResearchAggregateTable(
+  data: ResearchDiagnosticDataDto & { outcomes?: ResearchOutcomesDto },
+): ExportTable {
   const scale = (key: string) => data.scales.find((item) => item.key === key)!;
   const measurement = (id: string) => data.measurements.find((item) => item.id === id)!;
   const statsCells = (stats: DescriptiveStats): ExportCell[] =>
@@ -558,5 +779,102 @@ export function buildResearchAggregateTable(data: ResearchDataDto): ExportTable 
       ...statsCells(row.stats),
     ]);
   });
-  return { header, rows: [...statsRows, ...changeRows] };
+  const outcomes = data.outcomes;
+  const outcomeRows = outcomes
+    ? outcomes.stats.flatMap((row): ExportCell[][] => {
+        const indicator = outcomes.indicators.find((item) => item.key === row.indicatorKey)!;
+        const [before, after] = outcomePhases(outcomes, row.indicatorKey);
+        const cells = (label: string, period: string, stats: DescriptiveStats): ExportCell[] => [
+          `${indicator.name} — ${label}`,
+          period,
+          null,
+          null,
+          null,
+          RESEARCH_GROUP_LABELS[row.group],
+          ...statsCells(stats),
+        ];
+        return [
+          cells('до', before, row.before),
+          cells('после', after, row.after),
+          cells('изменение (после − до)', `${before} → ${after}`, row.change),
+        ];
+      })
+    : [];
+  return { header, rows: [...statsRows, ...changeRows, ...outcomeRows] };
+}
+
+/** Подписи периодов «до» и «после» показателя: семестры или периоды наблюдений. */
+function outcomePhases(outcomes: ResearchOutcomesDto, indicatorKey: string): [string, string] {
+  const unset = 'не задан';
+  if (indicatorKey === RESEARCH_GRADES_KEY) {
+    return [outcomes.gradesBefore?.label ?? unset, outcomes.gradesAfter?.label ?? unset];
+  }
+  return [
+    outcomes.observationsBefore ? formatDateRange(outcomes.observationsBefore) : unset,
+    outcomes.observationsAfter ? formatDateRange(outcomes.observationsAfter) : unset,
+  ];
+}
+
+const MEASUREMENT_PHASE: Record<MeasurementType, string> = {
+  PRIMARY: 'до',
+  INTERMEDIATE: 'промежуточный',
+  REPEATED: 'после',
+};
+
+/**
+ * «Широкая» обезличенная таблица для внешнего расчёта критериев Манна — Уитни, Вилкоксона и
+ * Спирмена (этап 27; FR-071, FR-075): одна строка на участника — код и группа ЭГ/КГ, баллы шкал
+ * по замерам («до» — первичный, «после» — повторный), средний балл за семестры «до» и «после»,
+ * средние наблюдений на занятиях «до» и «после» — общая и по критериям. Ф. И. О., учебная
+ * группа и учётные данные не выгружаются; пропуск — пустая ячейка (FR-074).
+ */
+export function buildResearchWideTable(data: ResearchDataDto): ExportTable {
+  const { outcomes } = data;
+  // Замер одной методики одного типа может быть не один: тогда к подписи добавляется название.
+  const phaseCount = new Map<string, number>();
+  const phaseKey = (measurement: ResearchMeasurementDto) =>
+    `${measurement.questionnaire.questionnaireId}:${measurement.measurementType}`;
+  for (const measurement of data.measurements) {
+    phaseCount.set(phaseKey(measurement), (phaseCount.get(phaseKey(measurement)) ?? 0) + 1);
+  }
+  const diagnostics = data.measurements.flatMap((measurement) => {
+    const phase = MEASUREMENT_PHASE[measurement.measurementType];
+    const suffix =
+      phaseCount.get(phaseKey(measurement))! > 1 ? `${phase}: ${measurement.title}` : phase;
+    return data.scales
+      .filter((scale) => scale.questionnaireId === measurement.questionnaire.questionnaireId)
+      .map((scale) => ({
+        label: `${scale.name} (${scale.code}; ${measurement.questionnaire.title}, версия ${measurement.questionnaire.versionNumber}) — ${suffix}`,
+        value: (row: ResearchParticipantRowDto) =>
+          row.values[measurement.id]?.scores[scale.key] ?? null,
+      }));
+  });
+  const indicators = outcomes.indicators.flatMap((indicator) => {
+    const [before, after] = outcomePhases(outcomes, indicator.key);
+    const unit = indicator.key === RESEARCH_GRADES_KEY ? 'семестр' : 'период';
+    return [
+      {
+        label: `${indicator.name} — до (${unit}: ${before})`,
+        value: (code: string) => outcomes.values[code]?.[indicator.key]?.before ?? null,
+      },
+      {
+        label: `${indicator.name} — после (${unit}: ${after})`,
+        value: (code: string) => outcomes.values[code]?.[indicator.key]?.after ?? null,
+      },
+    ];
+  });
+  return {
+    header: [
+      'Код участника',
+      'Группа исследования',
+      ...diagnostics.map((column) => column.label),
+      ...indicators.map((column) => column.label),
+    ],
+    rows: data.rows.map((row) => [
+      row.code,
+      RESEARCH_GROUP_SHORT[row.group],
+      ...diagnostics.map((column) => column.value(row)),
+      ...indicators.map((column) => column.value(row.code)),
+    ]),
+  };
 }
