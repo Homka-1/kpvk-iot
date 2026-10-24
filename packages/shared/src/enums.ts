@@ -285,11 +285,16 @@ export const CONSULTATION_STATUS_LABELS: Record<ConsultationStatus, string> = {
   CANCELLED: 'Отменена',
 };
 
-export const AcademicResultSource = { ASSIGNMENT: 'ASSIGNMENT', MANUAL: 'MANUAL' } as const;
+export const AcademicResultSource = {
+  ASSIGNMENT: 'ASSIGNMENT',
+  MANUAL: 'MANUAL',
+  SEMESTER_IMPORT: 'SEMESTER_IMPORT',
+} as const;
 export type AcademicResultSource = ValueOf<typeof AcademicResultSource>;
 export const ACADEMIC_RESULT_SOURCE_LABELS: Record<AcademicResultSource, string> = {
   ASSIGNMENT: 'Оценка за задание',
   MANUAL: 'Внесено вручную',
+  SEMESTER_IMPORT: 'Оценка за семестр (импорт)',
 };
 
 export const ResearchProjectStatus = {

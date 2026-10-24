@@ -40,6 +40,7 @@ export const Permission = {
   STUDENTS_MANAGE: 'students.manage',
   OBSERVATIONS_MANAGE: 'observations.manage',
   LESSONS_MANAGE: 'lessons.manage',
+  GRADES_MANAGE: 'grades.manage',
   DIAGNOSTICS_MANAGE: 'diagnostics.manage',
   DIAGNOSTIC_ANSWERS_READ: 'diagnostics.answers.read',
   PROFILES_MANAGE: 'profiles.manage',
@@ -72,6 +73,8 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'observations.manage': 'Педагогические наблюдения о студентах своих групп и журнал занятий',
   'lessons.manage':
     'Расписание занятий: добавление, импорт и удаление занятий своих групп (администратору — всех)',
+  'grades.manage':
+    'Оценки за семестр: импорт и отмена загрузки по своим группам и дисциплинам (администратору — всех)',
   'diagnostics.manage': 'Методики диагностики и их назначение',
   'diagnostics.answers.read': 'Доступ к содержанию диагностических ответов',
   'profiles.manage': 'Формирование и утверждение мотивационных профилей',
@@ -115,6 +118,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
     Permission.STUDENTS_MANAGE,
     // Расписание занятий всех групп (этап 25); журнал наблюдений администратору не открыт.
     Permission.LESSONS_MANAGE,
+    // Оценки за семестр всех групп (этап 26).
+    Permission.GRADES_MANAGE,
   ],
   teacher: [
     Permission.DISCIPLINES_READ,
@@ -122,6 +127,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly Permission[]> = {
     Permission.STUDENTS_MANAGE,
     Permission.OBSERVATIONS_MANAGE,
     Permission.LESSONS_MANAGE,
+    Permission.GRADES_MANAGE,
     Permission.DIAGNOSTICS_MANAGE,
     Permission.DIAGNOSTIC_ANSWERS_READ,
     Permission.PROFILES_MANAGE,

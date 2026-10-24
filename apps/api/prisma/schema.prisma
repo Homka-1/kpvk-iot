@@ -182,6 +182,7 @@ enum ConsultationStatus {
 enum AcademicResultSource {
   ASSIGNMENT
   MANUAL
+  SEMESTER_IMPORT
 }
 
 enum ResearchProjectStatus {
@@ -228,6 +229,7 @@ model User {
   student         Student?            @relation("StudentUser")
   teacherAssigns  TeacherAssignment[]
   lessons         Lesson[]
+  gradeImports    GradeImport[]       @relation("GradeImportAuthor")
   notifications   Notification[]
   auditLogs       AuditLog[]
   idempotencyKeys IdempotencyKey[]
@@ -343,6 +345,7 @@ model Group {
   teacherAssignments    TeacherAssignment[]
   diagnosticAssignments DiagnosticAssignment[]
   lessons               Lesson[]
+  academicResults       AcademicResult[]
 
   @@map("groups")
 }
@@ -673,16 +676,16 @@ model AnswerOption {
 
 /// Шкалы методики (FR-021: несколько шкал).
 model QuestionnaireScale {
-  id          String  @id @default(uuid(7)) @db.Uuid
-  versionId   String  @map("version_id") @db.Uuid
-  code        String
-  name        String
-  description String?
+  id             String              @id @default(uuid(7)) @db.Uuid
+  versionId      String              @map("version_id") @db.Uuid
+  code           String
+  name           String
+  description    String?
   /// Сумма баллов по ключам или среднее по пунктам шкалы (среднее округляется до 0,1).
-  aggregation ScaleAggregation @default(SUM)
+  aggregation    ScaleAggregation    @default(SUM)
   /// Роль в мотивационном профиле: внутренняя, внешняя мотивация или справочная шкала.
   motivationRole ScaleMotivationRole @default(REFERENCE) @map("motivation_role")
-  sortOrder   Int     @default(0) @map("sort_order")
+  sortOrder      Int                 @default(0) @map("sort_order")
 
   version             QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
   scoringKeys         ScoringKey[]
@@ -1383,7 +1386,7 @@ model Reflection {
   @@map("reflections")
 }
 
-/// Учебные достижения: оценки за задания и вручную внесённые результаты.
+/// Учебные достижения: оценки за задания, вручную внесённые результаты и оценки за семестр (этап 26).
 model AcademicResult {
   id                     String               @id @default(uuid(7)) @db.Uuid
   studentId              String               @map("student_id") @db.Uuid
@@ -1394,6 +1397,10 @@ model AcademicResult {
   title                  String?
   score                  Decimal              @db.Decimal(10, 3)
   maxScore               Decimal              @map("max_score") @db.Decimal(10, 3)
+  /// Оценки за семестр (этап 26): учебный период, группа из файла и загрузка.
+  periodId               String?              @map("period_id") @db.Uuid
+  groupId                String?              @map("group_id") @db.Uuid
+  importId               String?              @map("import_id") @db.Uuid
   recordedAt             DateTime             @map("recorded_at")
   recordedById           String?              @map("recorded_by") @db.Uuid
   createdAt              DateTime             @default(now()) @map("created_at")
@@ -1402,10 +1409,48 @@ model AcademicResult {
   discipline           Discipline            @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
   trajectoryAssignment TrajectoryAssignment? @relation(fields: [trajectoryAssignmentId], references: [id], onDelete: Restrict)
   assessment           Assessment?           @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  period               AcademicPeriod?       @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  group                Group?                @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  gradeImport          GradeImport?          @relation(fields: [importId], references: [id], onDelete: Restrict)
 
   @@unique([assessmentId])
   @@index([studentId, disciplineId, recordedAt])
+  @@index([periodId, groupId])
+  @@index([importId])
   @@map("academic_results")
+}
+
+/// Учебный период — семестр учебного года (этап 26): «2025/2026», семестр 1 или 2.
+model AcademicPeriod {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  academicYear String   @map("academic_year")
+  semester     Int
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  academicResults AcademicResult[]
+
+  @@unique([academicYear, semester])
+  @@map("academic_periods")
+}
+
+/// Загрузка оценок за семестр из файла. Отменённая загрузка хранится, её оценки удаляются.
+model GradeImport {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  fileName      String    @map("file_name")
+  /// SHA-256 содержания (студент, период, дисциплина, оценка): повторная загрузка того же файла.
+  contentHash   String    @map("content_hash")
+  rowCount      Int       @map("row_count")
+  createdById   String    @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+  cancelledAt   DateTime? @map("cancelled_at")
+  cancelledById String?   @map("cancelled_by") @db.Uuid
+
+  author          User             @relation("GradeImportAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  academicResults AcademicResult[]
+
+  @@index([contentHash])
+  @@index([createdAt])
+  @@map("grade_imports")
 }
 
 // ─────────────────────────── Исследование ───────────────────────────

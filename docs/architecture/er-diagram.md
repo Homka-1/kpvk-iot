@@ -114,6 +114,10 @@ erDiagram
   disciplines ||--o{ academic_results : discipline
   trajectory_assignments |o--o{ academic_results : trajectoryAssignment
   assessments |o--o{ academic_results : assessment
+  academic_periods |o--o{ academic_results : period
+  groups |o--o{ academic_results : group
+  grade_imports |o--o{ academic_results : gradeImport
+  users ||--o{ grade_imports : author
   research_projects ||--o{ research_participants : project
   students ||--o{ research_participants : student
   research_projects ||--o{ research_measurements : project
@@ -844,7 +848,9 @@ erDiagram
 - `feedback` — Педагогическая обратная связь и обращения студента; привязка к студенту, этапу или заданию (FR-064).
 - `consultations` — Консультации: запрос, назначение, проведение, история (FR-067).
 - `reflections` — Самооценка и рефлексия студента, в том числе после контрольной точки (FR-066).
-- `academic_results` — Учебные достижения: оценки за задания и вручную внесённые результаты.
+- `academic_results` — Учебные достижения: оценки за задания, вручную внесённые результаты и оценки за семестр (этап 26).
+- `academic_periods` — Учебный период — семестр учебного года (этап 26): «2025/2026», семестр 1 или 2.
+- `grade_imports` — Загрузка оценок за семестр из файла. Отменённая загрузка хранится, её оценки удаляются.
 
 ```mermaid
 erDiagram
@@ -901,11 +907,32 @@ erDiagram
     String title "null"
     Decimal score
     Decimal max_score
+    String period_id FK "null"
+    String group_id FK "null"
+    String import_id FK "null"
     DateTime recorded_at
     String recorded_by "null"
     DateTime created_at
   }
+  academic_periods {
+    String id PK
+    String academic_year
+    Int semester
+    DateTime created_at
+  }
+  grade_imports {
+    String id PK
+    String file_name
+    String content_hash
+    Int row_count
+    String created_by FK
+    DateTime created_at
+    DateTime cancelled_at "null"
+    String cancelled_by "null"
+  }
   feedback |o--o{ feedback : parent
+  academic_periods |o--o{ academic_results : period
+  grade_imports |o--o{ academic_results : gradeImport
 ```
 
 ## Исследование

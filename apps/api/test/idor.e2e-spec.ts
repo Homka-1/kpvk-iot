@@ -86,6 +86,7 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
       ['/api/materials/', { id: 'material' }],
       ['/api/library-assignments/', { id: 'libraryAssignment' }],
       ['/api/lessons/', { id: 'lesson' }],
+      ['/api/grades/imports/', { id: 'gradeImport' }],
     ];
     const entry = byPrefix.find(([prefix]) => route.path.startsWith(prefix));
     if (!entry) return undefined;
@@ -441,6 +442,25 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
         })
         .expect(201)
     ).body.id as string;
+    ids.gradeImport = (
+      await as(ownerTeacher, http().post('/api/grades/import'))
+        .set('Idempotency-Key', key())
+        .send({
+          fileName: 'оценки.csv',
+          rows: [
+            {
+              line: 2,
+              studentName: `Владельцев${tag} Тест`,
+              groupName: `ИДБ-${tag}`,
+              academicYear: '2025/2026',
+              semester: '1',
+              disciplineName: `Физика ${tag}`,
+              score: '80',
+            },
+          ],
+        })
+        .expect(201)
+    ).body.importId as string;
     const notifications = (await as(ownerStudent, http().get('/api/notifications')).expect(200))
       .body as NotificationsDto;
     ids.notification = notifications.items[0]!.id;

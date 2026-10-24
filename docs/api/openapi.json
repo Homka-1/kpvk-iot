@@ -834,6 +834,7 @@
                 "students.manage",
                 "observations.manage",
                 "lessons.manage",
+                "grades.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -2790,6 +2791,285 @@
         "summary": "Изменение списка критериев наблюдения",
         "tags": [
           "Настройки"
+        ]
+      }
+    },
+    "/api/grades/options": {
+      "get": {
+        "operationId": "GradesController_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradeOptionsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Семестры с оценками и доступные группы",
+        "tags": [
+          "Академическая успешность"
+        ]
+      }
+    },
+    "/api/grades/group": {
+      "get": {
+        "description": "Общий балл студентов (среднее средних по дисциплинам) и средний балл группы по дисциплинам; при выборе второго семестра — сравнение. Нет оценок — null, а не ноль (FR-074).",
+        "operationId": "GradesController_group",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "periodId",
+            "required": true,
+            "in": "query",
+            "description": "Семестр",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "compareWith",
+            "required": false,
+            "in": "query",
+            "description": "Семестр для сравнения",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupGradesResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Успеваемость группы за семестр",
+        "tags": [
+          "Академическая успешность"
+        ]
+      }
+    },
+    "/api/grades/import/preview": {
+      "post": {
+        "description": "Разбирает файл, сопоставляет студентов по ФИО внутри группы, дисциплины — по названию. Ничего не сохраняет.",
+        "operationId": "GradesController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV или XLSX до 2 МБ: ФИО | Группа | Учебный год | Семестр | Дисциплина | Оценка"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradeImportPreviewResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Предпросмотр импорта оценок за семестр",
+        "tags": [
+          "Академическая успешность"
+        ]
+      }
+    },
+    "/api/grades/import": {
+      "post": {
+        "description": "Строки проверяются заново; при любой ошибке не сохраняется ни одной оценки. Повторная загрузка тех же оценок отклоняется (409). Изменение записывается в журнал аудита.",
+        "operationId": "GradesController_import",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Ключ формы: повторная отправка не создаёт дублей (NFR-006)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GradeImportCommitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradeImportResultResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Импорт оценок после предпросмотра",
+        "tags": [
+          "Академическая успешность"
+        ]
+      }
+    },
+    "/api/grades/imports": {
+      "get": {
+        "description": "Администратору — все загрузки, преподавателю — свои. Сначала последние.",
+        "operationId": "GradesController_imports",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GradeImportResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Загрузки оценок",
+        "tags": [
+          "Академическая успешность"
+        ]
+      }
+    },
+    "/api/grades/imports/{id}": {
+      "delete": {
+        "description": "Оценки загрузки удаляются, загрузка остаётся в списке как отменённая. Отменяет автор или администратор; действие записывается в журнал аудита.",
+        "operationId": "GradesController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Отмена загрузки оценок",
+        "tags": [
+          "Академическая успешность"
+        ]
+      }
+    },
+    "/api/students/{id}/grades": {
+      "get": {
+        "description": "Исходные оценки, средний балл по дисциплинам и общий балл за каждый семестр. Только сотрудникам.",
+        "operationId": "StudentGradesController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentGradesResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Оценки студента по семестрам",
+        "tags": [
+          "Академическая успешность"
         ]
       }
     },
@@ -9183,6 +9463,7 @@
                 "students.manage",
                 "observations.manage",
                 "lessons.manage",
+                "grades.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -9438,6 +9719,7 @@
               "students.manage",
               "observations.manage",
               "lessons.manage",
+              "grades.manage",
               "diagnostics.manage",
               "diagnostics.answers.read",
               "profiles.manage",
@@ -9570,6 +9852,7 @@
                 "students.manage",
                 "observations.manage",
                 "lessons.manage",
+                "grades.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -9702,6 +9985,7 @@
               "students.manage",
               "observations.manage",
               "lessons.manage",
+              "grades.manage",
               "diagnostics.manage",
               "diagnostics.answers.read",
               "profiles.manage",
@@ -9765,6 +10049,7 @@
                 "students.manage",
                 "observations.manage",
                 "lessons.manage",
+                "grades.manage",
                 "diagnostics.manage",
                 "diagnostics.answers.read",
                 "profiles.manage",
@@ -9809,6 +10094,7 @@
               "students.manage",
               "observations.manage",
               "lessons.manage",
+              "grades.manage",
               "diagnostics.manage",
               "diagnostics.answers.read",
               "profiles.manage",
@@ -11769,6 +12055,527 @@
         },
         "required": [
           "items"
+        ]
+      },
+      "AcademicPeriodResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "academicYear": {
+            "type": "string",
+            "example": "2025/2026"
+          },
+          "semester": {
+            "type": "number",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "label": {
+            "type": "string",
+            "example": "2025/2026, 1 семестр"
+          }
+        },
+        "required": [
+          "id",
+          "academicYear",
+          "semester",
+          "label"
+        ]
+      },
+      "GradeOptionsResponseDto": {
+        "type": "object",
+        "properties": {
+          "periods": {
+            "description": "Сначала последние",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcademicPeriodResponseDto"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRefDto"
+            }
+          }
+        },
+        "required": [
+          "periods",
+          "groups"
+        ]
+      },
+      "GroupGradesDisciplineResponseDto": {
+        "type": "object",
+        "properties": {
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "mean": {
+            "type": "number",
+            "nullable": true,
+            "description": "Среднее средних студентов по дисциплине"
+          },
+          "students": {
+            "type": "number",
+            "description": "Студентов с оценками по дисциплине"
+          },
+          "compareMean": {
+            "type": "number",
+            "nullable": true
+          },
+          "delta": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "discipline",
+          "mean",
+          "students",
+          "compareMean",
+          "delta"
+        ]
+      },
+      "GroupGradesStudentResponseDto": {
+        "type": "object",
+        "properties": {
+          "student": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "overall": {
+            "type": "number",
+            "nullable": true
+          },
+          "disciplineCount": {
+            "type": "number"
+          },
+          "compareOverall": {
+            "type": "number",
+            "nullable": true
+          },
+          "delta": {
+            "type": "number",
+            "nullable": true,
+            "description": "Разность: выбранный − сравнения"
+          }
+        },
+        "required": [
+          "student",
+          "overall",
+          "disciplineCount",
+          "compareOverall",
+          "delta"
+        ]
+      },
+      "GroupGradesResponseDto": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "period": {
+            "$ref": "#/components/schemas/AcademicPeriodResponseDto"
+          },
+          "comparePeriod": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AcademicPeriodResponseDto"
+              }
+            ]
+          },
+          "overall": {
+            "type": "number",
+            "nullable": true
+          },
+          "compareOverall": {
+            "type": "number",
+            "nullable": true
+          },
+          "delta": {
+            "type": "number",
+            "nullable": true
+          },
+          "disciplines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupGradesDisciplineResponseDto"
+            }
+          },
+          "students": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupGradesStudentResponseDto"
+            }
+          }
+        },
+        "required": [
+          "group",
+          "period",
+          "comparePeriod",
+          "overall",
+          "compareOverall",
+          "delta",
+          "disciplines",
+          "students"
+        ]
+      },
+      "GradeImportPeriodDto": {
+        "type": "object",
+        "properties": {
+          "academicYear": {
+            "type": "string"
+          },
+          "semester": {
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "academicYear",
+          "semester",
+          "label"
+        ]
+      },
+      "GradeImportResolvedDto": {
+        "type": "object",
+        "properties": {
+          "student": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "group": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "period": {
+            "$ref": "#/components/schemas/GradeImportPeriodDto"
+          },
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "score": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "student",
+          "group",
+          "period",
+          "discipline",
+          "score"
+        ]
+      },
+      "GradeImportRowResponseDto": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "number",
+            "description": "Номер строки в исходном файле"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "academicYear": {
+            "type": "string"
+          },
+          "semester": {
+            "type": "string"
+          },
+          "disciplineName": {
+            "type": "string"
+          },
+          "score": {
+            "type": "string"
+          },
+          "resolved": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GradeImportResolvedDto"
+              }
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "line",
+          "studentName",
+          "groupName",
+          "academicYear",
+          "semester",
+          "disciplineName",
+          "score",
+          "resolved",
+          "errors"
+        ]
+      },
+      "AlreadyImportedDto": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "fileName",
+          "createdAt"
+        ]
+      },
+      "GradeImportPreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GradeImportRowResponseDto"
+            }
+          },
+          "validCount": {
+            "type": "number"
+          },
+          "invalidCount": {
+            "type": "number"
+          },
+          "fileErrors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "alreadyImported": {
+            "nullable": true,
+            "description": "Те же оценки уже загружены — импорт будет отклонён",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AlreadyImportedDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "rows",
+          "validCount",
+          "invalidCount",
+          "fileErrors",
+          "alreadyImported"
+        ]
+      },
+      "GradeImportRowInputDto": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "number",
+            "description": "Номер строки в исходном файле"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "academicYear": {
+            "type": "string"
+          },
+          "semester": {
+            "type": "string"
+          },
+          "disciplineName": {
+            "type": "string"
+          },
+          "score": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "line",
+          "studentName",
+          "groupName",
+          "academicYear",
+          "semester",
+          "disciplineName",
+          "score"
+        ]
+      },
+      "GradeImportCommitDto": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "Имя исходного файла — для списка загрузок"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GradeImportRowInputDto"
+            }
+          }
+        },
+        "required": [
+          "fileName",
+          "rows"
+        ]
+      },
+      "GradeImportResultResponseDto": {
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string"
+          },
+          "created": {
+            "type": "number",
+            "description": "Загружено оценок"
+          },
+          "replayed": {
+            "type": "boolean",
+            "description": "Повторная отправка: импорт уже выполнен ранее"
+          }
+        },
+        "required": [
+          "importId",
+          "created",
+          "replayed"
+        ]
+      },
+      "GradeImportResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "rowCount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "canCancel": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "fileName",
+          "rowCount",
+          "createdAt",
+          "author",
+          "cancelledAt",
+          "periods",
+          "groups",
+          "canCancel"
+        ]
+      },
+      "StudentDisciplineGradesResponseDto": {
+        "type": "object",
+        "properties": {
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "scores": {
+            "description": "Исходные оценки 0–100 в порядке загрузки",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "mean": {
+            "type": "number",
+            "description": "Средний балл по дисциплине, до 0,1"
+          }
+        },
+        "required": [
+          "discipline",
+          "scores",
+          "mean"
+        ]
+      },
+      "StudentSemesterResponseDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/AcademicPeriodResponseDto"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRefDto"
+            }
+          },
+          "disciplines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentDisciplineGradesResponseDto"
+            }
+          },
+          "overall": {
+            "type": "number",
+            "nullable": true,
+            "description": "Общий балл: среднее средних по дисциплинам; null — нет данных"
+          }
+        },
+        "required": [
+          "period",
+          "groups",
+          "disciplines",
+          "overall"
+        ]
+      },
+      "StudentGradesResponseDto": {
+        "type": "object",
+        "properties": {
+          "semesters": {
+            "description": "Сначала последний семестр",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentSemesterResponseDto"
+            }
+          }
+        },
+        "required": [
+          "semesters"
         ]
       },
       "DirectionResponseDto": {
