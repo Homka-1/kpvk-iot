@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import {
+  type AnswerValue,
   type CurrentUser,
   type DifficultyLevel,
   DemoStage,
@@ -725,15 +726,8 @@ export class DemoActivityGenerator {
     completedAt: Date,
     measurementType: MeasurementType,
   ): Promise<void> {
-    const disposition = ctx.state.dispositions[student.id]!;
-    const answers = answersForLevel(
-      version.content,
-      disposition,
-      levelFor(disposition.INTRINSIC),
-      ctx.random,
-    );
+    const answers = this.answersFor(ctx, student, version);
     const durationSeconds = intBetween(ctx.random, 6 * 60, 22 * 60);
-    const actorId = student.userId ?? ctx.state.curatorId;
     await this.prisma.$transaction(async (tx) => {
       await tx.diagnosticSession.update({
         where: { id: sessionId },
@@ -749,36 +743,7 @@ export class DemoActivityGenerator {
           updatedAt: completedAt,
         },
       });
-      await tx.diagnosticRevision.create({
-        data: {
-          sessionId,
-          revision: 1,
-          kind: 'INITIAL',
-          scoringVersionId: version.id,
-          createdById: actorId,
-          createdAt: completedAt,
-        },
-      });
-      await tx.diagnosticAnswer.createMany({
-        data: Object.entries(answers).map(([questionId, value]) => ({
-          sessionId,
-          questionId,
-          revision: 1,
-          value: value as Prisma.InputJsonValue,
-          createdAt: completedAt,
-        })),
-      });
-      await tx.diagnosticScore.createMany({
-        data: scoreQuestionnaire(version.content, answers).map((score) => ({
-          sessionId,
-          scaleId: score.scaleKey,
-          revision: 1,
-          rawScore: score.rawScore,
-          interpretationRuleId: score.rule?.key ?? null,
-          missingAnswers: score.missingAnswers,
-          createdAt: completedAt,
-        })),
-      });
+      await this.writeAnswers(tx, ctx, student, version, sessionId, answers, completedAt);
     });
     this.audit(
       ctx,
@@ -792,6 +757,95 @@ export class DemoActivityGenerator {
         versionId: version.id,
       },
     );
+  }
+
+  /** Ответы, по которым правило методики даёт уровень, соответствующий склонности студента. */
+  private answersFor(
+    ctx: Context,
+    student: StudentInfo,
+    version: VersionInfo,
+  ): Record<string, Exclude<AnswerValue, null>> {
+    const disposition = ctx.state.dispositions[student.id]!;
+    return answersForLevel(
+      version.content,
+      disposition,
+      levelFor(disposition.INTRINSIC),
+      ctx.random,
+    );
+  }
+
+  /** Первая редакция ответов прохождения и баллы шкал по ним. */
+  private async writeAnswers(
+    tx: Tx,
+    ctx: Context,
+    student: StudentInfo,
+    version: VersionInfo,
+    sessionId: string,
+    answers: Record<string, Exclude<AnswerValue, null>>,
+    completedAt: Date,
+  ): Promise<void> {
+    await tx.diagnosticRevision.create({
+      data: {
+        sessionId,
+        revision: 1,
+        kind: 'INITIAL',
+        scoringVersionId: version.id,
+        createdById: student.userId ?? ctx.state.curatorId,
+        createdAt: completedAt,
+      },
+    });
+    await tx.diagnosticAnswer.createMany({
+      data: Object.entries(answers).map(([questionId, value]) => ({
+        sessionId,
+        questionId,
+        revision: 1,
+        value: value as Prisma.InputJsonValue,
+        createdAt: completedAt,
+      })),
+    });
+    await tx.diagnosticScore.createMany({
+      data: scoreQuestionnaire(version.content, answers).map((score) => ({
+        sessionId,
+        scaleId: score.scaleKey,
+        revision: 1,
+        rawScore: score.rawScore,
+        interpretationRuleId: score.rule?.key ?? null,
+        missingAnswers: score.missingAnswers,
+        createdAt: completedAt,
+      })),
+    });
+  }
+
+  /**
+   * Замена ответов завершённых прохождений в копии (например, перенесённых из рабочей базы, по
+   * которым уровни методик расходятся): прежние редакции удаляются, записывается одна новая с
+   * ответами под склонность студента. Дата и способ прохождения сохраняются.
+   */
+  private async reanswerSessions(
+    ctx: Context,
+    student: StudentInfo,
+    sessionIds: string[],
+  ): Promise<void> {
+    if (!ctx.state.dispositions[student.id]) return;
+    const sessions = await this.prisma.diagnosticSession.findMany({
+      where: { id: { in: sessionIds }, status: 'COMPLETED' },
+    });
+    for (const session of sessions) {
+      const version = ctx.versions.find((item) => item.id === session.versionId);
+      if (!version || !session.completedAt) continue;
+      const completedAt = session.completedAt;
+      const answers = this.answersFor(ctx, student, version);
+      await this.withoutTriggers(async (tx) => {
+        await tx.diagnosticScore.deleteMany({ where: { sessionId: session.id } });
+        await tx.diagnosticAnswer.deleteMany({ where: { sessionId: session.id } });
+        await tx.diagnosticRevision.deleteMany({ where: { sessionId: session.id } });
+        await tx.diagnosticSession.update({
+          where: { id: session.id },
+          data: { currentRevision: 1 },
+        });
+        await this.writeAnswers(tx, ctx, student, version, session.id, answers, completedAt);
+      });
+    }
   }
 
   /** Перенос уже завершённого прохождения в окно замера (в копии; записи защищены триггерами). */
@@ -847,7 +901,7 @@ export class DemoActivityGenerator {
         where: { id: student.id },
         select: { currentMotivationProfileId: true },
       });
-      const basis = await this.profiles.collectBasis(student.id);
+      let basis = await this.profiles.collectBasis(student.id);
       const current = row.currentMotivationProfileId
         ? await this.prisma.motivationProfile.findUnique({
             where: { id: row.currentMotivationProfileId },
@@ -862,32 +916,43 @@ export class DemoActivityGenerator {
       ) {
         // Данные не изменились: в повторном замере прежний профиль остаётся как был, в первичном —
         // профиль рабочей базы переносится на дату замера.
-        if (!shiftExisting) continue;
-        await this.withoutTriggers(async (tx) => {
-          await tx.motivationProfile.update({
-            where: { id: current.id },
-            data: {
-              createdAt: proposedAt,
-              updatedAt: decidedAt,
-              ...(current.decidedAt ? { decidedAt } : {}),
-            },
+        const undetermined = current.status === 'NEEDS_MORE_DIAGNOSTICS';
+        if (shiftExisting) {
+          // Профиль без уровня заменяется новым ниже, поэтому переносится на день раньше.
+          const shiftedAt = undetermined ? at(addDays(decidedOn, -2), '16:00') : proposedAt;
+          await this.withoutTriggers(async (tx) => {
+            await tx.motivationProfile.update({
+              where: { id: current.id },
+              data: {
+                createdAt: shiftedAt,
+                updatedAt: undetermined ? shiftedAt : decidedAt,
+                ...(current.decidedAt ? { decidedAt } : {}),
+              },
+            });
+            await tx.motivationProfileHistory.updateMany({
+              where: {
+                profileId: current.id,
+                status: { in: ['PROPOSED', 'NEEDS_MORE_DIAGNOSTICS'] },
+              },
+              data: { createdAt: shiftedAt },
+            });
+            await tx.motivationProfileHistory.updateMany({
+              where: { profileId: current.id, status: { in: ['CONFIRMED', 'CORRECTED'] } },
+              data: { createdAt: decidedAt },
+            });
           });
-          await tx.motivationProfileHistory.updateMany({
-            where: {
-              profileId: current.id,
-              status: { in: ['PROPOSED', 'NEEDS_MORE_DIAGNOSTICS'] },
-            },
-            data: { createdAt: proposedAt },
-          });
-          await tx.motivationProfileHistory.updateMany({
-            where: { profileId: current.id, status: { in: ['CONFIRMED', 'CORRECTED'] } },
-            data: { createdAt: decidedAt },
-          });
-        });
-        if (current.status === 'PROPOSED' && current.proposedLevel) {
-          await this.decide(ctx, student, current.id, current.proposedLevel, decidedAt);
+          if (current.status === 'PROPOSED' && current.proposedLevel) {
+            await this.decide(ctx, student, current.id, current.proposedLevel, decidedAt);
+          }
         }
-        continue;
+        if (!undetermined) continue;
+      }
+
+      // Демо не оставляет профилей «Требуется дополнительная диагностика»: если уровни методик
+      // расходятся или не определены, ответы прохождений перегенерируются под склонность студента.
+      for (let attempt = 0; !basis.level && attempt < 3; attempt += 1) {
+        await this.reanswerSessions(ctx, student, basis.sessionIds);
+        basis = await this.profiles.collectBasis(student.id);
       }
 
       const status: MotivationProfileStatus = basis.level ? 'PROPOSED' : 'NEEDS_MORE_DIAGNOSTICS';

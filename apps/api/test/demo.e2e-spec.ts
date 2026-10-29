@@ -214,7 +214,7 @@ describe('Демо-режим (e2e)', () => {
     });
 
     const mean = await publish(content('Мотивация учебной деятельности', 'MEAN', true));
-    await publish(content('Мотивация обучения', 'SUM', true));
+    const sum = await publish(content('Мотивация обучения', 'SUM', true));
     await publish(content('Стиль саморегуляции', 'SUM', false));
 
     // Один студент уже прошёл методику в рабочей базе: в копии прохождение переносится на октябрь.
@@ -240,6 +240,45 @@ describe('Демо-режим (e2e)', () => {
         completedAt: new Date(Date.now() - DAY).toISOString(),
       })
       .expect(201);
+
+    // У студента КГ в рабочей базе методики расходятся (высокий и низкий уровень): профиль
+    // «Требуется дополнительная диагностика». Демо такого профиля не оставляет.
+    for (const [questionnaire, high] of [
+      [mean, true],
+      [sum, false],
+    ] as const) {
+      const created = (
+        await as(teacher, http().post('/api/diagnostic-assignments'))
+          .set('Idempotency-Key', key())
+          .send({
+            questionnaireId: questionnaire.id,
+            studentId: control[0],
+            startsAt: new Date(Date.now() - 2 * DAY).toISOString(),
+            endsAt: new Date(Date.now() + 7 * DAY).toISOString(),
+          })
+          .expect(201)
+      ).body as DiagnosticAssignmentDetailDto;
+      const sessionId = created.sessions[0]!.id;
+      const questions = (
+        (await as(teacher, http().get(`/api/diagnostic-sessions/${sessionId}/form`)).expect(200))
+          .body as DiagnosticForm
+      ).questions;
+      // Вопросы a, b, c (c — обратный) — шкала внутренней мотивации.
+      const values = high ? [5, 5, 1, 3, 3, 3] : [1, 1, 5, 3, 3, 3];
+      await as(teacher, http().post(`/api/diagnostic-sessions/${sessionId}/paper`))
+        .set('Idempotency-Key', key())
+        .send({
+          answers: Object.fromEntries(questions.map((question, i) => [question.key, values[i]])),
+          completedAt: new Date(Date.now() - DAY).toISOString(),
+        })
+        .expect(201);
+    }
+    const conflict = (
+      await as(teacher, http().post(`/api/students/${control[0]}/motivation-profiles`))
+        .set('Idempotency-Key', key())
+        .expect(201)
+    ).body as { status: string };
+    expect(conflict.status).toBe('NEEDS_MORE_DIAGNOSTICS');
   }, 120_000);
 
   afterAll(async () => {
@@ -372,6 +411,12 @@ describe('Демо-режим (e2e)', () => {
     expect(await prisma.researchMeasurement.count({ where: { measurementType: 'REPEATED' } })).toBe(
       3,
     );
+    // Профилей «Требуется дополнительная диагностика» демо не оставляет.
+    expect(
+      await prisma.student.count({
+        where: { currentMotivationProfile: { status: 'NEEDS_MORE_DIAGNOSTICS' } },
+      }),
+    ).toBe(0);
 
     // Итоговый контроль — та же работа, что входной: ЭГ растёт заметнее КГ.
     const scores = async (kind: 'ENTRY' | 'FINAL', students: string[]) => {
