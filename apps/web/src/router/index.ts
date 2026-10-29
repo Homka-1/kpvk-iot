@@ -1,4 +1,4 @@
-import { APP_SHORT_NAME, Permission } from '@iot/shared';
+import { Permission } from '@iot/shared';
 import {
   createRouter,
   createWebHistory,
@@ -12,6 +12,7 @@ import StudentLayout from '@/layouts/StudentLayout.vue';
 import { STUDENT_NAV, TEACHER_NAV, TEACHER_SERVICE_NAV, type NavItem } from '@/navigation';
 import { homePath } from '@/router/paths';
 import { useAuthStore } from '@/stores/auth';
+import { setDocumentTitle } from '@/utils/title';
 import LoginView from '@/views/LoginView.vue';
 import NotFoundView from '@/views/NotFoundView.vue';
 import PlaceholderView from '@/views/PlaceholderView.vue';
@@ -203,5 +204,5 @@ export const router = createRouter({
 router.beforeEach(authGuard);
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} — ${APP_SHORT_NAME}` : APP_SHORT_NAME;
+  setDocumentTitle(to.meta.title);
 });

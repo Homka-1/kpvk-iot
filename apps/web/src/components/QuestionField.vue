@@ -42,7 +42,10 @@ function toggle(optionKey: string, checked: boolean): void {
   <fieldset class="question-field" :aria-invalid="error ? 'true' : undefined">
     <legend>
       {{ number }}. {{ question.text || 'Без текста' }}
-      <span v-if="question.isRequired" class="question-field__hint">(обязательный)</span>
+      <template v-if="question.isRequired">
+        <span class="question-field__required" aria-hidden="true">*</span>
+        <span class="iot-visually-hidden">(обязательный)</span>
+      </template>
     </legend>
     <template v-if="question.type === 'SINGLE_CHOICE'">
       <div v-for="option in question.options" :key="option.key" class="question-field__choice">
@@ -71,15 +74,17 @@ function toggle(optionKey: string, checked: boolean): void {
     <template v-else-if="question.type === 'LIKERT'">
       <div class="question-field__likert">
         <span v-if="question.minLabel" class="question-field__hint">{{ question.minLabel }}</span>
-        <div v-for="value in likertValues" :key="value" class="question-field__choice">
-          <RadioButton
-            v-model="model"
-            :input-id="`${fieldId}-${value}`"
-            :name="fieldId"
-            :value="value"
-            :disabled="disabled"
-          />
-          <label :for="`${fieldId}-${value}`">{{ value }}</label>
+        <div class="question-field__likert-values">
+          <div v-for="value in likertValues" :key="value" class="question-field__choice">
+            <RadioButton
+              v-model="model"
+              :input-id="`${fieldId}-${value}`"
+              :name="fieldId"
+              :value="value"
+              :disabled="disabled"
+            />
+            <label :for="`${fieldId}-${value}`">{{ value }}</label>
+          </div>
         </div>
         <span v-if="question.maxLabel" class="question-field__hint">{{ question.maxLabel }}</span>
       </div>
@@ -139,6 +144,10 @@ function toggle(optionKey: string, checked: boolean): void {
   font-weight: 400;
 }
 
+.question-field__required {
+  color: var(--iot-tone-danger-text);
+}
+
 .question-field__choice {
   display: flex;
   align-items: center;
@@ -154,5 +163,14 @@ function toggle(optionKey: string, checked: boolean): void {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--iot-space-3);
+}
+
+/* Значения шкалы переносятся только целым блоком: подписи встают отдельной строкой. */
+.question-field__likert-values {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: var(--iot-space-3);
+  max-width: 100%;
 }
 </style>

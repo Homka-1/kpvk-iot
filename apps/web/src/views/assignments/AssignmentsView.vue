@@ -172,225 +172,229 @@ function resetFilters(): void {
         <Tab v-if="canAssign" value="review">На проверке</Tab>
       </TabList>
       <TabPanels>
-        <TabPanel value="library" class="tasks__panel">
-          <EmptyState
-            v-if="!canLibrary"
-            icon="pi pi-lock"
-            title="Нет доступа к библиотеке заданий"
-            description="Для работы с библиотекой нужно разрешение «Библиотека материалов и заданий». Обратитесь к администратору."
-          />
-          <template v-else>
-            <p class="tasks__info">
-              <i class="pi pi-info-circle" aria-hidden="true" />
-              Библиотека заданий. Срок, этап ИОТ и статус задаются при назначении задания студенту —
-              из его индивидуальной траектории.
-            </p>
-            <div class="tasks__toolbar">
-              <IconField class="tasks__search">
-                <InputIcon class="pi pi-search" />
-                <InputText
-                  v-model="filters.q"
-                  placeholder="Название, цель или тема"
-                  aria-label="Поиск заданий"
-                  fluid
+        <TabPanel value="library">
+          <div class="tasks__panel">
+            <EmptyState
+              v-if="!canLibrary"
+              icon="pi pi-lock"
+              title="Нет доступа к библиотеке заданий"
+              description="Для работы с библиотекой нужно разрешение «Библиотека материалов и заданий». Обратитесь к администратору."
+            />
+            <template v-else>
+              <p class="tasks__info">
+                <i class="pi pi-info-circle" aria-hidden="true" />
+                Библиотека заданий. Срок, этап ИОТ и статус задаются при назначении задания студенту
+                — из его индивидуальной траектории.
+              </p>
+              <div class="tasks__toolbar">
+                <IconField class="tasks__search">
+                  <InputIcon class="pi pi-search" />
+                  <InputText
+                    v-model="filters.q"
+                    placeholder="Название, цель или тема"
+                    aria-label="Поиск заданий"
+                    fluid
+                  />
+                </IconField>
+                <Select
+                  v-model="filters.disciplineId"
+                  :options="context.disciplines"
+                  option-label="name"
+                  option-value="id"
+                  placeholder="Все дисциплины"
+                  show-clear
+                  aria-label="Фильтр по дисциплине"
+                  class="tasks__filter"
                 />
-              </IconField>
-              <Select
-                v-model="filters.disciplineId"
-                :options="context.disciplines"
-                option-label="name"
-                option-value="id"
-                placeholder="Все дисциплины"
-                show-clear
-                aria-label="Фильтр по дисциплине"
-                class="tasks__filter"
-              />
-              <InputText
-                v-model="filters.topic"
-                placeholder="Тема"
-                aria-label="Фильтр по теме"
-                class="tasks__filter"
-              />
-              <Select
-                v-model="filters.difficulty"
-                :options="difficultyOptions"
-                option-label="label"
-                option-value="value"
-                placeholder="Любая сложность"
-                show-clear
-                aria-label="Фильтр по уровню сложности"
-                class="tasks__filter"
-              />
-              <Select
-                v-model="filters.typeId"
-                :options="types.items.value"
-                option-label="name"
-                option-value="id"
-                placeholder="Любой тип"
-                show-clear
-                aria-label="Фильтр по типу задания"
-                class="tasks__filter"
-              />
-              <div class="tasks__check">
-                <Checkbox v-model="filters.includeArchived" input-id="tasks-archived" binary />
-                <label for="tasks-archived">Показать архивные</label>
-              </div>
-            </div>
-            <p v-if="action.error.value && !archiveOpen" class="iot-field-error" role="alert">
-              {{ action.error.value }}
-            </p>
-            <p v-if="downloadError" class="iot-field-error" role="alert">{{ downloadError }}</p>
-
-            <ErrorState
-              v-if="list.error.value"
-              :message="list.error.value"
-              retryable
-              @retry="list.load"
-            />
-            <p v-else-if="!list.loaded.value" role="status">Загрузка…</p>
-            <EmptyState
-              v-else-if="list.items.value.length === 0 && filtered"
-              icon="pi pi-search"
-              title="Ничего не найдено"
-              description="Измените условия поиска или сбросьте фильтры."
-            >
-              <Button label="Сбросить фильтры" severity="secondary" text @click="resetFilters" />
-            </EmptyState>
-            <EmptyState
-              v-else-if="list.items.value.length === 0"
-              icon="pi pi-file-edit"
-              title="Заданий пока нет"
-              description="Создайте задание: цель, уровень сложности, инструкция, критерии оценивания и ресурсы."
-            />
-            <div v-else class="tasks__grid">
-              <article
-                v-for="assignment in list.items.value"
-                :key="assignment.id"
-                class="iot-card task"
-                data-testid="assignment-card"
-              >
-                <header class="task__header">
-                  <StatusBadge :label="assignment.type.name" tone="info" icon="pi pi-tag" />
-                  <StatusBadge
-                    :label="`Сложность: ${DIFFICULTY_LEVEL_LABELS[assignment.difficulty]}`"
-                    icon="pi pi-chart-bar"
-                  />
-                  <StatusBadge v-if="assignment.archivedAt" label="В архиве" icon="pi pi-box" />
-                </header>
-                <h2 class="task__name">{{ assignment.title }}</h2>
-                <p class="task__muted">
-                  {{ placeLabel(assignment.discipline.name, assignment.topic) }}
-                </p>
-                <p v-if="assignment.goal"><strong>Цель:</strong> {{ assignment.goal }}</p>
-                <dl class="task__facts">
-                  <dt>Формат сдачи</dt>
-                  <dd>
-                    {{ formatsLabel(assignment.submissionFormats) }}
-                  </dd>
-                  <dt>Критерии оценивания</dt>
-                  <dd>
-                    <template v-if="assignment.criteria.length > 0">
-                      {{ assignment.criteria.map((criterion) => criterion.title).join('; ') }}
-                      (максимум {{ formatNumber(assignment.maxScore ?? 0) }})
-                    </template>
-                    <template v-else>Не заданы</template>
-                  </dd>
-                </dl>
-                <details v-if="assignment.instruction">
-                  <summary>Инструкция</summary>
-                  <p class="task__instruction">{{ assignment.instruction }}</p>
-                </details>
-                <ul v-if="assignment.attachments.length > 0" class="task__resources">
-                  <li v-for="attachment in assignment.attachments" :key="attachment.id">
-                    <Button
-                      v-if="attachment.file"
-                      :label="attachment.title ?? fileLabel(attachment.file)"
-                      icon="pi pi-download"
-                      size="small"
-                      text
-                      class="task__resource"
-                      @click="download(attachment.file)"
-                    />
-                    <a
-                      v-else-if="attachment.url"
-                      :href="attachment.url"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="task__resource-link"
-                    >
-                      <i class="pi pi-external-link" aria-hidden="true" />
-                      {{ attachment.title ?? attachment.url }}
-                    </a>
-                  </li>
-                </ul>
-                <p class="task__muted">{{ assignment.createdBy?.fullName ?? 'Автор не указан' }}</p>
-                <div class="iot-form-buttons">
-                  <Button
-                    v-if="assignment.archivedAt"
-                    label="Вернуть из архива"
-                    size="small"
-                    text
-                    @click="restore(assignment)"
-                  />
-                  <template v-else>
-                    <Button
-                      v-if="canAssign"
-                      label="Назначить"
-                      icon="pi pi-send"
-                      size="small"
-                      aria-haspopup="dialog"
-                      @click="
-                        selected = assignment;
-                        assignOpen = true;
-                      "
-                    />
-                    <Button
-                      label="Изменить"
-                      icon="pi pi-pencil"
-                      size="small"
-                      text
-                      @click="edit(assignment)"
-                    />
-                    <Button
-                      label="В архив"
-                      icon="pi pi-box"
-                      size="small"
-                      severity="danger"
-                      text
-                      @click="
-                        selected = assignment;
-                        archiveOpen = true;
-                      "
-                    />
-                  </template>
+                <InputText
+                  v-model="filters.topic"
+                  placeholder="Тема"
+                  aria-label="Фильтр по теме"
+                  class="tasks__filter"
+                />
+                <Select
+                  v-model="filters.difficulty"
+                  :options="difficultyOptions"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Любая сложность"
+                  show-clear
+                  aria-label="Фильтр по уровню сложности"
+                  class="tasks__filter"
+                />
+                <Select
+                  v-model="filters.typeId"
+                  :options="types.items.value"
+                  option-label="name"
+                  option-value="id"
+                  placeholder="Любой тип"
+                  show-clear
+                  aria-label="Фильтр по типу задания"
+                  class="tasks__filter"
+                />
+                <div class="tasks__check">
+                  <Checkbox v-model="filters.includeArchived" input-id="tasks-archived" binary />
+                  <label for="tasks-archived">Показать архивные</label>
                 </div>
-              </article>
-            </div>
+              </div>
+              <p v-if="action.error.value && !archiveOpen" class="iot-field-error" role="alert">
+                {{ action.error.value }}
+              </p>
+              <p v-if="downloadError" class="iot-field-error" role="alert">{{ downloadError }}</p>
 
-            <AssignmentDialog
-              v-model:visible="editorOpen"
-              :assignment="selected"
-              :types="types.items.value"
-              @saved="list.load"
-              @type-created="onTypeCreated"
-            />
-            <AssignTasksDialog
-              v-if="selected"
-              v-model:visible="assignOpen"
-              :assignment="selected"
-            />
-            <ActionDialog
-              v-model:visible="archiveOpen"
-              title="Архивирование задания"
-              :message="`Задание «${selected?.title}» скроется из библиотеки. Уже назначенные студентам задания не изменятся.`"
-              confirm-label="В архив"
-              require-reason
-              danger
-              :busy="action.busy.value"
-              :error="action.error.value"
-              @confirm="archive"
-            />
-          </template>
+              <ErrorState
+                v-if="list.error.value"
+                :message="list.error.value"
+                retryable
+                @retry="list.load"
+              />
+              <p v-else-if="!list.loaded.value" role="status">Загрузка…</p>
+              <EmptyState
+                v-else-if="list.items.value.length === 0 && filtered"
+                icon="pi pi-search"
+                title="Ничего не найдено"
+                description="Измените условия поиска или сбросьте фильтры."
+              >
+                <Button label="Сбросить фильтры" severity="secondary" text @click="resetFilters" />
+              </EmptyState>
+              <EmptyState
+                v-else-if="list.items.value.length === 0"
+                icon="pi pi-file-edit"
+                title="Заданий пока нет"
+                description="Создайте задание: цель, уровень сложности, инструкция, критерии оценивания и ресурсы."
+              />
+              <div v-else class="tasks__grid">
+                <article
+                  v-for="assignment in list.items.value"
+                  :key="assignment.id"
+                  class="iot-card task"
+                  data-testid="assignment-card"
+                >
+                  <header class="task__header">
+                    <StatusBadge :label="assignment.type.name" tone="info" icon="pi pi-tag" />
+                    <StatusBadge
+                      :label="`Сложность: ${DIFFICULTY_LEVEL_LABELS[assignment.difficulty]}`"
+                      icon="pi pi-chart-bar"
+                    />
+                    <StatusBadge v-if="assignment.archivedAt" label="В архиве" icon="pi pi-box" />
+                  </header>
+                  <h2 class="task__name">{{ assignment.title }}</h2>
+                  <p class="task__muted">
+                    {{ placeLabel(assignment.discipline.name, assignment.topic) }}
+                  </p>
+                  <p v-if="assignment.goal"><strong>Цель:</strong> {{ assignment.goal }}</p>
+                  <dl class="task__facts">
+                    <dt>Формат сдачи</dt>
+                    <dd>
+                      {{ formatsLabel(assignment.submissionFormats) }}
+                    </dd>
+                    <dt>Критерии оценивания</dt>
+                    <dd>
+                      <template v-if="assignment.criteria.length > 0">
+                        {{ assignment.criteria.map((criterion) => criterion.title).join('; ') }}
+                        (максимум {{ formatNumber(assignment.maxScore ?? 0) }})
+                      </template>
+                      <template v-else>Не заданы</template>
+                    </dd>
+                  </dl>
+                  <details v-if="assignment.instruction">
+                    <summary>Инструкция</summary>
+                    <p class="task__instruction">{{ assignment.instruction }}</p>
+                  </details>
+                  <ul v-if="assignment.attachments.length > 0" class="task__resources">
+                    <li v-for="attachment in assignment.attachments" :key="attachment.id">
+                      <Button
+                        v-if="attachment.file"
+                        :label="attachment.title ?? fileLabel(attachment.file)"
+                        icon="pi pi-download"
+                        size="small"
+                        text
+                        class="task__resource"
+                        @click="download(attachment.file)"
+                      />
+                      <a
+                        v-else-if="attachment.url"
+                        :href="attachment.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="task__resource-link"
+                      >
+                        <i class="pi pi-external-link" aria-hidden="true" />
+                        {{ attachment.title ?? attachment.url }}
+                      </a>
+                    </li>
+                  </ul>
+                  <p class="task__muted">
+                    {{ assignment.createdBy?.fullName ?? 'Автор не указан' }}
+                  </p>
+                  <div class="iot-form-buttons">
+                    <Button
+                      v-if="assignment.archivedAt"
+                      label="Вернуть из архива"
+                      size="small"
+                      text
+                      @click="restore(assignment)"
+                    />
+                    <template v-else>
+                      <Button
+                        v-if="canAssign"
+                        label="Назначить"
+                        icon="pi pi-send"
+                        size="small"
+                        aria-haspopup="dialog"
+                        @click="
+                          selected = assignment;
+                          assignOpen = true;
+                        "
+                      />
+                      <Button
+                        label="Изменить"
+                        icon="pi pi-pencil"
+                        size="small"
+                        text
+                        @click="edit(assignment)"
+                      />
+                      <Button
+                        label="В архив"
+                        icon="pi pi-box"
+                        size="small"
+                        severity="danger"
+                        text
+                        @click="
+                          selected = assignment;
+                          archiveOpen = true;
+                        "
+                      />
+                    </template>
+                  </div>
+                </article>
+              </div>
+
+              <AssignmentDialog
+                v-model:visible="editorOpen"
+                :assignment="selected"
+                :types="types.items.value"
+                @saved="list.load"
+                @type-created="onTypeCreated"
+              />
+              <AssignTasksDialog
+                v-if="selected"
+                v-model:visible="assignOpen"
+                :assignment="selected"
+              />
+              <ActionDialog
+                v-model:visible="archiveOpen"
+                title="Архивирование задания"
+                :message="`Задание «${selected?.title}» скроется из библиотеки. Уже назначенные студентам задания не изменятся.`"
+                confirm-label="В архив"
+                require-reason
+                danger
+                :busy="action.busy.value"
+                :error="action.error.value"
+                @confirm="archive"
+              />
+            </template>
+          </div>
         </TabPanel>
         <TabPanel v-if="canAssign" value="review">
           <ReviewQueue />
@@ -426,19 +430,20 @@ function resetFilters(): void {
   color: var(--iot-color-info-text);
 }
 
+/* Сетка с равными колонками: поиск и чекбокс — на всю строку, фильтры одной ширины. */
 .tasks__toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
   align-items: center;
   gap: var(--iot-space-2);
 }
 
-.tasks__search {
-  flex: 1 1 260px;
+.tasks__search,
+.tasks__check {
+  grid-column: 1 / -1;
 }
 
 .tasks__filter {
-  flex: 0 1 190px;
   min-width: 0;
 }
 

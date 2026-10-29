@@ -22,6 +22,7 @@ import StatusBadge from '@/components/StatusBadge.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useContextStore } from '@/stores/context';
 import { formatDate, formatDateTime } from '@/utils/format';
+import { setDocumentTitle } from '@/utils/title';
 import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
 import ObservationDialog from './ObservationDialog.vue';
 import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
@@ -122,6 +123,11 @@ watch(
   },
   { immediate: true },
 );
+
+// Фамилия и имя во вкладке браузера, чтобы различать открытые профили.
+watch(profile, (value) => {
+  if (value) setDocumentTitle(`${value.lastName} ${value.firstName}`);
+});
 
 watch(tab, (value) => {
   if (value === 'history' && history.value === null) void loadHistory();
