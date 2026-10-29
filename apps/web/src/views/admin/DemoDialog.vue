@@ -92,6 +92,8 @@ watch(
 onBeforeUnmount(() => {
   if (timer) clearTimeout(timer);
 });
+
+const version = import.meta.env.VITE_APP_VERSION;
 </script>
 
 <template>
@@ -116,6 +118,8 @@ onBeforeUnmount(() => {
         </dd>
         <dt>Демо-данные</dt>
         <dd>{{ stageText }}</dd>
+        <dt>Версия системы</dt>
+        <dd>{{ version }}</dd>
       </dl>
 
       <Message v-if="running" severity="info" :closable="false">

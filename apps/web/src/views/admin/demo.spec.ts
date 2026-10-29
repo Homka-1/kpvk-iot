@@ -45,6 +45,7 @@ describe('Демонстрационное отображение', () => {
     await flushPromises();
     expect(document.body.textContent).toContain('Не подготовлены');
     expect(document.body.textContent).toContain('01.10.2025 — 30.04.2026');
+    expect(document.body.textContent).toMatch(/Версия системы\s*\d+\.\d+\.\d+/);
     const toggle = [...document.body.querySelectorAll('button')].find((button) =>
       button.textContent?.includes('Включить отображение'),
     );
