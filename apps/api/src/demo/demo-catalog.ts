@@ -33,11 +33,16 @@ export interface DemoTeacher {
   middleName: string;
 }
 
+/** Преподаватель из рабочей базы: ищется по логину, учётная запись и пароль не меняются. */
+export interface ExistingTeacher {
+  existingLogin: string;
+}
+
 export interface DemoDiscipline {
   name: string;
   code: string;
   description: string;
-  teacher: DemoTeacher;
+  teacher: DemoTeacher | ExistingTeacher;
 }
 
 export const DEMO_DISCIPLINES: DemoDiscipline[] = [
@@ -107,7 +112,19 @@ export const DEMO_DISCIPLINES: DemoDiscipline[] = [
       middleName: 'Бауржановна',
     },
   },
+  {
+    name: 'ДО Веб-дизайн',
+    code: 'ДО.01',
+    description: 'Дополнительное образование: основы вёрстки, композиции и цвета в веб-дизайне.',
+    // Задорожнюк Вера Викторовна.
+    teacher: { existingLogin: 'super_prepod' },
+  },
 ];
+
+/** Логины созданных генератором преподавателей. */
+export const DEMO_TEACHER_LOGINS = DEMO_DISCIPLINES.flatMap((item) =>
+  'login' in item.teacher ? [item.teacher.login] : [],
+);
 
 /** Дисциплины, по которым экспериментальная группа занимается по ИОТ. */
 export const TRAJECTORY_DISCIPLINES = ['Математика', 'Информатика'];
@@ -363,6 +380,28 @@ export const DEMO_ASSIGNMENTS: Record<string, DemoAssignment[]> = {
     libraryOnly('About Myself', 'Знакомство', 'BASIC', 'creative'),
     libraryOnly('IT Vocabulary Presentation', 'English for IT', 'INTERMEDIATE', 'presentation'),
   ],
+  'ДО Веб-дизайн': [
+    libraryOnly('Визитка на HTML', 'Структура HTML-документа', 'BASIC', 'practical'),
+    libraryOnly(
+      'Оформление страницы с помощью CSS',
+      'Каскадные таблицы стилей',
+      'BASIC',
+      'practical',
+    ),
+    libraryOnly(
+      'Цветовая палитра для сайта колледжа',
+      'Цвет и композиция',
+      'INTERMEDIATE',
+      'creative',
+    ),
+    libraryOnly('Адаптивная вёрстка карточек', 'Flexbox и Grid', 'INTERMEDIATE', 'practical'),
+    libraryOnly(
+      'Лендинг учебного проекта',
+      'Проектирование веб-страницы',
+      'ADVANCED',
+      'mini_project',
+    ),
+  ],
 };
 
 function libraryOnly(
@@ -469,6 +508,20 @@ export const DEMO_MATERIALS: [string, string, string, string | null, string][] =
     'English for IT',
     null,
     'Основная лексика для чтения технической документации.',
+  ],
+  [
+    'ДО Веб-дизайн',
+    'Справочник HTML и CSS',
+    'Структура HTML-документа',
+    'https://developer.mozilla.org/ru/docs/Learn',
+    'Учебные материалы MDN по HTML и CSS на русском языке.',
+  ],
+  [
+    'ДО Веб-дизайн',
+    'Памятка: правила сочетания цветов',
+    'Цвет и композиция',
+    null,
+    'Цветовой круг, контраст текста и фона, выбор основного и акцентного цвета.',
   ],
 ];
 

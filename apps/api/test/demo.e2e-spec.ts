@@ -98,6 +98,7 @@ describe('Демо-режим (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let admin: LoggedIn;
+  let webDesignerId: string;
   let teacher: LoggedIn;
   let paperSessionId: string;
   const experimental: string[] = [];
@@ -152,6 +153,25 @@ describe('Демо-режим (e2e)', () => {
       lastName: 'Исследователь',
     });
     teacher = await login(app, teacherUser.login);
+    // Администратор с ролью преподавателя ведёт «ДО Веб-дизайн» (как в рабочей базе).
+    const webDesigner = await createUser(app, {
+      role: RoleCode.ADMIN,
+      login: 'super_prepod',
+      lastName: 'Задорожнюк',
+    });
+    await prisma.user.update({
+      where: { id: webDesigner.id },
+      data: {
+        firstName: 'Вера',
+        middleName: 'Викторовна',
+        roles: {
+          create: {
+            roleId: (await prisma.role.findUniqueOrThrow({ where: { code: RoleCode.TEACHER } })).id,
+          },
+        },
+      },
+    });
+    webDesignerId = webDesigner.id;
     const studentRole = await prisma.role.findUniqueOrThrow({ where: { code: RoleCode.STUDENT } });
     const passwordHash = await hashPassword('Студент-пароль-2026');
     for (const [name, list] of [
@@ -291,9 +311,21 @@ describe('Демо-режим (e2e)', () => {
     expect(await prisma.lessonJournalEntry.count()).toBe(lessons * experimental.length);
     expect(await prisma.researchParticipant.count()).toBe(experimental.length + control.length);
     expect(await prisma.academicResult.count({ where: { source: 'SEMESTER_IMPORT' } })).toBe(
-      (experimental.length + control.length) * 6 * 2,
+      (experimental.length + control.length) * 7 * 2,
     );
     expect(await prisma.feedback.count()).toBeGreaterThan(0);
+
+    // Администратор-преподаватель закреплён только за своей дисциплиной, остальные преподаватели
+    // рабочей базы — за всеми дисциплинами групп исследования.
+    const webDesign = await prisma.teacherAssignment.findMany({
+      where: { teacherId: webDesignerId },
+      include: { discipline: true },
+    });
+    expect(webDesign).toHaveLength(2);
+    expect(webDesign.every((item) => item.discipline.name === 'ДО Веб-дизайн')).toBe(true);
+    expect(
+      await prisma.assignment.count({ where: { discipline: { name: 'ДО Веб-дизайн' } } }),
+    ).toBe(5);
 
     // Сгенерированные преподаватели входят с паролем из ТЗ заказчика.
     await http()

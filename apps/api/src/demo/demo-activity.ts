@@ -30,9 +30,11 @@ import {
   CORRECTION_REASONS,
   DEMO_ASSIGNMENTS,
   DEMO_DISCIPLINES,
+  DEMO_TEACHER_LOGINS,
   DEMO_MATERIALS,
   DEMO_PERIOD,
   DEMO_TEACHER_PASSWORD,
+  type DemoTeacher,
   EXPERIMENTAL_GROUP,
   FINAL_ASSESSMENTS,
   OBSERVATION_NOTES,
@@ -378,36 +380,34 @@ export class DemoActivityGenerator {
     const teacherRole = await this.prisma.role.findUniqueOrThrow({
       where: { code: RoleCode.TEACHER },
     });
-    const existingTeachers = (
-      await this.prisma.user.findMany({
-        where: {
-          status: 'ACTIVE',
-          roles: { some: { roleId: teacherRole.id } },
-          login: { notIn: DEMO_DISCIPLINES.map((item) => item.teacher.login) },
-        },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true },
-      })
-    ).map((user) => user.id);
+    const existingTeachers = await this.prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        roles: { some: { roleId: teacherRole.id } },
+        login: { notIn: DEMO_TEACHER_LOGINS },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        login: true,
+        roles: { select: { role: { select: { code: true } } } },
+      },
+    });
     const passwordHash = await hashPassword(DEMO_TEACHER_PASSWORD);
     const created = at(TIMELINE_START, '11:00');
 
     const result = new Map<string, DisciplineInfo>();
     for (const item of DEMO_DISCIPLINES) {
-      const teacher =
-        (await this.prisma.user.findUnique({ where: { login: item.teacher.login } })) ??
-        (await this.prisma.user.create({
-          data: {
-            ...item.teacher,
-            passwordHash,
-            createdById: ctx.adminId,
-            createdAt: created,
-            passwordChangedAt: created,
-            roles: {
-              create: { roleId: teacherRole.id, grantedById: ctx.adminId, grantedAt: created },
-            },
-          },
-        }));
+      const { teacher } = item;
+      const teacherId =
+        'login' in teacher
+          ? await this.demoTeacher(ctx, teacher, teacherRole.id, passwordHash, created)
+          : // Преподаватель из рабочей базы; если его нет — первый существующий преподаватель.
+            (
+              existingTeachers.find((user) => user.login === teacher.existingLogin) ??
+              existingTeachers[0]
+            )?.id;
+      if (!teacherId) continue;
       const discipline =
         (await this.prisma.discipline.findUnique({ where: { name: item.name } })) ??
         (await this.prisma.discipline.create({
@@ -421,13 +421,19 @@ export class DemoActivityGenerator {
             createdAt: created,
           },
         }));
-      result.set(item.name, { id: discipline.id, name: item.name, teacherId: teacher.id });
+      result.set(item.name, { id: discipline.id, name: item.name, teacherId });
     }
 
+    // Существующие преподаватели без роли администратора закрепляются за всеми дисциплинами,
+    // чтобы видеть данные групп. Администратору закрепления не нужны: ему доступны все группы,
+    // а в списках дисциплин он остаётся только у своей.
+    const assistants = existingTeachers
+      .filter((user) => !user.roles.some(({ role }) => role.code === RoleCode.ADMIN))
+      .map((user) => user.id);
     const pairs: Prisma.TeacherAssignmentCreateManyInput[] = [];
     for (const groupId of [ctx.groups.experimental, ctx.groups.control]) {
       for (const discipline of result.values()) {
-        for (const teacherId of [discipline.teacherId, ...existingTeachers]) {
+        for (const teacherId of new Set([discipline.teacherId, ...assistants])) {
           pairs.push({
             teacherId,
             groupId,
@@ -451,8 +457,31 @@ export class DemoActivityGenerator {
     });
     // Решения по профилям принимает преподаватель-исследователь: существующая учётная запись
     // преподавателя, а если её нет — преподаватель математики.
-    ctx.state.curatorId = existingTeachers[0] ?? result.get('Математика')!.teacherId;
+    ctx.state.curatorId = existingTeachers[0]?.id ?? result.get('Математика')!.teacherId;
     return result;
+  }
+
+  /** Учётная запись сгенерированного преподавателя (создаётся при первой подготовке). */
+  private async demoTeacher(
+    ctx: Context,
+    teacher: DemoTeacher,
+    roleId: string,
+    passwordHash: string,
+    created: Date,
+  ): Promise<string> {
+    const user =
+      (await this.prisma.user.findUnique({ where: { login: teacher.login } })) ??
+      (await this.prisma.user.create({
+        data: {
+          ...teacher,
+          passwordHash,
+          createdById: ctx.adminId,
+          createdAt: created,
+          passwordChangedAt: created,
+          roles: { create: { roleId, grantedById: ctx.adminId, grantedAt: created } },
+        },
+      }));
+    return user.id;
   }
 
   private async library(
