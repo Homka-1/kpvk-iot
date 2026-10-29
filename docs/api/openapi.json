@@ -3073,6 +3073,476 @@
         ]
       }
     },
+    "/api/control-works/options": {
+      "get": {
+        "operationId": "ControlWorksController_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlOptionsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Группы и дисциплины для контрольных работ",
+        "tags": [
+          "Академические достижения"
+        ]
+      }
+    },
+    "/api/control-works": {
+      "get": {
+        "description": "Работы доступных групп, сначала последние по дате проведения; по каждой группе — число баллов и средний балл.",
+        "operationId": "ControlWorksController_list",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "disciplineId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ENTRY",
+                "CURRENT",
+                "FINAL"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlWorkListResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Контрольные работы",
+        "tags": [
+          "Академические достижения"
+        ]
+      },
+      "post": {
+        "description": "Одна работа — одна тема, вид контроля и рубрика для всех выбранных групп. Преподаватель выбирает только группы, где ведёт дисциплину. Записывается в журнал аудита.",
+        "operationId": "ControlWorksController_create",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Ключ формы: повторная отправка не создаёт дублей (NFR-006)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlWorkInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlWorkDetailResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Создание контрольной работы",
+        "tags": [
+          "Академические достижения"
+        ]
+      }
+    },
+    "/api/control-works/{id}": {
+      "get": {
+        "description": "По каждой группе — описательные статистики баллов, число отметок и студентов без данных. Отметки и пропуски в расчёт не входят (FR-074).",
+        "operationId": "ControlWorksController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlWorkDetailResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Контрольная работа со сравнением групп",
+        "tags": [
+          "Академические достижения"
+        ]
+      },
+      "put": {
+        "description": "Группу с результатами убрать нельзя, дисциплину работы с результатами — тоже (409). Записывается в журнал аудита.",
+        "operationId": "ControlWorksController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlWorkInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlWorkDetailResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Изменение контрольной работы",
+        "tags": [
+          "Академические достижения"
+        ]
+      },
+      "delete": {
+        "description": "Удаляется вместе с результатами; число результатов записывается в журнал аудита.",
+        "operationId": "ControlWorksController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Удаление контрольной работы",
+        "tags": [
+          "Академические достижения"
+        ]
+      }
+    },
+    "/api/control-works/{id}/groups/{groupId}/results": {
+      "get": {
+        "description": "Все студенты группы (ФИО из базы) и их результаты: балл, отметка или нет данных.",
+        "operationId": "ControlWorksController_sheet",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlSheetResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ведомость группы по работе",
+        "tags": [
+          "Академические достижения"
+        ]
+      },
+      "put": {
+        "description": "Ведомость целиком: балл 0–100 (до 0,1) или отметка «Отсутствовал», «Не выполнил работу», «Освобождён». Без балла и отметки — нет данных, ноль не записывается (FR-074). Записывается в журнал аудита.",
+        "operationId": "ControlWorksController_saveSheet",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlResultsInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlSheetResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Сохранение ведомости группы",
+        "tags": [
+          "Академические достижения"
+        ]
+      }
+    },
+    "/api/control-works/{id}/groups/{groupId}/import": {
+      "post": {
+        "description": "Сопоставляет студентов группы по ФИО и распознаёт балл или отметку. Ничего не сохраняет: ведомость сохраняется отдельно.",
+        "operationId": "ControlWorksController_preview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV или XLSX до 1 МБ: ФИО | Результат"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControlImportPreviewResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Разбор файла результатов для ведомости",
+        "tags": [
+          "Академические достижения"
+        ]
+      }
+    },
+    "/api/students/{id}/control-results": {
+      "get": {
+        "description": "Результаты по дате проведения и по каждой дисциплине — средний балл входного и итогового контроля и их разность.",
+        "operationId": "StudentControlResultsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentControlResultsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Результаты контрольных работ студента",
+        "tags": [
+          "Академические достижения"
+        ]
+      }
+    },
+    "/api/cabinet/control-results": {
+      "get": {
+        "operationId": "CabinetControlResultsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentControlResultsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Мои результаты контрольных работ",
+        "tags": [
+          "Кабинет студента"
+        ]
+      }
+    },
     "/api/diagnostic-directions": {
       "get": {
         "operationId": "DiagnosticDirectionsController_list",
@@ -12893,6 +13363,627 @@
           "semesters"
         ]
       },
+      "ControlOptionsResponseDto": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRefDto"
+            }
+          },
+          "disciplines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRefDto"
+            }
+          },
+          "pairs": {
+            "nullable": true,
+            "description": "null — любые пары",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PairDto"
+            }
+          }
+        },
+        "required": [
+          "groups",
+          "disciplines",
+          "pairs"
+        ]
+      },
+      "ControlWorkGroupResponseDto": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "scored": {
+            "type": "number",
+            "description": "Студентов с баллом"
+          },
+          "mean": {
+            "type": "number",
+            "nullable": true,
+            "description": "Средний балл; null — нет баллов"
+          }
+        },
+        "required": [
+          "group",
+          "date",
+          "scored",
+          "mean"
+        ]
+      },
+      "ControlWorkResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ENTRY",
+              "CURRENT",
+              "FINAL"
+            ]
+          },
+          "criteria": {
+            "type": "string",
+            "nullable": true
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlWorkGroupResponseDto"
+            }
+          },
+          "author": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PersonRefDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Можно менять работу и вносить результаты во всех её группах"
+          }
+        },
+        "required": [
+          "id",
+          "discipline",
+          "topic",
+          "kind",
+          "criteria",
+          "groups",
+          "author",
+          "createdAt",
+          "canEdit"
+        ]
+      },
+      "ControlWorkListResponseDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlWorkResponseDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ControlWorkGroupInputDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Дата проведения в группе, YYYY-MM-DD"
+          }
+        },
+        "required": [
+          "groupId",
+          "date"
+        ]
+      },
+      "ControlWorkInputDto": {
+        "type": "object",
+        "properties": {
+          "disciplineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "topic": {
+            "type": "string",
+            "description": "Тема работы",
+            "maxLength": 300
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ENTRY",
+              "CURRENT",
+              "FINAL"
+            ]
+          },
+          "criteria": {
+            "type": "string",
+            "nullable": true,
+            "description": "Критерии оценивания (рубрика) текстом"
+          },
+          "groups": {
+            "description": "Группы, в которых проводится работа: одно задание и рубрика для всех",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlWorkGroupInputDto"
+            }
+          }
+        },
+        "required": [
+          "disciplineId",
+          "topic",
+          "kind",
+          "groups"
+        ]
+      },
+      "DescriptiveStatsResponseDto": {
+        "type": "object",
+        "properties": {
+          "n": {
+            "type": "number",
+            "description": "Наблюдений со значением"
+          },
+          "missing": {
+            "type": "number",
+            "description": "Наблюдений без значения: в расчёт не входят (FR-073, FR-074)"
+          },
+          "mean": {
+            "type": "number",
+            "nullable": true,
+            "description": "Нет значений — null"
+          },
+          "median": {
+            "type": "number",
+            "nullable": true,
+            "description": "Нет значений — null"
+          },
+          "sd": {
+            "type": "number",
+            "nullable": true,
+            "description": "Выборочное (n − 1); при n < 2 — null"
+          },
+          "min": {
+            "type": "number",
+            "nullable": true,
+            "description": "Нет значений — null"
+          },
+          "q1": {
+            "type": "number",
+            "nullable": true,
+            "description": "Нижний квартиль (линейная интерполяция)"
+          },
+          "q3": {
+            "type": "number",
+            "nullable": true,
+            "description": "Верхний квартиль (линейная интерполяция)"
+          },
+          "max": {
+            "type": "number",
+            "nullable": true,
+            "description": "Нет значений — null"
+          }
+        },
+        "required": [
+          "n",
+          "missing",
+          "mean",
+          "median",
+          "sd",
+          "min",
+          "q1",
+          "q3",
+          "max"
+        ]
+      },
+      "ControlMarksResponseDto": {
+        "type": "object",
+        "properties": {
+          "ABSENT": {
+            "type": "number"
+          },
+          "NOT_SUBMITTED": {
+            "type": "number"
+          },
+          "EXEMPT": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "ABSENT",
+          "NOT_SUBMITTED",
+          "EXEMPT"
+        ]
+      },
+      "ControlWorkGroupStatsResponseDto": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "stats": {
+            "description": "Статистики баллов; missing — студенты без балла (отметка или нет данных)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DescriptiveStatsResponseDto"
+              }
+            ]
+          },
+          "marks": {
+            "$ref": "#/components/schemas/ControlMarksResponseDto"
+          },
+          "noData": {
+            "type": "number",
+            "description": "Студентов без балла и без отметки"
+          }
+        },
+        "required": [
+          "group",
+          "date",
+          "stats",
+          "marks",
+          "noData"
+        ]
+      },
+      "ControlWorkDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "work": {
+            "$ref": "#/components/schemas/ControlWorkResponseDto"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlWorkGroupStatsResponseDto"
+            }
+          }
+        },
+        "required": [
+          "work",
+          "groups"
+        ]
+      },
+      "ControlSheetRowResponseDto": {
+        "type": "object",
+        "properties": {
+          "student": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "score": {
+            "type": "number",
+            "nullable": true
+          },
+          "mark": {
+            "type": "string",
+            "enum": [
+              "ABSENT",
+              "NOT_SUBMITTED",
+              "EXEMPT"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "student",
+          "score",
+          "mark"
+        ]
+      },
+      "ControlSheetResponseDto": {
+        "type": "object",
+        "properties": {
+          "work": {
+            "$ref": "#/components/schemas/ControlWorkResponseDto"
+          },
+          "group": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlSheetRowResponseDto"
+            }
+          },
+          "canEdit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "work",
+          "group",
+          "date",
+          "rows",
+          "canEdit"
+        ]
+      },
+      "ControlResultInputDto": {
+        "type": "object",
+        "properties": {
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "score": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Балл 0–100 (до 0,1); null — балла нет"
+          },
+          "mark": {
+            "type": "string",
+            "enum": [
+              "ABSENT",
+              "NOT_SUBMITTED",
+              "EXEMPT"
+            ],
+            "nullable": true,
+            "description": "Отметка вместо балла; null — отметки нет"
+          }
+        },
+        "required": [
+          "studentId",
+          "score",
+          "mark"
+        ]
+      },
+      "ControlResultsInputDto": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "description": "Ведомость группы целиком. Студент без балла и отметки или не переданный — «нет данных».",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlResultInputDto"
+            }
+          }
+        },
+        "required": [
+          "entries"
+        ]
+      },
+      "ControlImportResolvedDto": {
+        "type": "object",
+        "properties": {
+          "student": {
+            "$ref": "#/components/schemas/PersonRefDto"
+          },
+          "score": {
+            "type": "number",
+            "nullable": true
+          },
+          "mark": {
+            "type": "string",
+            "enum": [
+              "ABSENT",
+              "NOT_SUBMITTED",
+              "EXEMPT"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "student",
+          "score",
+          "mark"
+        ]
+      },
+      "ControlImportRowResponseDto": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "number"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "resolved": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ControlImportResolvedDto"
+              }
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "line",
+          "studentName",
+          "result",
+          "resolved",
+          "errors"
+        ]
+      },
+      "ControlImportPreviewResponseDto": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ControlImportRowResponseDto"
+            }
+          },
+          "validCount": {
+            "type": "number"
+          },
+          "invalidCount": {
+            "type": "number"
+          },
+          "fileErrors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "rows",
+          "validCount",
+          "invalidCount",
+          "fileErrors"
+        ]
+      },
+      "StudentControlWorkRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ENTRY",
+              "CURRENT",
+              "FINAL"
+            ]
+          },
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          }
+        },
+        "required": [
+          "id",
+          "topic",
+          "kind",
+          "discipline"
+        ]
+      },
+      "StudentControlResultResponseDto": {
+        "type": "object",
+        "properties": {
+          "work": {
+            "$ref": "#/components/schemas/StudentControlWorkRefDto"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "score": {
+            "type": "number",
+            "nullable": true
+          },
+          "mark": {
+            "type": "string",
+            "enum": [
+              "ABSENT",
+              "NOT_SUBMITTED",
+              "EXEMPT"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "work",
+          "date",
+          "score",
+          "mark"
+        ]
+      },
+      "StudentControlProgressResponseDto": {
+        "type": "object",
+        "properties": {
+          "discipline": {
+            "$ref": "#/components/schemas/NamedRefDto"
+          },
+          "entry": {
+            "type": "number",
+            "nullable": true,
+            "description": "Средний балл входного контроля"
+          },
+          "final": {
+            "type": "number",
+            "nullable": true,
+            "description": "Средний балл итогового контроля"
+          },
+          "delta": {
+            "type": "number",
+            "nullable": true,
+            "description": "Итоговый − входной"
+          }
+        },
+        "required": [
+          "discipline",
+          "entry",
+          "final",
+          "delta"
+        ]
+      },
+      "StudentControlResultsResponseDto": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentControlResultResponseDto"
+            }
+          },
+          "progress": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StudentControlProgressResponseDto"
+            }
+          }
+        },
+        "required": [
+          "results",
+          "progress"
+        ]
+      },
       "DirectionResponseDto": {
         "type": "object",
         "properties": {
@@ -20093,65 +21184,6 @@
         "required": [
           "from",
           "to"
-        ]
-      },
-      "DescriptiveStatsResponseDto": {
-        "type": "object",
-        "properties": {
-          "n": {
-            "type": "number",
-            "description": "Наблюдений со значением"
-          },
-          "missing": {
-            "type": "number",
-            "description": "Наблюдений без значения: в расчёт не входят (FR-073, FR-074)"
-          },
-          "mean": {
-            "type": "number",
-            "nullable": true,
-            "description": "Нет значений — null"
-          },
-          "median": {
-            "type": "number",
-            "nullable": true,
-            "description": "Нет значений — null"
-          },
-          "sd": {
-            "type": "number",
-            "nullable": true,
-            "description": "Выборочное (n − 1); при n < 2 — null"
-          },
-          "min": {
-            "type": "number",
-            "nullable": true,
-            "description": "Нет значений — null"
-          },
-          "q1": {
-            "type": "number",
-            "nullable": true,
-            "description": "Нижний квартиль (линейная интерполяция)"
-          },
-          "q3": {
-            "type": "number",
-            "nullable": true,
-            "description": "Верхний квартиль (линейная интерполяция)"
-          },
-          "max": {
-            "type": "number",
-            "nullable": true,
-            "description": "Нет значений — null"
-          }
-        },
-        "required": [
-          "n",
-          "missing",
-          "mean",
-          "median",
-          "sd",
-          "min",
-          "q1",
-          "q3",
-          "max"
         ]
       },
       "GroupStatsResponseDto": {

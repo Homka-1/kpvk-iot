@@ -11,6 +11,7 @@ import { api, ApiError } from '@/api/http';
 import EmptyState from '@/components/EmptyState.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import MetricCard from '@/components/MetricCard.vue';
+import StudentControlResults from '@/views/achievements/StudentControlResults.vue';
 import { formatDate } from '@/utils/format';
 import { scoreText } from '@/views/assignments/status';
 
@@ -175,6 +176,13 @@ const isEmpty = computed(
         <p v-else class="achievements__meta">Пройденной диагностики пока нет.</p>
       </section>
     </template>
+    <!-- Контрольные работы (этап 28) показываются и без траектории: их пишет вся группа. -->
+    <section v-if="data" class="iot-card achievements__controls">
+      <StudentControlResults
+        source="/cabinet/control-results"
+        hint="Баллы по шкале 0–100. Отсутствие и освобождение не считаются нулём."
+      />
+    </section>
   </div>
 </template>
 
@@ -187,6 +195,10 @@ const isEmpty = computed(
 
 .achievements h1 {
   margin: 0;
+}
+
+.achievements__controls {
+  padding: var(--iot-space-4);
 }
 
 .achievements__cards {

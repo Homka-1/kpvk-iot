@@ -72,7 +72,7 @@ onMounted(load);
       v-else-if="semesters.length === 0"
       icon="pi pi-chart-bar"
       title="Нет данных"
-      description="Оценки за семестр ещё не загружены. Их загружают в разделе «Дисциплины» → «Успеваемость»."
+      description="Оценки за семестр ещё не загружены. Их загружают в разделе «Академические достижения» → «Оценки за семестр»."
     />
     <template v-else>
       <p class="student-grades__muted">

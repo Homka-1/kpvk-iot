@@ -30,6 +30,7 @@ import StudentAssignmentsTab from '@/views/assignments/StudentAssignmentsTab.vue
 import StudentTrajectoriesTab from '@/views/trajectories/StudentTrajectoriesTab.vue';
 import StudentSupportTab from '@/views/feedback/StudentSupportTab.vue';
 import StudentGrades from '@/views/grades/StudentGrades.vue';
+import StudentControlResults from '@/views/achievements/StudentControlResults.vue';
 import StudentLessonJournal from '@/views/lessons/StudentLessonJournal.vue';
 import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
@@ -307,6 +308,7 @@ function onStudentChanged(): void {
             <div class="profile__stack">
               <StudentDiagnosticsTab :student-id="studentId" @changed="history = null" />
               <StudentGrades :student-id="studentId" />
+              <StudentControlResults :source="`/students/${studentId}/control-results`" />
             </div>
           </TabPanel>
           <TabPanel value="motivation">

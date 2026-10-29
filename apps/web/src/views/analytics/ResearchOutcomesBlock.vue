@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   formatDateRange,
+  isResearchControlsKey,
   RESEARCH_GRADES_KEY,
   RESEARCH_GROUP_LABELS,
   RESEARCH_GROUPS,
@@ -11,8 +12,9 @@ import StatsTable, { type StatsRow } from './StatsTable.vue';
 
 /**
  * Показатели ЭГ и КГ вне диагностики (этап 27): средний балл за семестры и средние оценки
- * педагогических наблюдений на занятиях «до» и «после», разность у участников с обоими
- * значениями. Пропуски — «Нет данных», а не нули (FR-074).
+ * педагогических наблюдений на занятиях «до» и «после», баллы входного и итогового контроля по
+ * дисциплинам (этап 28), разность у участников с обоими значениями. Пропуски — «Нет данных», а не
+ * нули (FR-074).
  */
 const props = defineProps<{ outcomes: ResearchOutcomesDto }>();
 
@@ -20,6 +22,7 @@ const NOT_SET = 'не выбран';
 
 function phases(indicator: ResearchIndicatorDto): [string, string] {
   const { outcomes } = props;
+  if (isResearchControlsKey(indicator.key)) return ['входной контроль', 'итоговый контроль'];
   if (indicator.key === RESEARCH_GRADES_KEY) {
     return [outcomes.gradesBefore?.label ?? NOT_SET, outcomes.gradesAfter?.label ?? NOT_SET];
   }

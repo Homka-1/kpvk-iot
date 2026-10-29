@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   MOTIVATION_LEVEL_LABELS,
+  type StudentControlResultsDto,
   type TrajectoryDto,
   type TrajectoryOptionsDto,
 } from '@iot/shared';
@@ -15,13 +16,15 @@ import EmptyState from '@/components/EmptyState.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { formatDate } from '@/utils/format';
+import { scoreText } from '@/views/achievements/format';
 import StepsHeader from './StepsHeader.vue';
 
 /**
  * Конструктор ИОТ, шаг 1 (UC-03): дисциплина и шаблон. Система предлагает шаблон по
  * утверждённому мотивационному профилю (FR-035), преподаватель выбирает любой шаблон или
- * создаёт маршрут с нуля (FR-034). После создания черновика конструктор продолжается на
- * странице ИОТ.
+ * создаёт маршрут с нуля (FR-034). Результат входного контроля по дисциплине (этап 28) показан
+ * справочно и сложность заданий не ограничивает (FR-033). После создания черновика конструктор
+ * продолжается на странице ИОТ.
  */
 const route = useRoute();
 const router = useRouter();
@@ -30,6 +33,7 @@ const studentId = computed(() =>
 );
 const options = ref<TrajectoryOptionsDto | null>(null);
 const loadError = ref<string | null>(null);
+const controls = ref<StudentControlResultsDto | null>(null);
 const disciplineId = ref<string | null>(null);
 /** id шаблона или 'scratch' — с нуля. */
 const templateId = ref<string>('scratch');
@@ -43,10 +47,31 @@ const existing = computed(
       ?.currentTrajectoryId ?? null,
 );
 
+/** Входной контроль по выбранной дисциплине; результатов нет — показатель не выводится. */
+const entryControl = computed(() => {
+  const progress = controls.value?.progress.find(
+    (item) => item.discipline.id === disciplineId.value,
+  );
+  const entries = (controls.value?.results ?? []).filter(
+    (item) => item.work.discipline.id === disciplineId.value && item.work.kind === 'ENTRY',
+  );
+  return entries.length > 0 ? { mean: progress?.entry ?? null, date: entries.at(-1)!.date } : null;
+});
+
+async function loadControls(id: string): Promise<void> {
+  try {
+    controls.value = await api<StudentControlResultsDto>(`/students/${id}/control-results`);
+  } catch {
+    // Справочный показатель: без него конструктор работает как прежде.
+    controls.value = null;
+  }
+}
+
 async function load(): Promise<void> {
   if (!studentId.value) return;
   options.value = null;
   loadError.value = null;
+  void loadControls(studentId.value);
   try {
     const result = await api<TrajectoryOptionsDto>(
       `/students/${studentId.value}/trajectory-options`,
@@ -155,6 +180,14 @@ async function create(): Promise<void> {
         </template>
         <span v-else class="new-trajectory__muted">
           Профиль не утверждён — предложен стандартный шаблон.
+        </span>
+      </div>
+
+      <div v-if="entryControl" class="new-trajectory__profile">
+        <span class="iot-field__label">Входной контроль</span>
+        <strong>{{ scoreText(entryControl.mean) }}</strong>
+        <span class="new-trajectory__muted">
+          из 100, {{ formatDate(entryControl.date) }} — справочно, сложность заданий не ограничивает
         </span>
       </div>
 

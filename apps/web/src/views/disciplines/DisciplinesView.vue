@@ -9,7 +9,6 @@ import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useContextStore } from '@/stores/context';
-import GradesPanel from '@/views/grades/GradesPanel.vue';
 import LessonsPanel from '@/views/lessons/LessonsPanel.vue';
 import AssignmentsPanel from './AssignmentsPanel.vue';
 import DisciplinesPanel from './DisciplinesPanel.vue';
@@ -18,8 +17,8 @@ import GroupsPanel from './GroupsPanel.vue';
 /**
  * Служебный раздел «Дисциплины» (п. 3.1 ТЗ): дисциплины, а для администратора — также учебные
  * группы и закрепление преподавателей (справочники п. 2.1 собраны в одном разделе, меню не меняется).
- * Вкладка «Занятия» (этап 25) — расписание и журналы наблюдений на занятиях; вкладка
- * «Успеваемость» (этап 26) — оценки за семестр, их импорт и сравнение семестров.
+ * Вкладка «Занятия» (этап 25) — расписание и журналы наблюдений на занятиях. Оценки за семестр
+ * (этап 26) перенесены в раздел «Академические достижения» (этап 28).
  */
 const route = useRoute();
 const auth = useAuthStore();
@@ -31,7 +30,6 @@ const canLessons = computed(
     auth.hasPermission(Permission.LESSONS_MANAGE) ||
     auth.hasPermission(Permission.OBSERVATIONS_MANAGE),
 );
-const canGrades = computed(() => auth.hasPermission(Permission.STUDENTS_READ));
 // Возврат из журнала занятия открывает вкладку «Занятия».
 const tab = ref(route.query.tab === 'lessons' && canLessons.value ? 'lessons' : 'disciplines');
 
@@ -44,11 +42,10 @@ function refreshContext(): void {
 <template>
   <div class="iot-page">
     <h1>{{ route.meta.title }}</h1>
-    <Tabs v-if="canGroups || canAssign || canLessons || canGrades" v-model:value="tab" scrollable>
+    <Tabs v-if="canGroups || canAssign || canLessons" v-model:value="tab" scrollable>
       <TabList>
         <Tab value="disciplines">Дисциплины</Tab>
         <Tab v-if="canLessons" value="lessons">Занятия</Tab>
-        <Tab v-if="canGrades" value="grades">Успеваемость</Tab>
         <Tab v-if="canGroups" value="groups">Учебные группы</Tab>
         <Tab v-if="canAssign" value="assignments">Закрепление преподавателей</Tab>
       </TabList>
@@ -58,9 +55,6 @@ function refreshContext(): void {
         </TabPanel>
         <TabPanel v-if="canLessons" value="lessons">
           <LessonsPanel />
-        </TabPanel>
-        <TabPanel v-if="canGrades" value="grades">
-          <GradesPanel />
         </TabPanel>
         <TabPanel v-if="canGroups" value="groups">
           <GroupsPanel @changed="refreshContext" />

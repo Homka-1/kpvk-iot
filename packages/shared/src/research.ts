@@ -487,7 +487,7 @@ export const researchCriterionKey = (criterionId: string) =>
 export const RESEARCH_CONTROLS_KEY = 'controls';
 export const researchControlsKey = (disciplineId: string) =>
   `${RESEARCH_CONTROLS_KEY}:${disciplineId}`;
-const isControlsKey = (key: string) => key.startsWith(`${RESEARCH_CONTROLS_KEY}:`);
+export const isResearchControlsKey = (key: string) => key.startsWith(`${RESEARCH_CONTROLS_KEY}:`);
 
 export interface ResearchIndicatorDto {
   key: string;
@@ -683,7 +683,7 @@ export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOut
             },
           ];
         }
-        if (isControlsKey(indicator.key)) {
+        if (isResearchControlsKey(indicator.key)) {
           const item = progress.get(indicator.key);
           return [indicator.key, { before: item?.entry ?? null, after: item?.final ?? null }];
         }
@@ -855,7 +855,7 @@ export function buildResearchAggregateTable(
 /** Подписи периодов «до» и «после» показателя: семестры или периоды наблюдений. */
 function outcomePhases(outcomes: ResearchOutcomesDto, indicatorKey: string): [string, string] {
   const unset = 'не задан';
-  if (isControlsKey(indicatorKey)) return ['входной контроль', 'итоговый контроль'];
+  if (isResearchControlsKey(indicatorKey)) return ['входной контроль', 'итоговый контроль'];
   if (indicatorKey === RESEARCH_GRADES_KEY) {
     return [outcomes.gradesBefore?.label ?? unset, outcomes.gradesAfter?.label ?? unset];
   }
@@ -903,7 +903,7 @@ export function buildResearchWideTable(data: ResearchDataDto): ExportTable {
   const indicators = outcomes.indicators.flatMap((indicator) => {
     const [before, after] = outcomePhases(outcomes, indicator.key);
     const unit = indicator.key === RESEARCH_GRADES_KEY ? 'семестр: ' : 'период: ';
-    const prefix = isControlsKey(indicator.key) ? '' : unit;
+    const prefix = isResearchControlsKey(indicator.key) ? '' : unit;
     return [
       {
         label: `${indicator.name} — до (${prefix}${before})`,

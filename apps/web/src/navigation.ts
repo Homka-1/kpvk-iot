@@ -23,7 +23,7 @@ export interface NavItem {
   permission?: Permission;
 }
 
-/** Основное меню преподавателя (п. 3.1, пункты 1–10). */
+/** Основное меню преподавателя (п. 3.1, пункты 1–10, и «Академические достижения» — этап 28). */
 export const TEACHER_NAV: readonly NavItem[] = [
   { name: 'home', path: '/', label: 'Главная', icon: 'pi pi-home' },
   {
@@ -67,6 +67,15 @@ export const TEACHER_NAV: readonly NavItem[] = [
     label: 'Мониторинг',
     icon: 'pi pi-chart-line',
     permission: Permission.MONITORING_READ,
+  },
+  {
+    // Этап 28: пункт добавлен по решению заказчика 2026-10-29 (сразу после «Мониторинга»).
+    name: 'achievements',
+    path: '/achievements',
+    label: 'Академические достижения',
+    shortLabel: 'Достижения',
+    icon: 'pi pi-graduation-cap',
+    permission: Permission.STUDENTS_READ,
   },
   {
     name: 'feedback',

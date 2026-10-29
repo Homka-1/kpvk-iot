@@ -39,6 +39,7 @@ const SECTION_VIEWS: Partial<Record<string, RouteComponent | (() => Promise<Rout
   trajectories: () => import('@/views/trajectories/TrajectoriesView.vue'),
   assignments: () => import('@/views/assignments/AssignmentsView.vue'),
   monitoring: () => import('@/views/monitoring/MonitoringView.vue'),
+  achievements: () => import('@/views/achievements/AchievementsView.vue'),
   feedback: () => import('@/views/feedback/FeedbackView.vue'),
   library: () => import('@/views/library/LibraryView.vue'),
   analytics: () => import('@/views/analytics/AnalyticsView.vue'),
@@ -133,6 +134,13 @@ export const routes: RouteRecordRaw[] = [
         name: 'lesson-journal',
         component: () => import('@/views/lessons/LessonJournalView.vue'),
         meta: { title: 'Журнал занятия', permission: Permission.OBSERVATIONS_MANAGE },
+      },
+      // Контрольная работа и ведомости групп — вложенная страница «Академических достижений».
+      {
+        path: 'achievements/works/:id',
+        name: 'control-work',
+        component: () => import('@/views/achievements/ControlWorkView.vue'),
+        meta: { title: 'Контрольная работа', permission: Permission.STUDENTS_READ },
       },
       // Исследование — вложенная страница раздела «Аналитика».
       {
