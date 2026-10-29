@@ -28,6 +28,7 @@ import {
   CONSULTATION_SUMMARIES,
   CONSULTATION_TOPICS,
   CONTROL_GROUP,
+  DEMO_FRESH_DIAGNOSTICS,
   CORRECTION_REASONS,
   CONTROL_DISCIPLINE,
   DEMO_ASSIGNMENTS,
@@ -165,6 +166,7 @@ export class DemoActivityGenerator {
     const ctx = await this.context(random, null);
     report('Перенос существующих данных на период исследования');
     await this.rebaseTimeline(ctx);
+    await this.resetDiagnostics(ctx);
     report('Преподаватели и дисциплины');
     const disciplines = await this.teachersAndDisciplines(ctx);
     report('Библиотека заданий и материалов');
@@ -367,6 +369,43 @@ export class DemoActivityGenerator {
   }
 
   // ── Перенос существующих данных ──
+
+  /**
+   * Прохождения, профили и индивидуальные назначения диагностики студентов из
+   * `DEMO_FRESH_DIAGNOSTICS` удаляются в копии: первичный замер создаёт им новые прохождения.
+   * Триггеры (и действия внешних ключей) отключены, поэтому ссылки снимаются явно.
+   */
+  private async resetDiagnostics(ctx: Context): Promise<void> {
+    const studentIds = (
+      await this.prisma.student.findMany({
+        where: {
+          participantCode: { in: DEMO_FRESH_DIAGNOSTICS },
+          id: { in: ctx.students.map((student) => student.id) },
+        },
+        select: { id: true },
+      })
+    ).map((student) => student.id);
+    if (studentIds.length === 0) return;
+    const ofStudents = { studentId: { in: studentIds } };
+    await this.withoutTriggers(async (tx) => {
+      await tx.student.updateMany({
+        where: { id: { in: studentIds } },
+        data: { currentMotivationProfileId: null },
+      });
+      await tx.trajectory.updateMany({
+        where: { motivationProfile: ofStudents },
+        data: { motivationProfileId: null },
+      });
+      await tx.motivationProfileSource.deleteMany({ where: { profile: ofStudents } });
+      await tx.motivationProfileHistory.deleteMany({ where: { profile: ofStudents } });
+      await tx.motivationProfile.deleteMany({ where: ofStudents });
+      await tx.diagnosticScore.deleteMany({ where: { session: ofStudents } });
+      await tx.diagnosticAnswer.deleteMany({ where: { session: ofStudents } });
+      await tx.diagnosticRevision.deleteMany({ where: { session: ofStudents } });
+      await tx.diagnosticSession.deleteMany({ where: ofStudents });
+      await tx.diagnosticAssignment.deleteMany({ where: ofStudents });
+    });
+  }
 
   /**
    * Учётные записи, группы, студенты и методики созданы в рабочей базе позже периода

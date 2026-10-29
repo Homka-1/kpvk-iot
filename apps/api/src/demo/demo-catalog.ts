@@ -1,5 +1,11 @@
 import type { ControlKind, DifficultyLevel, MotivationLevel, SubmissionFormat } from '@iot/shared';
 
+/**
+ * Коды участников, чьи прохождения диагностики из рабочей базы в демо не переносятся: в копии
+ * они удаляются вместе с профилями, и первичный замер проходится заново.
+ */
+export const DEMO_FRESH_DIAGNOSTICS = ['S-8JGXYQ'];
+
 /** Группы исследования: экспериментальная занимается по ИОТ, контрольная — без ИОТ. */
 export const EXPERIMENTAL_GROUP = 'ПО-9 ЭГ';
 export const CONTROL_GROUP = 'ПО-9 КГ';

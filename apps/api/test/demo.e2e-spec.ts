@@ -18,6 +18,7 @@ import {
 import request from 'supertest';
 import {
   CONTROL_GROUP,
+  DEMO_FRESH_DIAGNOSTICS,
   DEMO_TEACHER_PASSWORD,
   EXPERIMENTAL_GROUP,
 } from '../src/demo/demo-catalog.js';
@@ -101,6 +102,7 @@ describe('Демо-режим (e2e)', () => {
   let webDesignerId: string;
   let teacher: LoggedIn;
   let paperSessionId: string;
+  let freshSessionId: string;
   const experimental: string[] = [];
   const control: string[] = [];
 
@@ -279,6 +281,14 @@ describe('Демо-режим (e2e)', () => {
     await paper(mean.id, control[0]!, [5, 5, 1, 3, 3, 3]);
     await paper(sum.id, control[0]!, [1, 1, 5, 3, 3, 3]);
     expect((await formProfile(control[0]!)).status).toBe('NEEDS_MORE_DIAGNOSTICS');
+
+    // Прохождения студента из DEMO_FRESH_DIAGNOSTICS в копию не переносятся.
+    await prisma.student.update({
+      where: { id: control[2]! },
+      data: { participantCode: DEMO_FRESH_DIAGNOSTICS[0] },
+    });
+    freshSessionId = await paper(mean.id, control[2]!, [5, 5, 1, 3, 3, 3]);
+    await formProfile(control[2]!);
   }, 120_000);
 
   afterAll(async () => {
@@ -334,6 +344,8 @@ describe('Демо-режим (e2e)', () => {
     expect(sessions.every((item) => item.completedAt! < new Date('2025-10-18T00:00:00Z'))).toBe(
       true,
     );
+    expect(sessions.some((item) => item.id === freshSessionId)).toBe(false);
+    expect(await prisma.diagnosticAssignment.count({ where: { studentId: control[2]! } })).toBe(0);
     const moved = sessions.find((item) => item.id === paperSessionId)!;
     expect(moved.completedAt!.toISOString().slice(0, 7)).toBe('2025-10');
     const students = await prisma.student.findMany({
