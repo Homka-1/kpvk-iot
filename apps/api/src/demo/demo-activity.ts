@@ -28,12 +28,16 @@ import {
   CONSULTATION_TOPICS,
   CONTROL_GROUP,
   CORRECTION_REASONS,
+  CONTROL_DISCIPLINE,
   DEMO_ASSIGNMENTS,
+  DEMO_CONTROL_WORKS,
   DEMO_DISCIPLINES,
+  DEMO_FINAL_CONTROL_WORK,
   DEMO_TEACHER_LOGINS,
   DEMO_MATERIALS,
   DEMO_PERIOD,
   DEMO_TEACHER_PASSWORD,
+  type DemoControlWork,
   type DemoTeacher,
   EXPERIMENTAL_GROUP,
   FINAL_ASSESSMENTS,
@@ -136,7 +140,8 @@ interface Context {
  * Генератор демонстрационной активности за период исследования (октябрь 2025 — апрель 2026):
  * преподаватели и дисциплины, расписание с журналом наблюдений, первичная диагностика и
  * профили, исследование ЭГ/КГ, ИОТ экспериментальной группы с заданиями и проверкой,
- * обратная связь, консультации, оценки за семестры; отдельно — повторный замер.
+ * обратная связь, консультации, оценки за семестры, входной и текущий контроль; отдельно —
+ * повторный замер с итоговым контролем.
  * Работает с базой, выбранной `databaseRouter` (копией); расчёт баллов и предложение профиля —
  * теми же функциями, что и в приложении, поэтому уровни следуют правилам методик.
  */
@@ -177,6 +182,13 @@ export class DemoActivityGenerator {
     await this.observations(ctx, disciplines);
     report('Оценки за семестры');
     await this.grades(ctx, disciplines);
+    report('Входной и текущий контроль');
+    const controls = disciplines.get(CONTROL_DISCIPLINE);
+    if (controls) {
+      for (const work of DEMO_CONTROL_WORKS) {
+        await this.controlWork(ctx, controls.id, controls.teacherId, work);
+      }
+    }
     report('Завершение');
     await this.finish(ctx, DemoStage.PRIMARY);
   }
@@ -222,6 +234,18 @@ export class DemoActivityGenerator {
           status: 'COMPLETED',
         },
       );
+    }
+    report('Итоговый контроль');
+    // Итоговая работа — та же, что входная: дисциплина и автор берутся из входной работы.
+    const entry = await this.prisma.controlWork.findFirst({
+      where: {
+        kind: 'ENTRY',
+        topic: DEMO_FINAL_CONTROL_WORK.topic,
+        discipline: { name: CONTROL_DISCIPLINE },
+      },
+    });
+    if (entry?.createdById) {
+      await this.controlWork(ctx, entry.disciplineId, entry.createdById, DEMO_FINAL_CONTROL_WORK);
     }
     report('Завершение');
     await this.finish(ctx, DemoStage.REPEATED);
@@ -1949,6 +1973,83 @@ export class DemoActivityGenerator {
     }
     for (let i = 0; i < ratings.length; i += 5000) {
       await this.prisma.lessonRating.createMany({ data: ratings.slice(i, i + 5000) });
+    }
+  }
+
+  // ── Контрольные работы ──
+
+  /**
+   * Контрольная работа обеих групп с результатами. Входной уровень следует мотивации студента;
+   * к итоговому ЭГ растёт заметно (прирост мотивации за ИОТ), КГ — едва. Отметки вместо балла
+   * редки: отсутствие чаще у слабо мотивированных, невыполнение и освобождение — единичны.
+   */
+  private async controlWork(
+    ctx: Context,
+    disciplineId: string,
+    teacherId: string,
+    plan: DemoControlWork,
+  ): Promise<void> {
+    const { random } = ctx;
+    const createdAt = at(addDays(plan.date, -7), '15:30');
+    const recordedAt = at(addDays(plan.date, 1), '16:00', intBetween(random, 0, 90));
+    const work = await this.prisma.controlWork.create({
+      data: {
+        disciplineId,
+        topic: plan.topic,
+        kind: plan.kind,
+        criteria: plan.criteria,
+        createdById: teacherId,
+        createdAt,
+        updatedAt: createdAt,
+        groups: {
+          create: [ctx.groups.experimental, ctx.groups.control].map((groupId) => ({
+            groupId,
+            date: day(plan.date),
+          })),
+        },
+      },
+    });
+    this.audit(ctx, 'control_work.created', 'control_work', work.id, teacherId, createdAt, {
+      topic: plan.topic,
+      kind: plan.kind,
+    });
+    const rows: Prisma.ControlResultCreateManyInput[] = [];
+    for (const student of ctx.students) {
+      const theta = ctx.state.dispositions[student.id]?.INTRINSIC ?? 0.5;
+      const absent = chance(random, 0.008 + 0.02 * (1 - theta));
+      const mark = absent
+        ? ('ABSENT' as const)
+        : chance(random, 0.006)
+          ? ('NOT_SUBMITTED' as const)
+          : chance(random, 0.002)
+            ? ('EXEMPT' as const)
+            : null;
+      const growth = ctx.state.growth[student.id] ?? 0.2;
+      // При повторном замере мотивация ЭГ уже выросла: входной уровень считается от исходной.
+      const level = plan.kind === 'FINAL' && student.experimental ? theta - growth : theta;
+      const gain = student.experimental
+        ? plan.progress * (8 + 45 * growth)
+        : plan.progress * between(random, -1, 5);
+      const score = clamp(Math.round(42 + 34 * level + gain + noise(random, 6)), 15, 100);
+      rows.push({
+        workId: work.id,
+        studentId: student.id,
+        groupId: student.groupId,
+        score: mark ? null : score,
+        mark,
+        updatedById: teacherId,
+        createdAt: recordedAt,
+        updatedAt: recordedAt,
+      });
+    }
+    await this.prisma.controlResult.createMany({ data: rows });
+    for (const groupId of [ctx.groups.experimental, ctx.groups.control]) {
+      const own = rows.filter((row) => row.groupId === groupId);
+      this.audit(ctx, 'control_results.saved', 'control_work', work.id, teacherId, recordedAt, {
+        groupId,
+        scored: own.filter((row) => row.score !== null).length,
+        marked: own.filter((row) => row.mark !== null).length,
+      });
     }
   }
 

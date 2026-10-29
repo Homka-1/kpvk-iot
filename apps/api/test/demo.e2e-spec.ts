@@ -323,9 +323,26 @@ describe('Демо-режим (e2e)', () => {
     });
     expect(webDesign).toHaveLength(2);
     expect(webDesign.every((item) => item.discipline.name === 'ДО Веб-дизайн')).toBe(true);
+    // ИОТ ЭГ — по веб-дизайну и информатике: 5 этапов × 3 уровня заданий.
     expect(
       await prisma.assignment.count({ where: { discipline: { name: 'ДО Веб-дизайн' } } }),
-    ).toBe(5);
+    ).toBe(15);
+    expect(
+      await prisma.trajectory.count({ where: { discipline: { name: 'ДО Веб-дизайн' } } }),
+    ).toBe(experimental.length);
+
+    // Входной и три текущих контроля — одни и те же работы у обеих групп (этап 28).
+    const works = await prisma.controlWork.findMany({ include: { groups: true, results: true } });
+    expect(works.map((work) => work.kind).sort()).toEqual([
+      'CURRENT',
+      'CURRENT',
+      'CURRENT',
+      'ENTRY',
+    ]);
+    expect(works.every((work) => work.groups.length === 2)).toBe(true);
+    expect(
+      works.every((work) => work.results.length === experimental.length + control.length),
+    ).toBe(true);
 
     // Сгенерированные преподаватели входят с паролем из ТЗ заказчика.
     await http()
@@ -355,6 +372,18 @@ describe('Демо-режим (e2e)', () => {
     expect(await prisma.researchMeasurement.count({ where: { measurementType: 'REPEATED' } })).toBe(
       3,
     );
+
+    // Итоговый контроль — та же работа, что входной: ЭГ растёт заметнее КГ.
+    const scores = async (kind: 'ENTRY' | 'FINAL', students: string[]) => {
+      const rows = await prisma.controlResult.findMany({
+        where: { work: { kind }, studentId: { in: students }, score: { not: null } },
+      });
+      return rows.reduce((sum, row) => sum + row.score!.toNumber(), 0) / rows.length;
+    };
+    const growthEg = (await scores('FINAL', experimental)) - (await scores('ENTRY', experimental));
+    const growthKg = (await scores('FINAL', control)) - (await scores('ENTRY', control));
+    expect(growthEg).toBeGreaterThan(growthKg);
+    expect(growthEg).toBeGreaterThan(8);
     await as(admin, http().post('/api/admin/demo/repeat')).expect(409);
   }, 180_000);
 
