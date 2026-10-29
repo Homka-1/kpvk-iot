@@ -230,6 +230,7 @@ model User {
   teacherAssigns  TeacherAssignment[]
   lessons         Lesson[]
   gradeImports    GradeImport[]       @relation("GradeImportAuthor")
+  controlWorks    ControlWork[]       @relation("ControlWorkAuthor")
   notifications   Notification[]
   auditLogs       AuditLog[]
   idempotencyKeys IdempotencyKey[]
@@ -346,6 +347,8 @@ model Group {
   diagnosticAssignments DiagnosticAssignment[]
   lessons               Lesson[]
   academicResults       AcademicResult[]
+  controlWorkGroups     ControlWorkGroup[]
+  controlResults        ControlResult[]
 
   @@map("groups")
 }
@@ -368,6 +371,7 @@ model Discipline {
   academicResults    AcademicResult[]
   observations       PedagogicalObservation[]
   lessons            Lesson[]
+  controlWorks       ControlWork[]
 
   @@map("disciplines")
 }
@@ -430,6 +434,7 @@ model Student {
   academicResults          AcademicResult[]
   researchParticipants     ResearchParticipant[]
   lessonEntries            LessonJournalEntry[]
+  controlResults           ControlResult[]
 
   @@index([lastName])
   @@index([currentGroupId])
@@ -1451,6 +1456,81 @@ model GradeImport {
   @@index([contentHash])
   @@index([createdAt])
   @@map("grade_imports")
+}
+
+// ─────────────────────── Академические достижения ───────────────────────
+
+/// Вид контроля (этап 28).
+enum ControlKind {
+  ENTRY
+  CURRENT
+  FINAL
+}
+
+/// Отметка вместо балла: в средние не входит и нулём не считается (FR-074).
+enum ControlMark {
+  ABSENT
+  NOT_SUBMITTED
+  EXEMPT
+}
+
+/// Контрольная работа: одно задание и одна рубрика для нескольких групп (сравнение ЭГ и КГ).
+model ControlWork {
+  id           String      @id @default(uuid(7)) @db.Uuid
+  disciplineId String      @map("discipline_id") @db.Uuid
+  topic        String
+  kind         ControlKind
+  /// Критерии оценивания (рубрика) текстом.
+  criteria     String?
+  createdById  String?     @map("created_by") @db.Uuid
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  discipline Discipline         @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
+  author     User?              @relation("ControlWorkAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  groups     ControlWorkGroup[]
+  results    ControlResult[]
+
+  @@index([disciplineId])
+  @@map("control_works")
+}
+
+/// Группа, в которой проводится работа, и дата проведения в ней.
+model ControlWorkGroup {
+  id      String   @id @default(uuid(7)) @db.Uuid
+  workId  String   @map("work_id") @db.Uuid
+  groupId String   @map("group_id") @db.Uuid
+  date    DateTime @db.Date
+
+  work  ControlWork @relation(fields: [workId], references: [id], onDelete: Cascade)
+  group Group       @relation(fields: [groupId], references: [id], onDelete: Restrict)
+
+  @@unique([workId, groupId])
+  @@index([groupId])
+  @@map("control_work_groups")
+}
+
+/// Результат студента: балл 0–100 или отметка (ровно одно — CHECK в миграции). Отсутствие строки —
+/// «нет данных».
+model ControlResult {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  workId      String       @map("work_id") @db.Uuid
+  studentId   String       @map("student_id") @db.Uuid
+  groupId     String       @map("group_id") @db.Uuid
+  score       Decimal?     @db.Decimal(4, 1)
+  mark        ControlMark?
+  updatedById String?      @map("updated_by") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  work    ControlWork @relation(fields: [workId], references: [id], onDelete: Cascade)
+  student Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  group   Group       @relation(fields: [groupId], references: [id], onDelete: Restrict)
+
+  @@unique([workId, studentId])
+  @@index([studentId])
+  @@index([workId, groupId])
+  @@map("control_results")
 }
 
 // ─────────────────────────── Исследование ───────────────────────────

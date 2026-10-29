@@ -87,6 +87,7 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
       ['/api/library-assignments/', { id: 'libraryAssignment' }],
       ['/api/lessons/', { id: 'lesson' }],
       ['/api/grades/imports/', { id: 'gradeImport' }],
+      ['/api/control-works/', { id: 'controlWork', groupId: 'controlGroup' }],
     ];
     const entry = byPrefix.find(([prefix]) => route.path.startsWith(prefix));
     if (!entry) return undefined;
@@ -164,6 +165,13 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
       },
       'PUT /api/trajectories/:id': { ...revision, stages },
       'PUT /api/lessons/:id/journal': { entries: [] },
+      'PUT /api/control-works/:id': {
+        disciplineId: ids.discipline,
+        topic: 'Тема',
+        kind: 'ENTRY',
+        groups: [{ groupId: ids.controlGroup, date: '2025-10-20' }],
+      },
+      'PUT /api/control-works/:id/groups/:groupId/results': { entries: [] },
       'POST /api/trajectories/:id/corrections': { ...revision, ...reason, stages },
       'POST /api/trajectories/:id/approve': revision,
       'POST /api/trajectories/:id/submit': revision,
@@ -461,6 +469,20 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
         })
         .expect(201)
     ).body.importId as string;
+    ids.controlGroup = groupB;
+    ids.controlWork = (
+      await as(ownerTeacher, http().post('/api/control-works'))
+        .set('Idempotency-Key', key())
+        .send({
+          disciplineId: disciplineB,
+          topic: 'Входная работа',
+          kind: 'ENTRY',
+          groups: [
+            { groupId: groupB, date: new Date(Date.now() - DAY).toISOString().slice(0, 10) },
+          ],
+        })
+        .expect(201)
+    ).body.work.id as string;
     const notifications = (await as(ownerStudent, http().get('/api/notifications')).expect(200))
       .body as NotificationsDto;
     ids.notification = notifications.items[0]!.id;

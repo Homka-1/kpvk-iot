@@ -10,6 +10,7 @@ import { DiagnosticsModule } from './diagnostics/diagnostics.module.js';
 import { DisciplinesModule } from './disciplines/disciplines.module.js';
 import { GroupsModule } from './groups/groups.module.js';
 import { HealthModule } from './health/health.module.js';
+import { ControlWorksModule } from './control-works/control-works.module.js';
 import { GradesModule } from './grades/grades.module.js';
 import { LessonsModule } from './lessons/lessons.module.js';
 import { LibraryModule } from './library/library.module.js';
@@ -36,6 +37,7 @@ import { UsersModule } from './users/users.module.js';
     StudentsModule,
     LessonsModule,
     GradesModule,
+    ControlWorksModule,
     DiagnosticsModule,
     ProfilesModule,
     LibraryModule,

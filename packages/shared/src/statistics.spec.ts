@@ -15,6 +15,7 @@ import {
   quantile,
   RESEARCH_GRADES_KEY,
   RESEARCH_OBSERVATIONS_KEY,
+  researchControlsKey,
   researchCode,
   researchCriterionKey,
   type ResearchMeasurementDto,
@@ -422,6 +423,43 @@ describe('данные исследования', () => {
       expect(outcomes.observationsBefore).toBeNull();
       expect(outcomes.values.R001![RESEARCH_GRADES_KEY]).toEqual({ before: null, after: 85 });
       expect(outcomes.values.R001![RESEARCH_OBSERVATIONS_KEY]!.before).toBeNull();
+    });
+
+    it('этап 28: контрольные работы — входной «до», итоговый «после», отметок и текущих нет', () => {
+      const web = { id: 'web', name: 'Веб-дизайн' };
+      const outcomes = buildResearchOutcomes({
+        ...outcomesInput,
+        controls: [
+          { studentId: 's1', discipline: web, kind: 'ENTRY', score: 50 },
+          { studentId: 's1', discipline: web, kind: 'CURRENT', score: 99 },
+          { studentId: 's1', discipline: web, kind: 'FINAL', score: 70 },
+          { studentId: 's1', discipline: web, kind: 'FINAL', score: 80 },
+          { studentId: 's3', discipline: web, kind: 'ENTRY', score: 55 },
+        ],
+      });
+      const key = researchControlsKey('web');
+      expect(outcomes.indicators.at(-1)).toEqual({ key, name: 'Контрольные работы: Веб-дизайн' });
+      expect(outcomes.values.R001![key]).toEqual({ before: 50, after: 75 });
+      expect(outcomes.values.R002![key]).toEqual({ before: null, after: null });
+      expect(outcomes.values.R003![key]).toEqual({ before: 55, after: null });
+      const eg = outcomes.stats.find(
+        (row) => row.indicatorKey === key && row.group === 'EXPERIMENTAL',
+      )!;
+      expect(eg.change).toMatchObject({ n: 1, missing: 1, mean: 25 });
+      const wide = buildResearchWideTable({
+        ...buildResearchData({
+          participants,
+          measurements: [],
+          versionScales: new Map(),
+          sessions: [],
+          approved: new Set(),
+        }),
+        outcomes,
+      });
+      expect(wide.header.slice(-2)).toEqual([
+        'Контрольные работы: Веб-дизайн — до (входной контроль)',
+        'Контрольные работы: Веб-дизайн — после (итоговый контроль)',
+      ]);
     });
 
     it('границы периодов включительно; пересечение периодов', () => {

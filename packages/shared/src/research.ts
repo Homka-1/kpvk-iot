@@ -3,7 +3,8 @@
 // и версиям методик, обезличенная выгрузка. Расчёт данных и таблицы выгрузки — чистые функции.
 import { z } from 'zod';
 import { versionsComparable, type ExportCell, type ExportTable } from './diagnostic-results.js';
-import { type AcademicPeriodDto, summarizeSemester } from './grades.js';
+import { type ControlKind, controlProgress } from './control-works.js';
+import { type AcademicPeriodDto, type NamedRef, summarizeSemester } from './grades.js';
 import type { QuestionnaireVersionLabel, ScaleResultDto } from './diagnostic-sessions.js';
 import {
   MEASUREMENT_TYPE_LABELS,
@@ -482,6 +483,11 @@ export const RESEARCH_GRADES_KEY = 'grades';
 export const RESEARCH_OBSERVATIONS_KEY = 'observations';
 export const researchCriterionKey = (criterionId: string) =>
   `${RESEARCH_OBSERVATIONS_KEY}:${criterionId}`;
+/** Контрольные работы по дисциплине (этап 28): «до» — входной контроль, «после» — итоговый. */
+export const RESEARCH_CONTROLS_KEY = 'controls';
+export const researchControlsKey = (disciplineId: string) =>
+  `${RESEARCH_CONTROLS_KEY}:${disciplineId}`;
+const isControlsKey = (key: string) => key.startsWith(`${RESEARCH_CONTROLS_KEY}:`);
 
 export interface ResearchIndicatorDto {
   key: string;
@@ -529,6 +535,13 @@ export interface ResearchOutcomesInput {
   criteria: readonly { id: string; name: string }[];
   /** Оценки 1–5 на занятиях (без «Не наблюдалось»); `date` — дата занятия `YYYY-MM-DD`. */
   ratings: readonly { studentId: string; date: string; criterionId: string; score: number }[];
+  /** Баллы участников за входные и итоговые контрольные работы (отметки сюда не попадают). */
+  controls?: readonly {
+    studentId: string;
+    discipline: NamedRef;
+    kind: ControlKind;
+    score: number;
+  }[];
 }
 
 const roundTenth = (value: number) => Math.round(value * 10) / 10;
@@ -587,7 +600,9 @@ function observationValues(
 /**
  * Показатели ЭГ и КГ вне диагностики (этап 27): средний балл за семестры «до» и «после» (общий
  * балл за семестр, как в разделе успеваемости — ADR-032) и средние оценки педагогических
- * наблюдений на занятиях за периоды «до» и «после» — общая и по критериям. По каждому показателю
+ * наблюдений на занятиях за периоды «до» и «после» — общая и по критериям; по каждой дисциплине
+ * с контрольными работами (этап 28) — средний балл входного («до») и итогового («после») контроля.
+ * По каждому показателю
  * и группе — описательные статистики «до», «после» и разности у участников с обоими значениями
  * (парные данные для внешнего расчёта критериев). Пропуск — пропуск, не ноль (FR-074);
  * исключённые участники не учитываются.
@@ -601,6 +616,7 @@ export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOut
     : null;
   const observationsAfter = dateRangeSet(input.observationsAfter) ? input.observationsAfter : null;
   const ratedCriteria = new Set(input.ratings.map((rating) => rating.criterionId));
+  const controls = input.controls ?? [];
   const indicators: ResearchIndicatorDto[] = [
     { key: RESEARCH_GRADES_KEY, name: 'Средний балл за семестр' },
     { key: RESEARCH_OBSERVATIONS_KEY, name: 'Наблюдения: средняя по критериям' },
@@ -609,6 +625,18 @@ export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOut
       .map((criterion) => ({
         key: researchCriterionKey(criterion.id),
         name: `Наблюдения: ${criterion.name}`,
+      })),
+    ...[
+      ...new Map(
+        controls
+          .filter((item) => item.kind !== 'CURRENT')
+          .map((item) => [item.discipline.id, item.discipline]),
+      ).values(),
+    ]
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+      .map((discipline) => ({
+        key: researchControlsKey(discipline.id),
+        name: `Контрольные работы: ${discipline.name}`,
       })),
   ];
 
@@ -633,16 +661,37 @@ export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOut
   for (const participant of included) {
     const before = observed(participant.studentId, observationsBefore);
     const after = observed(participant.studentId, observationsAfter);
+    const progress = new Map(
+      controlProgress(
+        controls
+          .filter((item) => item.studentId === participant.studentId)
+          .map((item) => ({
+            disciplineId: item.discipline.id,
+            kind: item.kind,
+            score: item.score,
+          })),
+      ).map((item) => [researchControlsKey(item.disciplineId), item]),
+    );
     values[participant.code] = Object.fromEntries(
-      indicators.map((indicator): [string, ResearchOutcomeValueDto] => [
-        indicator.key,
-        indicator.key === RESEARCH_GRADES_KEY
-          ? {
+      indicators.map((indicator): [string, ResearchOutcomeValueDto] => {
+        if (indicator.key === RESEARCH_GRADES_KEY) {
+          return [
+            indicator.key,
+            {
               before: semester(participant.studentId, input.gradesBefore),
               after: semester(participant.studentId, input.gradesAfter),
-            }
-          : { before: before.get(indicator.key) ?? null, after: after.get(indicator.key) ?? null },
-      ]),
+            },
+          ];
+        }
+        if (isControlsKey(indicator.key)) {
+          const item = progress.get(indicator.key);
+          return [indicator.key, { before: item?.entry ?? null, after: item?.final ?? null }];
+        }
+        return [
+          indicator.key,
+          { before: before.get(indicator.key) ?? null, after: after.get(indicator.key) ?? null },
+        ];
+      }),
     );
   }
 
@@ -806,6 +855,7 @@ export function buildResearchAggregateTable(
 /** Подписи периодов «до» и «после» показателя: семестры или периоды наблюдений. */
 function outcomePhases(outcomes: ResearchOutcomesDto, indicatorKey: string): [string, string] {
   const unset = 'не задан';
+  if (isControlsKey(indicatorKey)) return ['входной контроль', 'итоговый контроль'];
   if (indicatorKey === RESEARCH_GRADES_KEY) {
     return [outcomes.gradesBefore?.label ?? unset, outcomes.gradesAfter?.label ?? unset];
   }
@@ -825,8 +875,9 @@ const MEASUREMENT_PHASE: Record<MeasurementType, string> = {
  * «Широкая» обезличенная таблица для внешнего расчёта критериев Манна — Уитни, Вилкоксона и
  * Спирмена (этап 27; FR-071, FR-075): одна строка на участника — код и группа ЭГ/КГ, баллы шкал
  * по замерам («до» — первичный, «после» — повторный), средний балл за семестры «до» и «после»,
- * средние наблюдений на занятиях «до» и «после» — общая и по критериям. Ф. И. О., учебная
- * группа и учётные данные не выгружаются; пропуск — пустая ячейка (FR-074).
+ * средние наблюдений на занятиях «до» и «после» — общая и по критериям, средний балл входного и
+ * итогового контроля по дисциплинам (этап 28). Ф. И. О., учебная группа и учётные данные не
+ * выгружаются; пропуск — пустая ячейка (FR-074).
  */
 export function buildResearchWideTable(data: ResearchDataDto): ExportTable {
   const { outcomes } = data;
@@ -851,14 +902,15 @@ export function buildResearchWideTable(data: ResearchDataDto): ExportTable {
   });
   const indicators = outcomes.indicators.flatMap((indicator) => {
     const [before, after] = outcomePhases(outcomes, indicator.key);
-    const unit = indicator.key === RESEARCH_GRADES_KEY ? 'семестр' : 'период';
+    const unit = indicator.key === RESEARCH_GRADES_KEY ? 'семестр: ' : 'период: ';
+    const prefix = isControlsKey(indicator.key) ? '' : unit;
     return [
       {
-        label: `${indicator.name} — до (${unit}: ${before})`,
+        label: `${indicator.name} — до (${prefix}${before})`,
         value: (code: string) => outcomes.values[code]?.[indicator.key]?.before ?? null,
       },
       {
-        label: `${indicator.name} — после (${unit}: ${after})`,
+        label: `${indicator.name} — после (${prefix}${after})`,
         value: (code: string) => outcomes.values[code]?.[indicator.key]?.after ?? null,
       },
     ];

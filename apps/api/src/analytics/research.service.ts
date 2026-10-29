@@ -589,6 +589,7 @@ export class ResearchService {
    * Успеваемость и наблюдения участников «до» и «после» (этап 27). Семестры и периоды выбирает
    * исследователь; если не выбраны — два последних семестра с оценками участников и периоды
    * относительно дат исследования: «до» — по день накануне начала, «после» — с начала до окончания.
+   * Контрольные работы (этап 28): «до» — входной контроль, «после» — итоговый, по дисциплинам.
    */
   private async outcomes(
     project: { startsAt: Date | null; endsAt: Date | null },
@@ -623,7 +624,7 @@ export class ResearchService {
     const [observationsBefore, observationsAfter] = this.observationPeriods(project, query);
     const ranges = [observationsBefore, observationsAfter].filter(dateRangeSet);
     const gradePeriodIds = [gradesBefore?.id, gradesAfter?.id].filter((item) => item !== undefined);
-    const [grades, ratings, criteria] = await Promise.all([
+    const [grades, ratings, criteria, controls] = await Promise.all([
       gradePeriodIds.length
         ? this.prisma.academicResult.findMany({
             where: {
@@ -662,6 +663,19 @@ export class ResearchService {
         select: { id: true, name: true },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       }),
+      // Входной и итоговый контроль (этап 28): только баллы, отметки — пропуск.
+      this.prisma.controlResult.findMany({
+        where: {
+          studentId: { in: studentIds },
+          score: { not: null },
+          work: { kind: { in: ['ENTRY', 'FINAL'] } },
+        },
+        select: {
+          studentId: true,
+          score: true,
+          work: { select: { kind: true, discipline: { select: { id: true, name: true } } } },
+        },
+      }),
     ]);
 
     return buildResearchOutcomes({
@@ -683,6 +697,12 @@ export class ResearchService {
         date: isoDate(rating.entry.lesson.date)!,
         criterionId: rating.criterionId,
         score: rating.score!,
+      })),
+      controls: controls.map((row) => ({
+        studentId: row.studentId,
+        discipline: row.work.discipline,
+        kind: row.work.kind,
+        score: row.score!.toNumber(),
       })),
     });
   }
