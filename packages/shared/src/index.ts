@@ -21,3 +21,4 @@ export * from './research.js';
 export * from './reports.js';
 export * from './lessons.js';
 export * from './grades.js';
+export * from './demo.js';

@@ -391,7 +391,7 @@ export class MotivationProfilesService {
    * каждой такой методики по её внутренним шкалам, затем сведение уровней методик; версии без ролей
    * шкал в нём не участвуют. Иначе — прежнее правило (голосование шкал, `profiles.minScales`).
    */
-  private async collectBasis(studentId: string): Promise<{
+  async collectBasis(studentId: string): Promise<{
     level: MotivationLevel | null;
     dto: ProfileBasisDto;
     sessionIds: string[];

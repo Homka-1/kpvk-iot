@@ -187,7 +187,7 @@ function toContent(dto: TrajectoryDto): TrajectoryContent {
 }
 
 /** Снимок версии: паспорт и этапы без списка версий и предложений студента. */
-function toSnapshot(dto: TrajectoryDto): TrajectorySnapshot {
+export function toSnapshot(dto: TrajectoryDto): TrajectorySnapshot {
   const snapshot: Partial<TrajectoryDto> = { ...dto };
   delete snapshot.versions;
   delete snapshot.proposals;

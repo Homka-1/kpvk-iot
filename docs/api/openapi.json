@@ -9393,6 +9393,152 @@
         ]
       }
     },
+    "/api/admin/demo": {
+      "get": {
+        "operationId": "DemoController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Состояние демонстрационного режима",
+        "tags": [
+          "Администрирование"
+        ]
+      },
+      "delete": {
+        "operationId": "DemoController_reset",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Удаление демонстрационных данных и выключение режима",
+        "tags": [
+          "Администрирование"
+        ]
+      }
+    },
+    "/api/admin/demo/prepare": {
+      "post": {
+        "description": "Создаёт копию рабочей базы и наполняет её активностью за период исследования до окончания ИОТ (первичный замер). Выполняется в фоне; рабочие данные не изменяются.",
+        "operationId": "DemoController_prepare",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Подготовка демонстрационных данных",
+        "tags": [
+          "Администрирование"
+        ]
+      }
+    },
+    "/api/admin/demo/repeat": {
+      "post": {
+        "description": "Добавляет повторную диагностику после завершения ИОТ. Выполняется в фоне.",
+        "operationId": "DemoController_repeat",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Повторный замер в демонстрационных данных",
+        "tags": [
+          "Администрирование"
+        ]
+      }
+    },
+    "/api/admin/demo/mode": {
+      "put": {
+        "description": "Пока режим включён, все пользователи работают с демонстрационной копией.",
+        "operationId": "DemoController_setMode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoModeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Включение и выключение демонстрационного отображения",
+        "tags": [
+          "Администрирование"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "operationId": "HealthController_check",
@@ -21220,6 +21366,125 @@
           "changes",
           "excludedParticipants",
           "rows"
+        ]
+      },
+      "DemoJobDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "PREPARE",
+              "REPEAT"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "DONE",
+              "FAILED"
+            ]
+          },
+          "step": {
+            "type": "string",
+            "nullable": true,
+            "description": "Текущий шаг или итог"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "kind",
+          "status",
+          "step",
+          "error",
+          "startedAt",
+          "finishedAt"
+        ]
+      },
+      "DemoPeriodDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "example": "2025-10-01"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-04-30"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      },
+      "DemoStatusDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "Сайт показывает демонстрационные данные"
+          },
+          "exists": {
+            "type": "boolean",
+            "description": "Копия базы данных существует"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "PRIMARY",
+              "REPEATED"
+            ],
+            "description": "Что сгенерировано в копии"
+          },
+          "job": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemoJobDto"
+              }
+            ]
+          },
+          "period": {
+            "description": "Период исследования",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DemoPeriodDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "active",
+          "exists",
+          "stage",
+          "job",
+          "period"
+        ]
+      },
+      "DemoModeDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "Показывать на сайте демонстрационные данные"
+          }
+        },
+        "required": [
+          "active"
         ]
       },
       "HealthResponseDto": {

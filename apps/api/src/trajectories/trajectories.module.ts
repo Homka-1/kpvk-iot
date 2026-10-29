@@ -13,5 +13,6 @@ import { TrajectoryTemplatesCatalogSync } from './trajectory-templates-catalog.j
   imports: [ProfilesModule],
   controllers: [TrajectoryOptionsController, TrajectoriesController, CabinetTrajectoriesController],
   providers: [TrajectoriesService, TrajectoryTemplatesCatalogSync, IdempotencyService],
+  exports: [TrajectoriesService],
 })
 export class TrajectoriesModule {}

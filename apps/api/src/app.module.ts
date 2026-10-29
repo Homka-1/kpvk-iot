@@ -5,6 +5,7 @@ import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { IdempotencyCleanupService } from './common/idempotency-cleanup.service.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { DemoModule } from './demo/demo.module.js';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module.js';
 import { DisciplinesModule } from './disciplines/disciplines.module.js';
 import { GroupsModule } from './groups/groups.module.js';
@@ -46,6 +47,7 @@ import { UsersModule } from './users/users.module.js';
     DashboardModule,
     AnalyticsModule,
     ReportsModule,
+    DemoModule,
     HealthModule,
   ],
   providers: [IdempotencyCleanupService],
