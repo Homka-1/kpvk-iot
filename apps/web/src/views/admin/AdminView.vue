@@ -11,6 +11,7 @@ import { api, ApiError } from '@/api/http';
 import ErrorState from '@/components/ErrorState.vue';
 import { useAuthStore } from '@/stores/auth';
 import AuditPanel from './AuditPanel.vue';
+import DemoDialog from './DemoDialog.vue';
 import RolesPanel from './RolesPanel.vue';
 import type { PermissionInfo, RoleInfo } from './types';
 import UsersPanel from './UsersPanel.vue';
@@ -22,6 +23,12 @@ const tab = ref('users');
 const roles = ref<RoleInfo[]>([]);
 const permissions = ref<PermissionInfo[]>([]);
 const loadError = ref<string | null>(null);
+/** Демо-отображение открывается тройным щелчком по заголовку раздела (без отдельной вкладки). */
+const demoVisible = ref(false);
+
+function onTitleClick(event: MouseEvent): void {
+  if (event.detail === 3) demoVisible.value = true;
+}
 
 async function load(): Promise<void> {
   loadError.value = null;
@@ -40,7 +47,8 @@ onMounted(load);
 
 <template>
   <div class="iot-page">
-    <h1>{{ route.meta.title }}</h1>
+    <h1 @click="onTitleClick">{{ route.meta.title }}</h1>
+    <DemoDialog v-model:visible="demoVisible" />
     <ErrorState v-if="loadError" :message="loadError" retryable @retry="load" />
     <Tabs v-else v-model:value="tab">
       <TabList>
