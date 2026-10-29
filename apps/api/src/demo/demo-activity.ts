@@ -2,7 +2,6 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import {
   type CurrentUser,
-  defaultStudentSummary,
   type DifficultyLevel,
   DemoStage,
   type MeasurementType,
@@ -23,6 +22,7 @@ import { answersForLevel, type Disposition, levelFor } from './demo-answers.js';
 import {
   ACADEMIC_YEAR,
   ASSESSMENT_COMMENTS,
+  PROFILE_STUDENT_SUMMARIES,
   CONSULTATION_NOTES,
   CONSULTATION_SUMMARIES,
   CONSULTATION_TOPICS,
@@ -832,14 +832,7 @@ export class DemoActivityGenerator {
           });
         });
         if (current.status === 'PROPOSED' && current.proposedLevel) {
-          await this.decide(
-            ctx,
-            student,
-            current.id,
-            current.proposedLevel,
-            current.basis,
-            decidedAt,
-          );
+          await this.decide(ctx, student, current.id, current.proposedLevel, decidedAt);
         }
         continue;
       }
@@ -881,7 +874,7 @@ export class DemoActivityGenerator {
         { studentId: student.id, status, proposedLevel: basis.level, sources: basis.sessionIds },
       );
       if (basis.level) {
-        await this.decide(ctx, student, profile.id, basis.level, basis.dto, decidedAt);
+        await this.decide(ctx, student, profile.id, basis.level, decidedAt);
       }
     }
   }
@@ -891,7 +884,6 @@ export class DemoActivityGenerator {
     student: StudentInfo,
     profileId: string,
     proposedLevel: MotivationLevel,
-    basis: unknown,
     decidedAt: Date,
   ): Promise<void> {
     // Изредка преподаватель корректирует уровень на соседний по своим наблюдениям.
@@ -904,7 +896,6 @@ export class DemoActivityGenerator {
     const reason = corrected
       ? 'Уровень повышен с учётом педагогических наблюдений: на занятиях студент проявляет устойчивый интерес к предмету.'
       : null;
-    const items = (basis as { items?: Parameters<typeof defaultStudentSummary>[0] } | null)?.items;
     const status: MotivationProfileStatus = corrected ? 'CORRECTED' : 'CONFIRMED';
     await this.prisma.motivationProfile.update({
       where: { id: profileId },
@@ -912,7 +903,7 @@ export class DemoActivityGenerator {
         status,
         level,
         correctionReason: reason,
-        studentSummary: items ? defaultStudentSummary(items) : null,
+        studentSummary: pick(ctx.random, PROFILE_STUDENT_SUMMARIES[level]),
         decidedById: ctx.state.curatorId,
         decidedAt,
         updatedAt: decidedAt,
