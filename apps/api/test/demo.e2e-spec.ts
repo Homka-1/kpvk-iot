@@ -213,46 +213,14 @@ describe('Демо-режим (e2e)', () => {
       })),
     });
 
-    const mean = await publish(content('Мотивация учебной деятельности', 'MEAN', true));
-    const sum = await publish(content('Мотивация обучения', 'SUM', true));
-    await publish(content('Стиль саморегуляции', 'SUM', false));
-
-    // Один студент уже прошёл методику в рабочей базе: в копии прохождение переносится на октябрь.
-    const assignment = (
-      await as(teacher, http().post('/api/diagnostic-assignments'))
-        .set('Idempotency-Key', key())
-        .send({
-          questionnaireId: mean.id,
-          studentId: experimental[0],
-          startsAt: new Date(Date.now() - 2 * DAY).toISOString(),
-          endsAt: new Date(Date.now() + 7 * DAY).toISOString(),
-        })
-        .expect(201)
-    ).body as DiagnosticAssignmentDetailDto;
-    paperSessionId = assignment.sessions[0]!.id;
-    const form = (
-      await as(teacher, http().get(`/api/diagnostic-sessions/${paperSessionId}/form`)).expect(200)
-    ).body as DiagnosticForm;
-    await as(teacher, http().post(`/api/diagnostic-sessions/${paperSessionId}/paper`))
-      .set('Idempotency-Key', key())
-      .send({
-        answers: Object.fromEntries(form.questions.map((question) => [question.key, 4])),
-        completedAt: new Date(Date.now() - DAY).toISOString(),
-      })
-      .expect(201);
-
-    // У студента КГ в рабочей базе методики расходятся (высокий и низкий уровень): профиль
-    // «Требуется дополнительная диагностика». Демо такого профиля не оставляет.
-    for (const [questionnaire, high] of [
-      [mean, true],
-      [sum, false],
-    ] as const) {
+    /** Бумажное прохождение методики в рабочей базе; ответы — по порядку вопросов a…f. */
+    async function paper(questionnaireId: string, studentId: string, values: number[]) {
       const created = (
         await as(teacher, http().post('/api/diagnostic-assignments'))
           .set('Idempotency-Key', key())
           .send({
-            questionnaireId: questionnaire.id,
-            studentId: control[0],
+            questionnaireId,
+            studentId,
             startsAt: new Date(Date.now() - 2 * DAY).toISOString(),
             endsAt: new Date(Date.now() + 7 * DAY).toISOString(),
           })
@@ -263,8 +231,6 @@ describe('Демо-режим (e2e)', () => {
         (await as(teacher, http().get(`/api/diagnostic-sessions/${sessionId}/form`)).expect(200))
           .body as DiagnosticForm
       ).questions;
-      // Вопросы a, b, c (c — обратный) — шкала внутренней мотивации.
-      const values = high ? [5, 5, 1, 3, 3, 3] : [1, 1, 5, 3, 3, 3];
       await as(teacher, http().post(`/api/diagnostic-sessions/${sessionId}/paper`))
         .set('Idempotency-Key', key())
         .send({
@@ -272,13 +238,47 @@ describe('Демо-режим (e2e)', () => {
           completedAt: new Date(Date.now() - DAY).toISOString(),
         })
         .expect(201);
+      return sessionId;
     }
-    const conflict = (
-      await as(teacher, http().post(`/api/students/${control[0]}/motivation-profiles`))
-        .set('Idempotency-Key', key())
+    const formProfile = async (studentId: string) =>
+      (
+        await as(teacher, http().post(`/api/students/${studentId}/motivation-profiles`))
+          .set('Idempotency-Key', key())
+          .expect(201)
+      ).body as { status: string };
+
+    const mean = await publish(content('Мотивация учебной деятельности', 'MEAN', true));
+    // Первая версия методики — без ролей шкал (как в рабочей базе до этапа 24).
+    const sum = await publish(content('Мотивация обучения', 'SUM', false));
+    await publish(content('Стиль саморегуляции', 'SUM', false));
+
+    // Один студент уже прошёл методику в рабочей базе: в копии прохождение переносится на октябрь.
+    // Вопросы a, b, c (c — обратный) — шкала внутренней мотивации.
+    paperSessionId = await paper(mean.id, experimental[0]!, [4, 4, 4, 4, 4, 4]);
+
+    // Студент КГ прошёл методику на прежней версии, затем вышла версия с ролями шкал. В копии
+    // прежнее прохождение уходит в историю и не мешает профилю по актуальным версиям.
+    await paper(mean.id, control[1]!, [4, 3, 3, 3, 3, 3]);
+    await paper(sum.id, control[1]!, [4, 3, 3, 3, 3, 3]);
+    await formProfile(control[1]!);
+    const draft = (
+      await as(teacher, http().post(`/api/questionnaires/${sum.id}/versions`))
+        .send({ changeNote: 'Роли шкал' })
         .expect(201)
-    ).body as { status: string };
-    expect(conflict.status).toBe('NEEDS_MORE_DIAGNOSTICS');
+    ).body as { id: string };
+    await as(teacher, http().put(`/api/questionnaires/${sum.id}/versions/${draft.id}`))
+      .send(content('Мотивация обучения', 'SUM', true))
+      .expect(200);
+    await as(
+      teacher,
+      http().post(`/api/questionnaires/${sum.id}/versions/${draft.id}/publish`),
+    ).expect(200);
+
+    // У другого студента КГ методики расходятся (высокий и низкий уровень): профиль
+    // «Требуется дополнительная диагностика». Демо такого профиля не оставляет.
+    await paper(mean.id, control[0]!, [5, 5, 1, 3, 3, 3]);
+    await paper(sum.id, control[0]!, [1, 1, 5, 3, 3, 3]);
+    expect((await formProfile(control[0]!)).status).toBe('NEEDS_MORE_DIAGNOSTICS');
   }, 120_000);
 
   afterAll(async () => {
@@ -329,7 +329,8 @@ describe('Демо-режим (e2e)', () => {
     const sessions = await prisma.diagnosticSession.findMany({
       where: { status: 'COMPLETED' },
     });
-    expect(sessions).toHaveLength((experimental.length + control.length) * 3);
+    // У каждого студента три методики; ещё одно — прохождение прежней версии в истории.
+    expect(sessions).toHaveLength((experimental.length + control.length) * 3 + 1);
     expect(sessions.every((item) => item.completedAt! < new Date('2025-10-18T00:00:00Z'))).toBe(
       true,
     );

@@ -107,6 +107,7 @@ interface StudentInfo {
 
 interface VersionInfo {
   id: string;
+  questionnaireId: string;
   title: string;
   content: ReturnType<typeof readContent>;
 }
@@ -307,6 +308,7 @@ export class DemoActivityGenerator {
       groups: { experimental: experimental.id, control: control.id },
       versions: [...chosen.values()].map((version) => ({
         id: version.id,
+        questionnaireId: version.questionnaireId,
         title: version.title,
         content: readContent(version),
       })),
@@ -676,6 +678,7 @@ export class DemoActivityGenerator {
             orderBy: { createdAt: 'asc' },
           });
           const done = primary ? sessions.find((item) => item.status === 'COMPLETED') : undefined;
+          let sessionId = done?.id;
           if (done) {
             await this.shiftSession(done.id, completedAt, measurementType);
           } else {
@@ -694,6 +697,7 @@ export class DemoActivityGenerator {
                   createdAt,
                 },
               }));
+            sessionId = open.id;
             await this.completeSession(
               ctx,
               student,
@@ -702,6 +706,26 @@ export class DemoActivityGenerator {
               completedAt,
               measurementType,
             );
+          }
+          if (primary) {
+            // Прочие завершённые прохождения методики в рабочей базе (прежние версии, повторные
+            // попытки) уходят в историю до замера: профиль берёт последнее прохождение методики.
+            const earlier = await this.prisma.diagnosticSession.findMany({
+              where: {
+                studentId: student.id,
+                status: 'COMPLETED',
+                id: { not: sessionId },
+                version: { questionnaireId: version.questionnaireId },
+              },
+              orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
+            });
+            for (const [index, item] of earlier.entries()) {
+              await this.shiftSession(
+                item.id,
+                new Date(completedAt.getTime() - (index + 1) * 24 * 3600 * 1000),
+                item.measurementType,
+              );
+            }
           }
           // Прочие незавершённые прохождения той же методики в копии не нужны.
           await this.prisma.diagnosticSession.updateMany({
@@ -909,43 +933,44 @@ export class DemoActivityGenerator {
           })
         : null;
       const sources = new Set(current?.sources.map((item) => item.sessionId) ?? []);
-      if (
-        current &&
+      // Данные не изменились и уровень определён: прежний профиль остаётся.
+      const keep =
+        !!current &&
+        current.status !== 'NEEDS_MORE_DIAGNOSTICS' &&
         sources.size === basis.sessionIds.length &&
-        basis.sessionIds.every((id) => sources.has(id))
-      ) {
-        // Данные не изменились: в повторном замере прежний профиль остаётся как был, в первичном —
-        // профиль рабочей базы переносится на дату замера.
-        const undetermined = current.status === 'NEEDS_MORE_DIAGNOSTICS';
-        if (shiftExisting) {
-          // Профиль без уровня заменяется новым ниже, поэтому переносится на день раньше.
-          const shiftedAt = undetermined ? at(addDays(decidedOn, -2), '16:00') : proposedAt;
-          await this.withoutTriggers(async (tx) => {
-            await tx.motivationProfile.update({
-              where: { id: current.id },
-              data: {
-                createdAt: shiftedAt,
-                updatedAt: undetermined ? shiftedAt : decidedAt,
-                ...(current.decidedAt ? { decidedAt } : {}),
-              },
-            });
-            await tx.motivationProfileHistory.updateMany({
-              where: {
-                profileId: current.id,
-                status: { in: ['PROPOSED', 'NEEDS_MORE_DIAGNOSTICS'] },
-              },
-              data: { createdAt: shiftedAt },
-            });
-            await tx.motivationProfileHistory.updateMany({
-              where: { profileId: current.id, status: { in: ['CONFIRMED', 'CORRECTED'] } },
-              data: { createdAt: decidedAt },
-            });
+        basis.sessionIds.every((id) => sources.has(id));
+      if (current && shiftExisting) {
+        // В первичном замере профиль рабочей базы переносится на дату замера, а заменяемый новым
+        // профилем — на день раньше, в историю.
+        const shiftedAt = keep ? proposedAt : at(addDays(decidedOn, -2), '16:00');
+        const shiftedDecidedAt = keep ? decidedAt : at(addDays(decidedOn, -2), '17:00');
+        await this.withoutTriggers(async (tx) => {
+          await tx.motivationProfile.update({
+            where: { id: current.id },
+            data: {
+              createdAt: shiftedAt,
+              updatedAt: current.decidedAt ? shiftedDecidedAt : shiftedAt,
+              ...(current.decidedAt ? { decidedAt: shiftedDecidedAt } : {}),
+            },
           });
-          if (current.status === 'PROPOSED' && current.proposedLevel) {
-            await this.decide(ctx, student, current.id, current.proposedLevel, decidedAt);
-          }
+          await tx.motivationProfileHistory.updateMany({
+            where: {
+              profileId: current.id,
+              status: { in: ['PROPOSED', 'NEEDS_MORE_DIAGNOSTICS'] },
+            },
+            data: { createdAt: shiftedAt },
+          });
+          await tx.motivationProfileHistory.updateMany({
+            where: { profileId: current.id, status: { in: ['CONFIRMED', 'CORRECTED'] } },
+            data: { createdAt: shiftedDecidedAt },
+          });
+        });
+      }
+      if (keep) {
+        if (shiftExisting && current.status === 'PROPOSED' && current.proposedLevel) {
+          await this.decide(ctx, student, current.id, current.proposedLevel, decidedAt);
         }
-        if (!undetermined) continue;
+        continue;
       }
 
       // Демо не оставляет профилей «Требуется дополнительная диагностика»: если уровни методик
