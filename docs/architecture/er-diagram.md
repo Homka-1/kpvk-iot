@@ -118,6 +118,13 @@ erDiagram
   groups |o--o{ academic_results : group
   grade_imports |o--o{ academic_results : gradeImport
   users ||--o{ grade_imports : author
+  disciplines ||--o{ control_works : discipline
+  users |o--o{ control_works : author
+  control_works ||--o{ control_work_groups : work
+  groups ||--o{ control_work_groups : group
+  control_works ||--o{ control_results : work
+  students ||--o{ control_results : student
+  groups ||--o{ control_results : group
   research_projects ||--o{ research_participants : project
   students ||--o{ research_participants : student
   research_projects ||--o{ research_measurements : project
@@ -933,6 +940,45 @@ erDiagram
   feedback |o--o{ feedback : parent
   academic_periods |o--o{ academic_results : period
   grade_imports |o--o{ academic_results : gradeImport
+```
+
+## Академические достижения
+
+- `control_works` — Контрольная работа: одно задание и одна рубрика для нескольких групп (сравнение ЭГ и КГ).
+- `control_work_groups` — Группа, в которой проводится работа, и дата проведения в ней.
+- `control_results` — Результат студента: балл 0–100 или отметка (ровно одно — CHECK в миграции). Отсутствие строки — «нет данных».
+
+```mermaid
+erDiagram
+  control_works {
+    String id PK
+    String discipline_id FK
+    String topic
+    enum_ControlKind kind
+    String criteria "null"
+    String created_by FK "null"
+    DateTime created_at
+    DateTime updated_at
+  }
+  control_work_groups {
+    String id PK
+    String work_id FK
+    String group_id FK
+    DateTime date
+  }
+  control_results {
+    String id PK
+    String work_id FK
+    String student_id FK
+    String group_id FK
+    Decimal score "null"
+    enum_ControlMark mark "null"
+    String updated_by "null"
+    DateTime created_at
+    DateTime updated_at
+  }
+  control_works ||--o{ control_work_groups : work
+  control_works ||--o{ control_results : work
 ```
 
 ## Исследование
