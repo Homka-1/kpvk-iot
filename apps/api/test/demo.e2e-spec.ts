@@ -386,6 +386,17 @@ describe('Демо-режим (e2e)', () => {
       }),
     ).toBe(0);
     expect(await prisma.feedback.count()).toBeGreaterThan(0);
+    // Сообщения о затруднении рассмотрены, отметку о сопровождении получают только трое
+    // студентов с самой низкой внутренней мотивацией.
+    expect(
+      await prisma.feedback.count({ where: { kind: 'DIFFICULTY_REPORT', resolvedAt: null } }),
+    ).toBe(0);
+    expect(await prisma.feedback.count({ where: { kind: 'DIFFICULTY_REPORT' } })).toBeGreaterThan(
+      0,
+    );
+    expect(await prisma.student.count({ where: { NOT: { supportStatus: 'STANDARD' } } })).toBe(
+      Math.min(3, experimental.length + control.length),
+    );
     // Баллы за задания — по шкале 100 (как шкала колледжа).
     const assignmentResults = await prisma.academicResult.findMany({
       where: { source: 'ASSIGNMENT' },

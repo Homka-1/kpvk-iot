@@ -1904,16 +1904,6 @@ export class DemoActivityGenerator {
       '/student/feedback',
       repliedAt,
     );
-    if (input.kind === 'DIFFICULTY_REPORT' && chance(random, 0.4)) {
-      await this.markSupport(
-        ctx,
-        student.id,
-        'NEEDS_ATTENTION',
-        teacherId,
-        repliedAt,
-        'Студент сообщил о затруднении в задании — проверить выполнение следующего этапа',
-      );
-    }
   }
 
   private async consultation(
