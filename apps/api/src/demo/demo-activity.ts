@@ -13,7 +13,6 @@ import {
   STANDARD_TRAJECTORY_STAGES,
   scoreQuestionnaire,
 } from '@iot/shared';
-import { hashPassword } from '../auth/passwords.js';
 import { readContent, versionContentInclude } from '../diagnostics/questionnaire-content.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -30,19 +29,17 @@ import {
   CONTROL_GROUP,
   DEMO_FRESH_DIAGNOSTICS,
   CORRECTION_REASONS,
-  CONTROL_DISCIPLINE,
   DEMO_ASSIGNMENTS,
   DEMO_CONTROL_WORKS,
   DEMO_DISCIPLINES,
   DEMO_FINAL_CONTROL_WORK,
-  DEMO_TEACHER_LOGINS,
   DEMO_MATERIALS,
   DEMO_PERIOD,
-  DEMO_TEACHER_PASSWORD,
   type DemoControlWork,
-  type DemoTeacher,
   EXPERIMENTAL_GROUP,
   FINAL_ASSESSMENTS,
+  MAIN_DISCIPLINE,
+  MAIN_TEACHER_LOGIN,
   OBSERVATION_NOTES,
   REFLECTION_ACHIEVEMENTS,
   REFLECTION_DIFFICULTIES,
@@ -56,7 +53,6 @@ import {
   TEACHER_GOALS,
   TEACHER_RECOMMENDATIONS,
   TEACHER_REPLIES,
-  TRAJECTORY_DISCIPLINES,
 } from './demo-catalog.js';
 import {
   between,
@@ -124,6 +120,7 @@ interface DisciplineInfo {
 interface LibraryAssignment {
   id: string;
   title: string;
+  topic: string;
   stage: number | null;
   difficulty: DifficultyLevel;
   criteria: { id: string; maxScore: number }[];
@@ -142,8 +139,8 @@ interface Context {
 }
 
 /**
- * Генератор демонстрационной активности за период исследования (октябрь 2025 — апрель 2026):
- * преподаватели и дисциплины, расписание с журналом наблюдений, первичная диагностика и
+ * Генератор демонстрационной активности за период исследования (октябрь 2025 — апрель 2026)
+ * по дисциплине «ДО Веб-дизайн» (прочие дисциплины — только справочник): расписание с журналом наблюдений, первичная диагностика и
  * профили, исследование ЭГ/КГ, ИОТ экспериментальной группы с заданиями и проверкой,
  * обратная связь, консультации, оценки за семестры, входной и текущий контроль; отдельно —
  * повторный замер с итоговым контролем.
@@ -169,10 +166,10 @@ export class DemoActivityGenerator {
     report('Перенос существующих данных на период исследования');
     await this.rebaseTimeline(ctx);
     await this.resetDiagnostics(ctx);
-    report('Преподаватели и дисциплины');
-    const disciplines = await this.teachersAndDisciplines(ctx);
+    report('Дисциплины');
+    const discipline = await this.disciplines(ctx);
     report('Библиотека заданий и материалов');
-    const library = await this.library(ctx, disciplines);
+    const library = await this.library(ctx, discipline);
     report('Первичная диагностика');
     const primary = await this.diagnostics(ctx, 'PRIMARY');
     report('Мотивационные профили');
@@ -180,20 +177,17 @@ export class DemoActivityGenerator {
     report('Исследование ЭГ и КГ');
     await this.research(ctx, primary);
     report('Индивидуальные траектории и задания');
-    await this.trajectoriesFor(ctx, disciplines, library);
+    await this.trajectoriesFor(ctx, discipline, library);
     report('Расписание и журнал наблюдений');
-    await this.lessons(ctx, disciplines);
+    await this.lessons(ctx, discipline);
     report('Обращения, консультации и наблюдения');
-    await this.controlGroupSupport(ctx, disciplines);
-    await this.observations(ctx, disciplines);
+    await this.controlGroupSupport(ctx, discipline);
+    await this.observations(ctx, discipline);
     report('Оценки за семестры');
-    await this.grades(ctx, disciplines);
+    await this.grades(ctx, discipline);
     report('Входной и текущий контроль');
-    const controls = disciplines.get(CONTROL_DISCIPLINE);
-    if (controls) {
-      for (const work of DEMO_CONTROL_WORKS) {
-        await this.controlWork(ctx, controls.id, controls.teacherId, work);
-      }
+    for (const work of DEMO_CONTROL_WORKS) {
+      await this.controlWork(ctx, discipline.id, discipline.teacherId, work);
     }
     report('Завершение');
     await this.finish(ctx, DemoStage.PRIMARY);
@@ -247,7 +241,7 @@ export class DemoActivityGenerator {
       where: {
         kind: 'ENTRY',
         topic: DEMO_FINAL_CONTROL_WORK.topic,
-        discipline: { name: CONTROL_DISCIPLINE },
+        discipline: { name: MAIN_DISCIPLINE },
       },
     });
     if (entry?.createdById) {
@@ -454,18 +448,16 @@ export class DemoActivityGenerator {
     });
   }
 
-  // ── Преподаватели, дисциплины, библиотека ──
+  // ── Дисциплины, библиотека ──
 
-  private async teachersAndDisciplines(ctx: Context): Promise<Map<string, DisciplineInfo>> {
-    const teacherRole = await this.prisma.role.findUniqueOrThrow({
-      where: { code: RoleCode.TEACHER },
-    });
-    const existingTeachers = await this.prisma.user.findMany({
-      where: {
-        status: 'ACTIVE',
-        roles: { some: { roleId: teacherRole.id } },
-        login: { notIn: DEMO_TEACHER_LOGINS },
-      },
+  /**
+   * Добавляет дисциплины справочника и закрепляет за группами исследования только
+   * «ДО Веб-дизайн»: её ведёт преподаватель рабочей базы (`MAIN_TEACHER_LOGIN`, если его нет —
+   * первый преподаватель). Преподаватели не создаются.
+   */
+  private async disciplines(ctx: Context): Promise<DisciplineInfo> {
+    const teachers = await this.prisma.user.findMany({
+      where: { status: 'ACTIVE', roles: { some: { role: { code: RoleCode.TEACHER } } } },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -473,21 +465,13 @@ export class DemoActivityGenerator {
         roles: { select: { role: { select: { code: true } } } },
       },
     });
-    const passwordHash = await hashPassword(DEMO_TEACHER_PASSWORD);
+    const teacherId = (teachers.find((user) => user.login === MAIN_TEACHER_LOGIN) ?? teachers[0])
+      ?.id;
+    if (!teacherId) throw new Error('В рабочей базе нет преподавателей');
     const created = at(TIMELINE_START, '11:00');
 
-    const result = new Map<string, DisciplineInfo>();
+    let main: DisciplineInfo | null = null;
     for (const item of DEMO_DISCIPLINES) {
-      const { teacher } = item;
-      const teacherId =
-        'login' in teacher
-          ? await this.demoTeacher(ctx, teacher, teacherRole.id, passwordHash, created)
-          : // Преподаватель из рабочей базы; если его нет — первый существующий преподаватель.
-            (
-              existingTeachers.find((user) => user.login === teacher.existingLogin) ??
-              existingTeachers[0]
-            )?.id;
-      if (!teacherId) continue;
       const discipline =
         (await this.prisma.discipline.findUnique({ where: { name: item.name } })) ??
         (await this.prisma.discipline.create({
@@ -501,28 +485,26 @@ export class DemoActivityGenerator {
             createdAt: created,
           },
         }));
-      result.set(item.name, { id: discipline.id, name: item.name, teacherId });
+      if (item.name === MAIN_DISCIPLINE) main = { id: discipline.id, name: item.name, teacherId };
     }
 
-    // Существующие преподаватели без роли администратора закрепляются за всеми дисциплинами,
-    // чтобы видеть данные групп. Администратору закрепления не нужны: ему доступны все группы,
+    // Существующие преподаватели без роли администратора закрепляются за дисциплиной, чтобы
+    // видеть данные групп. Администратору закрепления не нужны: ему доступны все группы,
     // а в списках дисциплин он остаётся только у своей.
-    const assistants = existingTeachers
+    const assistants = teachers
       .filter((user) => !user.roles.some(({ role }) => role.code === RoleCode.ADMIN))
       .map((user) => user.id);
     const pairs: Prisma.TeacherAssignmentCreateManyInput[] = [];
     for (const groupId of [ctx.groups.experimental, ctx.groups.control]) {
-      for (const discipline of result.values()) {
-        for (const teacherId of new Set([discipline.teacherId, ...assistants])) {
-          pairs.push({
-            teacherId,
-            groupId,
-            disciplineId: discipline.id,
-            startsAt: at(TIMELINE_START, '12:00'),
-            createdById: ctx.adminId,
-            createdAt: at(TIMELINE_START, '12:00'),
-          });
-        }
+      for (const id of new Set([teacherId, ...assistants])) {
+        pairs.push({
+          teacherId: id,
+          groupId,
+          disciplineId: main!.id,
+          startsAt: at(TIMELINE_START, '12:00'),
+          createdById: ctx.adminId,
+          createdAt: at(TIMELINE_START, '12:00'),
+        });
       }
     }
     const current = await this.prisma.teacherAssignment.findMany({
@@ -535,96 +517,57 @@ export class DemoActivityGenerator {
     await this.prisma.teacherAssignment.createMany({
       data: pairs.filter((row) => !has.has(`${row.teacherId}:${row.groupId}:${row.disciplineId}`)),
     });
-    // Решения по профилям принимает преподаватель-исследователь: существующая учётная запись
-    // преподавателя, а если её нет — преподаватель математики.
-    ctx.state.curatorId = existingTeachers[0]?.id ?? result.get('Математика')!.teacherId;
-    return result;
-  }
-
-  /** Учётная запись сгенерированного преподавателя (создаётся при первой подготовке). */
-  private async demoTeacher(
-    ctx: Context,
-    teacher: DemoTeacher,
-    roleId: string,
-    passwordHash: string,
-    created: Date,
-  ): Promise<string> {
-    const user =
-      (await this.prisma.user.findUnique({ where: { login: teacher.login } })) ??
-      (await this.prisma.user.create({
-        data: {
-          ...teacher,
-          passwordHash,
-          createdById: ctx.adminId,
-          createdAt: created,
-          passwordChangedAt: created,
-          roles: { create: { roleId, grantedById: ctx.adminId, grantedAt: created } },
-        },
-      }));
-    return user.id;
+    // Решения по профилям принимает преподаватель-исследователь: первый преподаватель рабочей базы.
+    ctx.state.curatorId = teachers[0]!.id;
+    return main!;
   }
 
   private async library(
     ctx: Context,
-    disciplines: Map<string, DisciplineInfo>,
-  ): Promise<{
-    assignments: Map<string, LibraryAssignment[]>;
-    materials: Map<string, { id: string; topic: string }[]>;
-  }> {
+    discipline: DisciplineInfo,
+  ): Promise<{ assignments: LibraryAssignment[]; materials: { id: string; topic: string }[] }> {
     const types = new Map(
       (await this.prisma.assignmentType.findMany()).map((type) => [type.code, type.id]),
     );
-    const assignments = new Map<string, LibraryAssignment[]>();
-    for (const [name, items] of Object.entries(DEMO_ASSIGNMENTS)) {
-      const discipline = disciplines.get(name)!;
-      const list: LibraryAssignment[] = [];
-      for (const [index, item] of items.entries()) {
-        const createdAt = at(addDays('2025-09-15', index), '16:00');
-        const row = await this.prisma.assignment.create({
-          data: {
-            title: item.title,
-            disciplineId: discipline.id,
-            topic: item.topic,
-            goal: item.goal,
-            difficulty: item.difficulty,
-            typeId: types.get(item.type) ?? [...types.values()][0]!,
-            instruction: item.instruction,
-            submissionFormats: item.formats,
-            maxScore: item.criteria.reduce((sum, criterion) => sum + criterion.maxScore, 0),
-            createdById: discipline.teacherId,
-            createdAt,
-            updatedAt: createdAt,
-            criteria: {
-              create: item.criteria.map((criterion, sortOrder) => ({ ...criterion, sortOrder })),
-            },
-          },
-          include: { criteria: { orderBy: { sortOrder: 'asc' } } },
-        });
-        list.push({
-          id: row.id,
-          title: row.title,
-          stage: item.stage,
+    const assignments: LibraryAssignment[] = [];
+    for (const [index, item] of DEMO_ASSIGNMENTS.entries()) {
+      const createdAt = at(addDays('2025-09-15', index), '16:00');
+      const row = await this.prisma.assignment.create({
+        data: {
+          title: item.title,
+          disciplineId: discipline.id,
+          topic: item.topic,
+          goal: item.goal,
           difficulty: item.difficulty,
-          criteria: row.criteria.map((criterion) => ({
-            id: criterion.id,
-            maxScore: Number(criterion.maxScore),
-          })),
-        });
-        this.audit(
-          ctx,
-          'assignment.created',
-          'assignment',
-          row.id,
-          discipline.teacherId,
+          typeId: types.get(item.type) ?? [...types.values()][0]!,
+          instruction: item.instruction,
+          submissionFormats: item.formats,
+          maxScore: item.criteria.reduce((sum, criterion) => sum + criterion.maxScore, 0),
+          createdById: discipline.teacherId,
           createdAt,
-        );
-      }
-      assignments.set(name, list);
+          updatedAt: createdAt,
+          criteria: {
+            create: item.criteria.map((criterion, sortOrder) => ({ ...criterion, sortOrder })),
+          },
+        },
+        include: { criteria: { orderBy: { sortOrder: 'asc' } } },
+      });
+      assignments.push({
+        id: row.id,
+        title: row.title,
+        topic: item.topic,
+        stage: item.stage,
+        difficulty: item.difficulty,
+        criteria: row.criteria.map((criterion) => ({
+          id: criterion.id,
+          maxScore: Number(criterion.maxScore),
+        })),
+      });
+      this.audit(ctx, 'assignment.created', 'assignment', row.id, discipline.teacherId, createdAt);
     }
 
-    const materials = new Map<string, { id: string; topic: string }[]>();
-    for (const [index, [name, title, topic, url, body]] of DEMO_MATERIALS.entries()) {
-      const discipline = disciplines.get(name)!;
+    const materials: { id: string; topic: string }[] = [];
+    for (const [index, [title, topic, url, body]] of DEMO_MATERIALS.entries()) {
       const createdAt = at(addDays('2025-09-10', index), '15:00');
       const row = await this.prisma.material.create({
         data: {
@@ -640,7 +583,7 @@ export class DemoActivityGenerator {
           updatedAt: createdAt,
         },
       });
-      materials.set(name, [...(materials.get(name) ?? []), { id: row.id, topic }]);
+      materials.push({ id: row.id, topic });
     }
     return { assignments, materials };
   }
@@ -1205,7 +1148,7 @@ export class DemoActivityGenerator {
 
   private async trajectoriesFor(
     ctx: Context,
-    disciplines: Map<string, DisciplineInfo>,
+    discipline: DisciplineInfo,
     library: Awaited<ReturnType<DemoActivityGenerator['library']>>,
   ): Promise<void> {
     const templates = await this.prisma.trajectoryTemplate.findMany({
@@ -1227,19 +1170,17 @@ export class DemoActivityGenerator {
       const template =
         templates.find((item) => item.motivationLevel === level && level !== null) ??
         templates.find((item) => item.isStandard);
-      for (const [index, name] of TRAJECTORY_DISCIPLINES.entries()) {
-        await this.trajectory(ctx, {
-          student,
-          discipline: disciplines.get(name)!,
-          profileId: profile?.id ?? null,
-          level,
-          template,
-          supportMethods: level ? strategies[level].join('\n') : null,
-          assignments: library.assignments.get(name) ?? [],
-          materials: library.materials.get(name) ?? [],
-          correct: corrected.has(student.id) && index === 0,
-        });
-      }
+      await this.trajectory(ctx, {
+        student,
+        discipline,
+        profileId: profile?.id ?? null,
+        level,
+        template,
+        supportMethods: level ? strategies[level].join('\n') : null,
+        assignments: library.assignments,
+        materials: library.materials,
+        correct: corrected.has(student.id),
+      });
     }
   }
 
@@ -1323,10 +1264,7 @@ export class DemoActivityGenerator {
         },
         include: { checkpoints: true },
       });
-      const topic = stageTopic
-        ? DEMO_ASSIGNMENTS[discipline.name]?.find((item) => item.title === stageTopic.title)?.topic
-        : undefined;
-      const material = input.materials.find((item) => item.topic === topic);
+      const material = input.materials.find((item) => item.topic === stageTopic?.topic);
       if (material) {
         await this.prisma.stageMaterial.create({
           data: { stageId: stage.id, materialId: material.id },
@@ -1972,16 +1910,11 @@ export class DemoActivityGenerator {
   // ── Контрольная группа, наблюдения ──
 
   /** Студенты контрольной группы тоже задают вопросы и получают консультации (без ИОТ). */
-  private async controlGroupSupport(
-    ctx: Context,
-    disciplines: Map<string, DisciplineInfo>,
-  ): Promise<void> {
+  private async controlGroupSupport(ctx: Context, discipline: DisciplineInfo): Promise<void> {
     const { random } = ctx;
-    const list = [...disciplines.values()];
     for (const student of ctx.students.filter((item) => !item.experimental)) {
       const count = intBetween(random, 0, 2);
       for (let i = 0; i < count && student.userId; i += 1) {
-        const discipline = pick(random, list);
         const date = addDays(DEMO_PERIOD.researchFrom, intBetween(random, 10, 200));
         await this.thread(ctx, student, discipline.teacherId, discipline.name, {
           studentId: student.id,
@@ -1994,7 +1927,6 @@ export class DemoActivityGenerator {
         });
       }
       if (chance(random, 0.3)) {
-        const discipline = pick(random, list);
         const date = addDays(DEMO_PERIOD.researchFrom, intBetween(random, 20, 200));
         await this.consultation(ctx, student, discipline.teacherId, null, workTime(date, random));
       }
@@ -2002,22 +1934,14 @@ export class DemoActivityGenerator {
   }
 
   /** Записи педагогических наблюдений (FR-014): в начале и в конце периода. */
-  private async observations(
-    ctx: Context,
-    disciplines: Map<string, DisciplineInfo>,
-  ): Promise<void> {
+  private async observations(ctx: Context, discipline: DisciplineInfo): Promise<void> {
     const { random } = ctx;
-    const list = [...disciplines.values()];
     const data: Prisma.PedagogicalObservationCreateManyInput[] = [];
     for (const student of ctx.students) {
       for (const [date, kind] of [
         [addDays('2025-11-05', intBetween(random, 0, 20)), 'flat'],
         [addDays('2026-03-10', intBetween(random, 0, 30)), student.experimental ? 'up' : 'flat'],
       ] as const) {
-        const discipline =
-          student.experimental && kind === 'up'
-            ? disciplines.get(pick(random, TRAJECTORY_DISCIPLINES))!
-            : pick(random, list);
         const observedAt = workTime(date, random);
         data.push({
           studentId: student.id,
@@ -2037,17 +1961,16 @@ export class DemoActivityGenerator {
   // ── Расписание и журнал ──
 
   /**
-   * Два занятия в неделю у каждой группы (вторник, четверг), дисциплины чередуются; журнал
+   * Два занятия «ДО Веб-дизайн» в неделю у каждой группы (вторник, четверг); журнал
    * заполняется по каждому студенту. У ЭГ оценки наблюдений растут по ходу ИОТ.
    */
-  private async lessons(ctx: Context, disciplines: Map<string, DisciplineInfo>): Promise<void> {
+  private async lessons(ctx: Context, discipline: DisciplineInfo): Promise<void> {
     const { random } = ctx;
     const criteria = await this.prisma.observationCriterion.findMany({
       where: { archivedAt: null },
       orderBy: { sortOrder: 'asc' },
       select: { id: true },
     });
-    const list = [...disciplines.values()];
     const [breakFrom, breakTo] = DEMO_PERIOD.winterBreak;
     const trajectorySpan = daysBetween(DEMO_PERIOD.trajectoriesOn, DEMO_PERIOD.trajectoriesEnd);
     const offsets = new Map(ctx.students.map((student) => [student.id, noise(random, 0.05)]));
@@ -2055,7 +1978,6 @@ export class DemoActivityGenerator {
     const lessons: Prisma.LessonCreateManyInput[] = [];
     const entries: Prisma.LessonJournalEntryCreateManyInput[] = [];
     const ratings: Prisma.LessonRatingCreateManyInput[] = [];
-    let slot = 0;
     for (
       let date: string = DEMO_PERIOD.lessonsFrom;
       date <= DEMO_PERIOD.researchTo;
@@ -2063,8 +1985,6 @@ export class DemoActivityGenerator {
     ) {
       if (!LESSON_WEEKDAYS.includes(weekday(date)) || (date >= breakFrom && date <= breakTo))
         continue;
-      const discipline = list[slot % list.length]!;
-      slot += 1;
       const progress = clamp(daysBetween(DEMO_PERIOD.trajectoriesOn, date) / trajectorySpan, 0, 1);
       for (const [groupId, time] of [
         [ctx.groups.experimental, LESSON_TIMES.experimental],
@@ -2200,7 +2120,8 @@ export class DemoActivityGenerator {
 
   // ── Оценки за семестры ──
 
-  private async grades(ctx: Context, disciplines: Map<string, DisciplineInfo>): Promise<void> {
+  /** Оценки за семестры — только по «ДО Веб-дизайн». */
+  private async grades(ctx: Context, discipline: DisciplineInfo): Promise<void> {
     const { random } = ctx;
     const authorId = ctx.adminId ?? ctx.state.curatorId;
     const offsets = new Map<string, number>();
@@ -2217,31 +2138,25 @@ export class DemoActivityGenerator {
       const rows: Prisma.AcademicResultCreateManyInput[] = [];
       for (const student of ctx.students) {
         const theta = ctx.state.dispositions[student.id]!.INTRINSIC;
-        for (const discipline of disciplines.values()) {
-          const key = `${student.id}:${discipline.id}`;
-          if (!offsets.has(key)) offsets.set(key, noise(random, 7));
-          let score = 66 + 24 * theta + offsets.get(key)!;
-          if (semester === 2) {
-            score += student.experimental
-              ? 10 * (ctx.state.growth[student.id] ?? 0.2) +
-                (TRAJECTORY_DISCIPLINES.includes(discipline.name)
-                  ? between(random, 3, 8)
-                  : between(random, 1, 5))
-              : between(random, 1, 4);
-          }
-          rows.push({
-            studentId: student.id,
-            disciplineId: discipline.id,
-            groupId: student.groupId,
-            periodId: period.id,
-            source: 'SEMESTER_IMPORT',
-            score: clamp(Math.round(score), 40, 100),
-            maxScore: 100,
-            recordedAt,
-            recordedById: authorId,
-            createdAt: recordedAt,
-          });
+        if (!offsets.has(student.id)) offsets.set(student.id, noise(random, 7));
+        let score = 66 + 24 * theta + offsets.get(student.id)!;
+        if (semester === 2) {
+          score += student.experimental
+            ? 10 * (ctx.state.growth[student.id] ?? 0.2) + between(random, 3, 8)
+            : between(random, 1, 4);
         }
+        rows.push({
+          studentId: student.id,
+          disciplineId: discipline.id,
+          groupId: student.groupId,
+          periodId: period.id,
+          source: 'SEMESTER_IMPORT',
+          score: clamp(Math.round(score), 40, 100),
+          maxScore: 100,
+          recordedAt,
+          recordedById: authorId,
+          createdAt: recordedAt,
+        });
       }
       const gradeImport = await this.prisma.gradeImport.create({
         data: {

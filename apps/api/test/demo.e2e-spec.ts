@@ -18,9 +18,10 @@ import {
 import request from 'supertest';
 import {
   CONTROL_GROUP,
+  DEMO_DISCIPLINES,
   DEMO_FRESH_DIAGNOSTICS,
-  DEMO_TEACHER_PASSWORD,
   EXPERIMENTAL_GROUP,
+  MAIN_DISCIPLINE,
 } from '../src/demo/demo-catalog.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
@@ -323,11 +324,12 @@ describe('Демо-режим (e2e)', () => {
   it('включённое отображение показывает копию: профили, ИОТ ЭГ, журнал, исследование', async () => {
     await as(admin, http().put('/api/admin/demo/mode')).send({ active: true }).expect(200);
 
-    // ИОТ по математике и информатике — только у экспериментальной группы (огр. 4).
+    // ИОТ по «ДО Веб-дизайн» — только у экспериментальной группы (огр. 4).
     const trajectories = await prisma.trajectory.findMany({
-      include: { versions: true, assignments: true },
+      include: { versions: true, assignments: true, discipline: true },
     });
-    expect(trajectories).toHaveLength(experimental.length * 2);
+    expect(trajectories).toHaveLength(experimental.length);
+    expect(trajectories.every((item) => item.discipline.name === MAIN_DISCIPLINE)).toBe(true);
     expect(trajectories.every((item) => experimental.includes(item.studentId))).toBe(true);
     expect(trajectories.every((item) => item.status === 'COMPLETED')).toBe(true);
     expect(trajectories.every((item) => item.versions.length >= 1)).toBe(true);
@@ -357,14 +359,25 @@ describe('Демо-режим (e2e)', () => {
       ),
     ).toBe(true);
 
-    // Два занятия в неделю у каждой группы, журнал по каждому студенту.
+    // Два занятия «ДО Веб-дизайн» в неделю у каждой группы, журнал по каждому студенту.
     const lessons = await prisma.lesson.count();
     expect(lessons).toBeGreaterThan(100);
+    expect(
+      await prisma.lesson.count({ where: { discipline: { name: { not: MAIN_DISCIPLINE } } } }),
+    ).toBe(0);
     expect(await prisma.lessonJournalEntry.count()).toBe(lessons * experimental.length);
     expect(await prisma.researchParticipant.count()).toBe(experimental.length + control.length);
-    expect(await prisma.academicResult.count({ where: { source: 'SEMESTER_IMPORT' } })).toBe(
-      (experimental.length + control.length) * 7 * 2,
-    );
+    // Оценки за семестры — только по «ДО Веб-дизайн».
+    expect(
+      await prisma.academicResult.count({
+        where: { source: 'SEMESTER_IMPORT', discipline: { name: MAIN_DISCIPLINE } },
+      }),
+    ).toBe((experimental.length + control.length) * 2);
+    expect(
+      await prisma.academicResult.count({
+        where: { discipline: { name: { not: MAIN_DISCIPLINE } } },
+      }),
+    ).toBe(0);
     expect(await prisma.feedback.count()).toBeGreaterThan(0);
     // Баллы за задания — по шкале 100 (как шкала колледжа).
     const assignmentResults = await prisma.academicResult.findMany({
@@ -375,18 +388,32 @@ describe('Демо-режим (e2e)', () => {
     expect(assignmentResults.every((row) => Number(row.maxScore) === 100)).toBe(true);
     expect(await prisma.assignment.count({ where: { NOT: { maxScore: 100 } } })).toBe(0);
 
+    // Прочие дисциплины — только записи справочника: без преподавателей, заданий и материалов.
+    const others = DEMO_DISCIPLINES.map((item) => item.name).filter(
+      (name) => name !== MAIN_DISCIPLINE,
+    );
+    expect(await prisma.discipline.count({ where: { name: { in: others } } })).toBe(others.length);
+    const inOthers = { discipline: { name: { in: others } } };
+    expect(await prisma.teacherAssignment.count({ where: inOthers })).toBe(0);
+    expect(await prisma.assignment.count({ where: inOthers })).toBe(0);
+    expect(await prisma.material.count({ where: inOthers })).toBe(0);
+    // Преподаватели не создаются: только учётные записи рабочей базы.
+    expect(
+      await prisma.user.count({ where: { roles: { some: { role: { code: RoleCode.TEACHER } } } } }),
+    ).toBe(2);
+
     // Администратор-преподаватель закреплён только за своей дисциплиной, остальные преподаватели
-    // рабочей базы — за всеми дисциплинами групп исследования.
+    // рабочей базы — за «ДО Веб-дизайн» в группах исследования.
     const webDesign = await prisma.teacherAssignment.findMany({
       where: { teacherId: webDesignerId },
       include: { discipline: true },
     });
     expect(webDesign).toHaveLength(2);
     expect(webDesign.every((item) => item.discipline.name === 'ДО Веб-дизайн')).toBe(true);
-    // ИОТ ЭГ — по веб-дизайну и информатике: 5 этапов × 3 уровня заданий.
+    // Задания — темы модуля СК01: 5 этапов × 3 уровня и одно задание только в библиотеке.
     expect(
-      await prisma.assignment.count({ where: { discipline: { name: 'ДО Веб-дизайн' } } }),
-    ).toBe(15);
+      await prisma.assignment.count({ where: { discipline: { name: MAIN_DISCIPLINE } } }),
+    ).toBe(16);
     expect(
       await prisma.trajectory.count({ where: { discipline: { name: 'ДО Веб-дизайн' } } }),
     ).toBe(experimental.length);
@@ -414,12 +441,6 @@ describe('Демо-режим (e2e)', () => {
         work.results.every((result) => result.mark === null && result.score !== null),
       ),
     ).toBe(true);
-
-    // Сгенерированные преподаватели входят с паролем из ТЗ заказчика.
-    await http()
-      .post('/api/auth/login')
-      .send({ login: 'litvinov.do', password: DEMO_TEACHER_PASSWORD })
-      .expect(200);
   });
 
   it('повторный замер после ИОТ: новые прохождения и профили, замер исследования', async () => {
