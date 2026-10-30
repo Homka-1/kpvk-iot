@@ -1,6 +1,6 @@
 {
   "name": "iot-college",
-  "version": "1.28.3",
+  "version": "1.28.4",
   "private": true,
   "description": "ИОТ — цифровое сопровождение индивидуальных образовательных траекторий студентов колледжа",
   "packageManager": "pnpm@10.34.7",
