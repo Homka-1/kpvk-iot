@@ -6,6 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  type AssignmentStatus,
+  assignmentProgress,
+  averagePercent,
   type CurrentUser,
   type EnrollmentDto,
   LOGIN_PATTERN,
@@ -15,6 +18,7 @@ import {
   PARTICIPANT_CODE_PATTERN,
   type ProfileFilterValue,
   RoleCode,
+  STUDENT_FEEDBACK_KINDS,
   type StudentCreatedDto,
   type StudentDetailsDto,
   type StudentImportPreviewDto,
@@ -62,7 +66,12 @@ const summaryInclude = {
     where: { status: { in: CURRENT_TRAJECTORY_STATUSES } },
     orderBy: { createdAt: 'desc' },
     take: 1,
-    select: { id: true, status: true, discipline: { select: { name: true } } },
+    select: {
+      id: true,
+      status: true,
+      discipline: { select: { name: true } },
+      assignments: { select: { status: true, dueAt: true } },
+    },
   },
 } satisfies Prisma.StudentInclude;
 
@@ -128,7 +137,103 @@ const detailsInclude = {
 type SummaryRow = Prisma.StudentGetPayload<{ include: typeof summaryInclude }>;
 type DetailsRow = Prisma.StudentGetPayload<{ include: typeof detailsInclude }>;
 
-function toSummary(row: SummaryRow): StudentSummaryDto {
+/** Показатели карточки, которые собираются из других модулей (FR-012). */
+type StudentMetrics = Pick<
+  StudentSummaryDto,
+  'averageScore' | 'completedAssignments' | 'lastActivityAt'
+>;
+
+const toProgressItem = (item: { status: string; dueAt: Date | null }) => ({
+  status: item.status as AssignmentStatus,
+  dueAt: item.dueAt?.toISOString() ?? null,
+});
+
+const latest = (dates: readonly (Date | null | undefined)[]): Date | null =>
+  dates.reduce<Date | null>((max, date) => (date && (!max || date > max) ? date : max), null);
+
+/**
+ * Показатели карточки студентов (п. 4.2 ТЗ) одним набором запросов на страницу списка:
+ * средний результат по всем оценкам (% от максимума), выполненные задания и последняя учебная
+ * активность — те же события, что в ленте «Последняя активность» главной панели (сдача ответов,
+ * диагностика, обращения, запросы консультаций, рефлексия). Входы в систему не учитываются
+ * (FR-062). Нет данных — null, а не 0 (FR-005).
+ */
+async function loadMetrics(
+  db: Prisma.TransactionClient,
+  students: readonly { id: string; userId: string | null }[],
+): Promise<Map<string, StudentMetrics>> {
+  const where = { studentId: { in: students.map((student) => student.id) } };
+  const [assignments, results, sessions, feedback, consultations, reflections] = await Promise.all([
+    db.trajectoryAssignment.findMany({
+      where,
+      select: {
+        studentId: true,
+        status: true,
+        dueAt: true,
+        submissions: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+          select: { submittedAt: true },
+        },
+      },
+    }),
+    db.academicResult.findMany({
+      where,
+      select: { studentId: true, score: true, maxScore: true },
+    }),
+    db.diagnosticSession.groupBy({
+      by: ['studentId'],
+      where: { ...where, status: 'COMPLETED' },
+      _max: { completedAt: true },
+    }),
+    db.feedback.groupBy({
+      by: ['studentId'],
+      where: { ...where, parentId: null, kind: { in: [...STUDENT_FEEDBACK_KINDS] } },
+      _max: { createdAt: true },
+    }),
+    db.consultation.groupBy({
+      by: ['studentId', 'requestedById'],
+      where: { ...where, requestedById: { not: null } },
+      _max: { createdAt: true },
+    }),
+    db.reflection.groupBy({
+      by: ['studentId'],
+      where,
+      _max: { createdAt: true },
+    }),
+  ]);
+
+  return new Map(
+    students.map((student) => {
+      const own = assignments.filter((item) => item.studentId === student.id);
+      const progress = assignmentProgress(own.map(toProgressItem));
+      const lastActivity = latest([
+        ...own.map((item) => item.submissions[0]?.submittedAt),
+        sessions.find((item) => item.studentId === student.id)?._max.completedAt,
+        feedback.find((item) => item.studentId === student.id)?._max.createdAt,
+        // Запрос консультации — активность студента, только если отправил его сам студент.
+        consultations.find(
+          (item) => item.studentId === student.id && item.requestedById === student.userId,
+        )?._max.createdAt,
+        reflections.find((item) => item.studentId === student.id)?._max.createdAt,
+      ]);
+      return [
+        student.id,
+        {
+          averageScore: averagePercent(
+            results
+              .filter((item) => item.studentId === student.id)
+              .map((item) => ({ score: Number(item.score), maxScore: Number(item.maxScore) })),
+          ),
+          completedAssignments: progress.total > 0 ? progress.completed : null,
+          lastActivityAt: lastActivity?.toISOString() ?? null,
+        },
+      ];
+    }),
+  );
+}
+
+function toSummary(row: SummaryRow, metrics: StudentMetrics): StudentSummaryDto {
   const profile = row.currentMotivationProfile;
   const trajectory = row.trajectories[0];
   return {
@@ -148,25 +253,21 @@ function toSummary(row: SummaryRow): StudentSummaryDto {
           proposedLevel: profile.proposedLevel as MotivationLevel | null,
         }
       : null,
-    // TODO(этап 13): прогресс, успеваемость, выполненные задания и активность — из результатов
-    // заданий. До этого — «нет данных», а не нули (FR-005).
     currentTrajectory: trajectory
       ? {
           id: trajectory.id,
           status: trajectory.status as TrajectoryStatus,
           disciplineName: trajectory.discipline.name,
-          progress: null,
+          progress: assignmentProgress(trajectory.assignments.map(toProgressItem)).percent,
         }
       : null,
-    averageScore: null,
-    completedAssignments: null,
-    lastActivityAt: null,
+    ...metrics,
   };
 }
 
-function toDetails(row: DetailsRow): StudentDetailsDto {
+function toDetails(row: DetailsRow, metrics: StudentMetrics): StudentDetailsDto {
   return {
-    ...toSummary(row),
+    ...toSummary(row, metrics),
     archiveReason: row.archiveReason,
     createdAt: row.createdAt.toISOString(),
     enrollments: row.enrollments.map((item): EnrollmentDto => ({
@@ -177,6 +278,14 @@ function toDetails(row: DetailsRow): StudentDetailsDto {
       reason: item.reason,
     })),
   };
+}
+
+async function withMetrics(
+  db: Prisma.TransactionClient,
+  row: DetailsRow,
+): Promise<StudentDetailsDto> {
+  const metrics = await loadMetrics(db, [row]);
+  return toDetails(row, metrics.get(row.id)!);
 }
 
 /** Кандидат в студенты: ручной ввод (группа по id) или строка импорта (группа по названию). */
@@ -267,12 +376,18 @@ export class StudentsService {
       }),
       this.prisma.student.count({ where }),
     ]);
-    return { items: rows.map(toSummary), total, page: query.page, pageSize: query.pageSize };
+    const metrics = await loadMetrics(this.prisma, rows);
+    return {
+      items: rows.map((row) => toSummary(row, metrics.get(row.id)!)),
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
   async get(user: CurrentUser, id: string): Promise<StudentDetailsDto> {
     const scope = await this.scopes.forUser(user);
-    return toDetails(await this.findInScope(scope, id));
+    return withMetrics(this.prisma, await this.findInScope(scope, id));
   }
 
   async create(
@@ -398,7 +513,7 @@ export class StudentsService {
       firstName: dto.firstName,
       middleName: dto.middleName ?? null,
     };
-    return this.prisma.$transaction(async (tx) => {
+    const row = await this.prisma.$transaction(async (tx) => {
       await tx.student.update({ where: { id }, data });
       if (existing.userId) await tx.user.update({ where: { id: existing.userId }, data });
       await this.audit.log(
@@ -415,10 +530,9 @@ export class StudentsService {
         },
         tx,
       );
-      return toDetails(
-        await tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude }),
-      );
+      return tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude });
     });
+    return withMetrics(this.prisma, row);
   }
 
   /** Перевод в другую группу (FR-010): прежняя запись о группе закрывается, история сохраняется. */
@@ -436,7 +550,7 @@ export class StudentsService {
     }
     await this.assertGroupAvailable(scope, dto.groupId);
     const now = new Date();
-    return this.prisma.$transaction(async (tx) => {
+    const row = await this.prisma.$transaction(async (tx) => {
       await tx.enrollment.updateMany({
         where: { studentId: id, endsAt: null },
         data: { endsAt: now },
@@ -462,10 +576,9 @@ export class StudentsService {
         },
         tx,
       );
-      return toDetails(
-        await tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude }),
-      );
+      return tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude });
     });
+    return withMetrics(this.prisma, row);
   }
 
   /**
@@ -476,7 +589,7 @@ export class StudentsService {
     const scope = await this.scopes.forUser(user);
     const existing = await this.findInScope(scope, id);
     if (existing.archivedAt) throw new ConflictException('Студент уже в архиве');
-    return this.prisma.$transaction(async (tx) => {
+    const row = await this.prisma.$transaction(async (tx) => {
       await tx.student.update({
         where: { id },
         data: { archivedAt: new Date(), archiveReason: reason },
@@ -492,10 +605,9 @@ export class StudentsService {
         { action: 'student.archived', entityType: 'student', entityId: id, reason },
         tx,
       );
-      return toDetails(
-        await tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude }),
-      );
+      return tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude });
     });
+    return withMetrics(this.prisma, row);
   }
 
   async restore(user: CurrentUser, id: string): Promise<StudentDetailsDto> {
@@ -510,7 +622,7 @@ export class StudentsService {
         );
       }
     }
-    return this.prisma.$transaction(async (tx) => {
+    const row = await this.prisma.$transaction(async (tx) => {
       await tx.student.update({ where: { id }, data: { archivedAt: null, archiveReason: null } });
       if (existing.userId) {
         await tx.user.updateMany({
@@ -519,10 +631,9 @@ export class StudentsService {
         });
       }
       await this.audit.log({ action: 'student.restored', entityType: 'student', entityId: id }, tx);
-      return toDetails(
-        await tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude }),
-      );
+      return tx.student.findUniqueOrThrow({ where: { id }, include: detailsInclude });
     });
+    return withMetrics(this.prisma, row);
   }
 
   /** Новый временный пароль студента, например если он забыл свой. Все его сессии завершаются. */
@@ -800,8 +911,9 @@ export class StudentsService {
       include: detailsInclude,
     });
     const byId = new Map(rows.map((row) => [row.id, row]));
+    const metrics = await loadMetrics(this.prisma, rows);
     return ids.map((id, index) => ({
-      student: toDetails(byId.get(id)!),
+      student: toDetails(byId.get(id)!, metrics.get(id)!),
       login: identities[index]!.login,
       temporaryPassword: passwords[index]!,
     }));

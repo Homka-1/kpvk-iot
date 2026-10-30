@@ -434,6 +434,108 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
         .expect(200);
       await as(admin, http().post(`/api/students/${id}/restore`)).expect(200);
     });
+
+    it('п. 4.2, FR-005, FR-012: карточка собирает прогресс, успеваемость, задания и активность; без данных — null', async () => {
+      const created = await addStudent(teacher, {
+        lastName: `Показатели${suffix()}`,
+        firstName: 'Тест',
+        groupId: groupA.id,
+      }).expect(201);
+      const { id, userId } = (await prisma.student.findUniqueOrThrow({
+        where: { id: (created.body as StudentCreatedDto).student.id },
+      })) as { id: string; userId: string };
+      const card = async () => {
+        const res = await as(teacher, http().get(`/api/students/${id}`)).expect(200);
+        return res.body as StudentDetailsDto;
+      };
+
+      const empty = await card();
+      expect(empty.currentTrajectory).toBeNull();
+      expect(empty.averageScore).toBeNull();
+      expect(empty.completedAssignments).toBeNull();
+      expect(empty.lastActivityAt).toBeNull();
+
+      const type = await prisma.assignmentType.findUniqueOrThrow({ where: { code: 'practical' } });
+      const assignment = await prisma.assignment.create({
+        data: {
+          title: `Задание ${suffix()}`,
+          disciplineId: discipline.id,
+          difficulty: 'BASIC',
+          typeId: type.id,
+          submissionFormats: ['TEXT'],
+          maxScore: 100,
+        },
+      });
+      const trajectory = await prisma.trajectory.create({
+        data: { studentId: id, disciplineId: discipline.id, teacherId, status: 'ACTIVE' },
+      });
+      const assign = (status: 'COMPLETED' | 'IN_PROGRESS' | 'CANCELLED') =>
+        prisma.trajectoryAssignment.create({
+          data: {
+            assignmentId: assignment.id,
+            studentId: id,
+            trajectoryId: trajectory.id,
+            status,
+            assignedById: teacherId,
+          },
+        });
+      const done = await assign('COMPLETED');
+      await assign('IN_PROGRESS');
+      await assign('CANCELLED');
+      const submittedAt = new Date('2026-09-10T10:00:00Z');
+      await prisma.submission.create({
+        data: { trajectoryAssignmentId: done.id, attemptNumber: 1, text: 'Ответ', submittedAt },
+      });
+      await prisma.academicResult.createMany({
+        data: [
+          { score: 80, maxScore: 100 },
+          { score: 3, maxScore: 5 },
+        ].map((item) => ({
+          ...item,
+          studentId: id,
+          disciplineId: discipline.id,
+          source: 'MANUAL' as const,
+          recordedAt: new Date(),
+        })),
+      });
+      // Консультация, назначенная преподавателем, — не активность студента.
+      await prisma.consultation.create({
+        data: {
+          studentId: id,
+          status: 'REQUESTED',
+          topic: 'Разбор ошибок',
+          requestedById: teacherId,
+          createdAt: new Date('2026-09-20T10:00:00Z'),
+        },
+      });
+
+      const filled = await card();
+      expect(filled.currentTrajectory?.progress).toBe(50);
+      expect(filled.averageScore).toBe(70);
+      expect(filled.completedAssignments).toBe(1);
+      expect(filled.lastActivityAt).toBe(submittedAt.toISOString());
+
+      const question = new Date('2026-09-15T10:00:00Z');
+      await prisma.feedback.create({
+        data: {
+          studentId: id,
+          authorId: userId,
+          kind: 'QUESTION',
+          body: 'Вопрос по заданию',
+          createdAt: question,
+        },
+      });
+      const page = await as(teacher, http().get('/api/students'))
+        .query({ search: created.body.student.lastName })
+        .expect(200);
+      const [item] = (page.body as StudentPageDto).items;
+      expect(item).toMatchObject({
+        id,
+        averageScore: 70,
+        completedAssignments: 1,
+        lastActivityAt: question.toISOString(),
+      });
+    });
   });
 
   describe('импорт', () => {

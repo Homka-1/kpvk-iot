@@ -74,7 +74,7 @@ defineProps<{
       <div>
         <dt>Средний показатель успеваемости</dt>
         <dd :class="{ 'student-card__empty': student.averageScore == null }">
-          {{ student.averageScore == null ? NO_DATA : formatNumber(student.averageScore) }}
+          {{ student.averageScore == null ? NO_DATA : `${formatNumber(student.averageScore)} %` }}
         </dd>
       </div>
       <div>

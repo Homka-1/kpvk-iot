@@ -106,11 +106,14 @@ export interface StudentSummaryDto {
     id: string;
     status: TrajectoryStatus;
     disciplineName: string;
-    /** Прогресс маршрута, %; появится вместе с выполнением заданий (этап 13). */
+    /** Доля выполненных заданий маршрута, %; заданий нет — null. */
     progress: number | null;
   } | null;
+  /** Средний результат по всем оценкам студента, % от максимума; оценок нет — null. */
   averageScore: number | null;
+  /** Выполненные задания; действующих заданий нет — null («Нет данных», а не 0). */
   completedAssignments: number | null;
+  /** Последнее учебное действие студента (входы в систему не учитываются, FR-062). */
   lastActivityAt: string | null;
 }
 
