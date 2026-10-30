@@ -2,15 +2,25 @@
 # Сборка из корня репозитория:
 #   docker build -f docker/web/Dockerfile .
 
+# Корневой package.json без полей version и scripts.prepare — для установки зависимостей,
+# чтобы подъём версии не сбрасывал кэш этого слоя (см. docker/api/Dockerfile). Полный файл
+# копируется перед сборкой: vite.config.ts берёт из него версию для демо-панели.
+FROM node:24-alpine AS manifest
+WORKDIR /app
+COPY package.json ./
+RUN npm pkg delete version scripts.prepare
+
 FROM node:24-alpine AS build
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-RUN npm pkg delete scripts.prepare
+ENV npm_config_store_dir=/pnpm/store
+COPY --from=manifest /app/package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
-RUN pnpm install --frozen-lockfile --filter @iot/web... --filter iot-college
-COPY tsconfig.base.json ./
+RUN --mount=type=cache,id=iot-pnpm-store,target=/pnpm/store \
+  pnpm install --frozen-lockfile --filter @iot/web... --filter iot-college
+COPY tsconfig.base.json package.json ./
 COPY packages/shared packages/shared
 COPY apps/web apps/web
 RUN pnpm --filter @iot/shared build && pnpm --filter @iot/web build

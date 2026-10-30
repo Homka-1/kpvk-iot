@@ -2,18 +2,30 @@
 #   docker build -f docker/api/Dockerfile .
 # Стадия build собирает shared и api, стадия runtime содержит только production-зависимости.
 
+# Корневой package.json без полей version и scripts.prepare: версия меняется почти в каждом
+# коммите, и без этого каждый пуш сбрасывал бы кэш слоёв установки зависимостей. Слой ниже
+# сравнивается по содержимому файла, поэтому установка пересобирается только при изменении
+# зависимостей. Хук husky нужен только разработчикам; в образе его нет.
+FROM node:24-alpine AS manifest
+WORKDIR /app
+COPY package.json ./
+RUN npm pkg delete version scripts.prepare
+
 FROM node:24-alpine AS base
 # openssl нужен Prisma для определения платформы движка миграций.
 RUN apk add --no-cache openssl && corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-# Хук husky нужен только разработчикам; в образе его нет.
-RUN npm pkg delete scripts.prepare
+# Хранилище пакетов pnpm — в кэше сборки, общем для стадий и сборок: пакеты не скачиваются
+# заново при каждом изменении зависимостей.
+ENV npm_config_store_dir=/pnpm/store
+COPY --from=manifest /app/package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 
 FROM base AS build
-RUN pnpm install --frozen-lockfile --filter @iot/api... --filter iot-college
+RUN --mount=type=cache,id=iot-pnpm-store,target=/pnpm/store \
+  pnpm install --frozen-lockfile --filter @iot/api... --filter iot-college
 COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
@@ -21,8 +33,9 @@ RUN pnpm --filter @iot/shared build && pnpm --filter @iot/api build
 
 FROM base AS runtime
 ENV NODE_ENV=production
-RUN pnpm install --frozen-lockfile --prod --filter @iot/api... \
-  && pnpm store prune && rm -rf /root/.cache /root/.local/share/pnpm
+RUN --mount=type=cache,id=iot-pnpm-store,target=/pnpm/store \
+  pnpm install --frozen-lockfile --prod --filter @iot/api... \
+  && rm -rf /root/.cache
 COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY apps/api/prisma/schema.prisma apps/api/prisma/
