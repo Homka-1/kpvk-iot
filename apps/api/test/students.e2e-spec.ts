@@ -531,10 +531,20 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
       const [item] = (page.body as StudentPageDto).items;
       expect(item).toMatchObject({
         id,
+        hasCompletedTrajectory: false,
         averageScore: 70,
         completedAssignments: 1,
         lastActivityAt: question.toISOString(),
       });
+
+      // Завершённая ИОТ не текущая: карточка получает признак завершения.
+      await prisma.trajectory.update({
+        where: { id: trajectory.id },
+        data: { status: 'COMPLETED', completedAt: new Date() },
+      });
+      const finished = await card();
+      expect(finished.currentTrajectory).toBeNull();
+      expect(finished.hasCompletedTrajectory).toBe(true);
     });
   });
 

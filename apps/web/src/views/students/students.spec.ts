@@ -29,6 +29,7 @@ function student(overrides: Partial<StudentSummaryDto> = {}): StudentSummaryDto 
     archivedAt: null,
     motivationProfile: null,
     currentTrajectory: null,
+    hasCompletedTrajectory: false,
     averageScore: null,
     completedAssignments: null,
     lastActivityAt: null,
@@ -70,6 +71,16 @@ describe('StudentCard', () => {
     expect(text).toContain('Нет ИОТ');
     expect(text.match(/Нет данных/g)).toHaveLength(5);
     expect(text).not.toMatch(/\b0\b/);
+  });
+
+  it('п. 4.2: без текущей ИОТ, но с завершённой — прогресс «Завершён»', () => {
+    const wrapper = mount(StudentCard, {
+      props: { student: student({ hasCompletedTrajectory: true, averageScore: 82.5 }) },
+      global: { plugins: [PrimeVue] },
+    });
+    const text = wrapper.text();
+    expect(text).toContain('Прогресс маршрутаЗавершён');
+    expect(text).toContain('82,5 %');
   });
 
   it('п. 6.1: статусы сопровождения, профиля и ИОТ — текстом', () => {

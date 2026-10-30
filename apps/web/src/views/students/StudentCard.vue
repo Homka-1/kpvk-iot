@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { formatFullName, type StudentSummaryDto } from '@iot/shared';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { formatDateTime, formatNumber } from '@/utils/format';
@@ -9,11 +10,19 @@ import SupportStatusBadge from './SupportStatusBadge.vue';
  * Карточка студента в списке (п. 4.2 ТЗ). Показатели, по которым ещё нет данных, подписаны
  * «Нет данных» — без нулей (FR-005).
  */
-defineProps<{
+const props = defineProps<{
   student: StudentSummaryDto;
   /** Адрес профиля студента; без него имя выводится обычным текстом. */
   to?: string;
 }>();
+
+/** Прогресс текущей ИОТ; без текущей, но с завершённой — «Завершён», иначе «Нет данных». */
+const progress = computed(() => {
+  const { currentTrajectory, hasCompletedTrajectory } = props.student;
+  if (currentTrajectory?.progress != null) return `${formatNumber(currentTrajectory.progress)} %`;
+  if (!currentTrajectory && hasCompletedTrajectory) return 'Завершён';
+  return null;
+});
 </script>
 
 <template>
@@ -63,12 +72,8 @@ defineProps<{
       </div>
       <div>
         <dt>Прогресс маршрута</dt>
-        <dd :class="{ 'student-card__empty': student.currentTrajectory?.progress == null }">
-          {{
-            student.currentTrajectory?.progress == null
-              ? NO_DATA
-              : `${formatNumber(student.currentTrajectory.progress)} %`
-          }}
+        <dd :class="{ 'student-card__empty': progress == null }">
+          {{ progress ?? NO_DATA }}
         </dd>
       </div>
       <div>

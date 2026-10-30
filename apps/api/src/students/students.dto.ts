@@ -261,6 +261,8 @@ export class StudentSummaryResponseDto {
   motivationProfile: StudentProfileRefDto | null;
   @ApiProperty({ nullable: true, type: StudentTrajectoryRefDto, description: 'null — нет ИОТ' })
   currentTrajectory: StudentTrajectoryRefDto | null;
+  @ApiProperty({ description: 'Есть завершённая ИОТ' })
+  hasCompletedTrajectory: boolean;
   @ApiProperty({ nullable: true, type: Number, description: 'null — нет данных' })
   averageScore: number | null;
   @ApiProperty({ nullable: true, type: Number, description: 'null — нет данных' })

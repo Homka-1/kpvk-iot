@@ -28,6 +28,7 @@ const profile: StudentProfileDto = {
   archivedAt: null,
   motivationProfile: null,
   currentTrajectory: null,
+  hasCompletedTrajectory: false,
   averageScore: null,
   completedAssignments: null,
   lastActivityAt: null,

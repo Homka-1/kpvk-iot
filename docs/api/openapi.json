@@ -11321,6 +11321,10 @@
               }
             ]
           },
+          "hasCompletedTrajectory": {
+            "type": "boolean",
+            "description": "Есть завершённая ИОТ"
+          },
           "averageScore": {
             "type": "number",
             "nullable": true,
@@ -11350,6 +11354,7 @@
           "archivedAt",
           "motivationProfile",
           "currentTrajectory",
+          "hasCompletedTrajectory",
           "averageScore",
           "completedAssignments",
           "lastActivityAt"
@@ -11515,6 +11520,10 @@
               }
             ]
           },
+          "hasCompletedTrajectory": {
+            "type": "boolean",
+            "description": "Есть завершённая ИОТ"
+          },
           "averageScore": {
             "type": "number",
             "nullable": true,
@@ -11559,6 +11568,7 @@
           "archivedAt",
           "motivationProfile",
           "currentTrajectory",
+          "hasCompletedTrajectory",
           "averageScore",
           "completedAssignments",
           "lastActivityAt",
@@ -11875,6 +11885,10 @@
               }
             ]
           },
+          "hasCompletedTrajectory": {
+            "type": "boolean",
+            "description": "Есть завершённая ИОТ"
+          },
           "averageScore": {
             "type": "number",
             "nullable": true,
@@ -11931,6 +11945,7 @@
           "archivedAt",
           "motivationProfile",
           "currentTrajectory",
+          "hasCompletedTrajectory",
           "averageScore",
           "completedAssignments",
           "lastActivityAt",

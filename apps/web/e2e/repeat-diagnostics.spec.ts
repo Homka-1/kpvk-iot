@@ -68,6 +68,7 @@ test.describe('UC-06: повторная диагностика', () => {
       archivedAt: null,
       motivationProfile: null,
       currentTrajectory: null,
+      hasCompletedTrajectory: false,
       averageScore: null,
       completedAssignments: null,
       lastActivityAt: null,

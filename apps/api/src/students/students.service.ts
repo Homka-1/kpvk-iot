@@ -73,6 +73,7 @@ const summaryInclude = {
       assignments: { select: { status: true, dueAt: true } },
     },
   },
+  _count: { select: { trajectories: { where: { status: 'COMPLETED' } } } },
 } satisfies Prisma.StudentInclude;
 
 /**
@@ -261,6 +262,7 @@ function toSummary(row: SummaryRow, metrics: StudentMetrics): StudentSummaryDto 
           progress: assignmentProgress(trajectory.assignments.map(toProgressItem)).percent,
         }
       : null,
+    hasCompletedTrajectory: row._count.trajectories > 0,
     ...metrics,
   };
 }
