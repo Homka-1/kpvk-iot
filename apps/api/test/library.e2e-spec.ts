@@ -52,8 +52,8 @@ describe('Библиотека материалов и заданий (e2e)', ()
     instruction: 'Решите задачи и объясните решение',
     submissionFormats: ['TEXT', 'FILE'],
     criteria: [
-      { title: 'Верность', maxScore: 6 },
-      { title: 'Обоснование', description: 'Пояснение к каждому шагу', maxScore: 4.5 },
+      { title: 'Верность', maxScore: 59.5 },
+      { title: 'Обоснование', description: 'Пояснение к каждому шагу', maxScore: 40.5 },
     ],
     attachments: [],
     ...overrides,
@@ -325,10 +325,10 @@ describe('Библиотека материалов и заданий (e2e)', ()
       difficulty: 'INTERMEDIATE',
       type: { code: 'practical', name: 'Практическая работа' },
       submissionFormats: ['TEXT', 'FILE'],
-      maxScore: 10.5,
+      maxScore: 100,
       criteria: [
-        { title: 'Верность', maxScore: 6, description: null },
-        { title: 'Обоснование', maxScore: 4.5 },
+        { title: 'Верность', maxScore: 59.5, description: null },
+        { title: 'Обоснование', maxScore: 40.5 },
       ],
       attachments: [
         { title: 'Условие', file: { id: file.id }, url: null },
@@ -365,7 +365,7 @@ describe('Библиотека материалов и заданий (e2e)', ()
             title: `Правка-2 ${tag}`,
             difficulty: 'ADVANCED',
             submissionFormats: ['LINK'],
-            criteria: [{ title: 'Итог', maxScore: 5 }],
+            criteria: [{ title: 'Итог', maxScore: 100 }],
             attachments: [{ url: 'https://example.org/b' }],
           }),
         )
@@ -374,8 +374,8 @@ describe('Библиотека материалов и заданий (e2e)', ()
     expect(updated).toMatchObject({
       title: `Правка-2 ${tag}`,
       difficulty: 'ADVANCED',
-      maxScore: 5,
-      criteria: [{ title: 'Итог', maxScore: 5 }],
+      maxScore: 100,
+      criteria: [{ title: 'Итог', maxScore: 100 }],
       attachments: [{ url: 'https://example.org/b', title: null }],
     });
     expect(await prisma.assessmentCriterion.count({ where: { assignmentId: created.id } })).toBe(1);
@@ -386,6 +386,40 @@ describe('Библиотека материалов и заданий (e2e)', ()
     await as(otherTeacher, http().put(`/api/library-assignments/${created.id}`))
       .send(assignmentBody())
       .expect(404);
+  });
+
+  it('FR-052: баллы за задание — по шкале 100; прежнее задание с неизменными критериями редактируется', async () => {
+    const wrong = await createAssignment(
+      assignmentBody({ criteria: [{ title: 'Итог', maxScore: 10 }] }),
+    ).expect(400);
+    expect(wrong.body.fields.criteria).toBe(
+      'Сумма максимальных баллов критериев должна быть 100, сейчас 10',
+    );
+    await createAssignment(assignmentBody({ criteria: [{ title: 'Итог', maxScore: 101 }] })).expect(
+      400,
+    );
+
+    // Задание, созданное до перехода на шкалу 100 (сумма критериев 10).
+    const legacy = await prisma.assignment.create({
+      data: {
+        title: `Прежнее ${tag}`,
+        disciplineId,
+        difficulty: 'BASIC',
+        typeId: practicalTypeId,
+        submissionFormats: ['TEXT'],
+        maxScore: 10,
+        criteria: { create: [{ sortOrder: 0, title: 'Итог', maxScore: 10 }] },
+      },
+    });
+    await as(teacher, http().put(`/api/library-assignments/${legacy.id}`))
+      .send(
+        assignmentBody({ title: `Прежнее-2 ${tag}`, criteria: [{ title: 'Итог', maxScore: 10 }] }),
+      )
+      .expect(200);
+    const changed = await as(teacher, http().put(`/api/library-assignments/${legacy.id}`))
+      .send(assignmentBody({ criteria: [{ title: 'Итог', maxScore: 20 }] }))
+      .expect(400);
+    expect(changed.body.fields.criteria).toContain('должна быть 100');
   });
 
   it('FR-047: поиск заданий по дисциплине, теме, уровню сложности, типу и тексту; чужие не видны', async () => {

@@ -150,7 +150,7 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
         difficulty: 'BASIC',
         typeId: ids.assignmentType,
         submissionFormats: ['TEXT'],
-        criteria: [{ title: 'Верность', maxScore: 5 }],
+        criteria: [{ title: 'Верность', maxScore: 100 }],
         attachments: [],
       },
       'POST /api/motivation-profiles/:profileId/decision': { level: 'HIGH' },
@@ -270,7 +270,7 @@ describe('IDOR: чужие данные по прямой ссылке (e2e, AT-
             typeId: types[0]!.id,
             instruction: 'Решите задачи',
             submissionFormats: ['TEXT', 'FILE'],
-            criteria: [{ title: 'Верность', maxScore: 5 }],
+            criteria: [{ title: 'Верность', maxScore: 100 }],
             attachments: [{ fileId: ids.teacherFile }],
           })
           .expect(201)

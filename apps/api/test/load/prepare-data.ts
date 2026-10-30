@@ -92,7 +92,7 @@ async function main(): Promise<void> {
       typeId: types[0]!.id,
       instruction: 'Выполните задание',
       submissionFormats: ['TEXT'],
-      criteria: [{ title: 'Верность', maxScore: 5 }],
+      criteria: [{ title: 'Верность', maxScore: 100 }],
       attachments: [],
     });
     tasks.push(task.id);

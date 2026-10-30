@@ -21,19 +21,19 @@ test('AT-07, UC-04: студент отправляет задание, преп
   await page.getByRole('link', { name: new RegExp(`${task.title}.*${student.fullName}`) }).click();
   await expect(page.getByRole('heading', { name: 'Проверка попытки 1' })).toBeVisible();
   await expect(page.getByText('x = 2, проверка: 3·2 − 1 = 5')).toBeVisible();
-  await page.getByLabel('Верность решения (0–5)').fill('5');
-  await page.getByLabel('Оформление (0–3)').fill('2');
+  await page.getByLabel('Верность решения (0–60)').fill('55');
+  await page.getByLabel('Оформление (0–40)').fill('30');
   await page
     .getByLabel('Комментарий для студента (необязательно)')
     .fill('Верно, оформите проверку подробнее');
   await page.getByRole('button', { name: 'Принять' }).click();
-  await expect(page.getByText('Балл: 7 из 8')).toBeVisible();
+  await expect(page.getByText('Балл: 85 из 100')).toBeVisible();
 
   // Студент видит результат проверки и комментарий.
   await page.context().clearCookies();
   await signIn(page, student);
   await page.goto('/student/assignments');
   await page.getByRole('link', { name: new RegExp(task.title) }).click();
-  await expect(page.getByText(/Задание выполнено\. Балл: 7 из 8/)).toBeVisible();
+  await expect(page.getByText(/Задание выполнено\. Балл: 85 из 100/)).toBeVisible();
   await expect(page.getByText('Верно, оформите проверку подробнее')).toBeVisible();
 });

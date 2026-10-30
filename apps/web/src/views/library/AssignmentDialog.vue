@@ -2,8 +2,10 @@
 import {
   ASSIGNMENT_ATTACHMENTS_MAX,
   ASSIGNMENT_CRITERIA_MAX,
+  ASSIGNMENT_SCORE_MAX,
   type AssignmentTypeDto,
   assignmentTypeFormSchema,
+  criteriaScaleIssue,
   DIFFICULTY_LEVEL_LABELS,
   DifficultyLevel,
   type FileDto,
@@ -78,6 +80,15 @@ let idempotencyKey = newIdempotencyKey();
 const totalScore = computed(() =>
   form.criteria.reduce((sum, criterion) => sum + (criterion.maxScore ?? 0), 0),
 );
+
+/** Критерии изменены относительно сохранённого задания (новое задание — всегда). */
+function criteriaChanged(
+  criteria: { title: string; description?: string | null; maxScore: number }[],
+) {
+  const key = (items: { title: string; description?: string | null; maxScore: number }[]) =>
+    JSON.stringify(items.map((item) => [item.title, item.description ?? null, item.maxScore]));
+  return !props.assignment || key(props.assignment.criteria) !== key(criteria);
+}
 
 watch(visible, (open) => {
   if (!open) return;
@@ -159,6 +170,14 @@ async function save(): Promise<void> {
   });
   errors.value = parsed.success ? {} : issuesToErrors(parsed.error.issues);
   if (!parsed.success) return;
+  // Шкала 100 баллов — для новых критериев; прежние задания с неизменными критериями сохраняются.
+  const scaleIssue = criteriaChanged(parsed.data.criteria)
+    ? criteriaScaleIssue(parsed.data.criteria)
+    : null;
+  if (scaleIssue) {
+    errors.value = { criteria: scaleIssue };
+    return;
+  }
   saving.value = true;
   try {
     const assignment = props.assignment;
@@ -330,7 +349,8 @@ async function save(): Promise<void> {
       <fieldset class="assignment-dialog__group">
         <legend>Критерии оценивания</legend>
         <p v-if="form.criteria.length === 0" class="iot-field-hint">
-          Критериев нет — задание будет проверяться без баллов по критериям.
+          Критериев нет — задание будет проверяться без баллов по критериям. Сумма баллов критериев
+          — {{ ASSIGNMENT_SCORE_MAX }}.
         </p>
         <div
           v-for="(criterion, index) in form.criteria"
@@ -395,7 +415,7 @@ async function save(): Promise<void> {
             @click="addCriterion"
           />
           <span v-if="form.criteria.length > 0" class="iot-field-hint">
-            Максимум за задание: {{ formatNumber(totalScore) }}
+            Сумма баллов: {{ formatNumber(totalScore) }} из {{ ASSIGNMENT_SCORE_MAX }}
           </span>
         </div>
         <small v-if="errors.criteria" class="iot-field-error">{{ errors.criteria }}</small>

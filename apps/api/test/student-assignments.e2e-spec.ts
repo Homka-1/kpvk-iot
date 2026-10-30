@@ -181,7 +181,7 @@ describe('Карта ИОТ, кабинет студента и назначен
             typeId: types[0]!.id,
             instruction: 'Решите уравнения',
             submissionFormats: ['TEXT', 'FILE'],
-            criteria: [{ title: 'Верность', maxScore: 5 }],
+            criteria: [{ title: 'Верность', maxScore: 100 }],
             attachments: files.map((file) => ({ fileId: file.id })),
           })
           .expect(201)
@@ -413,7 +413,7 @@ describe('Карта ИОТ, кабинет студента и назначен
     expect(detail).toMatchObject({
       instruction: 'Решите уравнения',
       submissionFormats: ['TEXT', 'FILE'],
-      criteria: [{ title: 'Верность', maxScore: 5 }],
+      criteria: [{ title: 'Верность', maxScore: 100 }],
     });
   });
 

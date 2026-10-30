@@ -14,7 +14,7 @@ test('AT-08, FR-042, FR-056: мониторинг корректно отобр�
   await expect(card.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
   await expect(card).toContainText('Нет данных: оценок нет');
 
-  // Студент выполнил задание, преподаватель принял его (8 из 8).
+  // Студент выполнил задание, преподаватель принял его (100 из 100).
   await completeTask(student, stand().tasks[0]!.title);
 
   await page.reload();

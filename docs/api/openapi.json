@@ -16792,9 +16792,9 @@
           },
           "maxScore": {
             "type": "number",
-            "description": "Максимальный балл по критерию",
+            "description": "Максимальный балл по критерию; сумма по критериям задания — 100",
             "minimum": 0.001,
-            "maximum": 1000
+            "maximum": 100
           }
         },
         "required": [

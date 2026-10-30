@@ -366,6 +366,14 @@ describe('Демо-режим (e2e)', () => {
       (experimental.length + control.length) * 7 * 2,
     );
     expect(await prisma.feedback.count()).toBeGreaterThan(0);
+    // Баллы за задания — по шкале 100 (как шкала колледжа).
+    const assignmentResults = await prisma.academicResult.findMany({
+      where: { source: 'ASSIGNMENT' },
+      select: { score: true, maxScore: true },
+    });
+    expect(assignmentResults.length).toBeGreaterThan(0);
+    expect(assignmentResults.every((row) => Number(row.maxScore) === 100)).toBe(true);
+    expect(await prisma.assignment.count({ where: { NOT: { maxScore: 100 } } })).toBe(0);
 
     // Администратор-преподаватель закреплён только за своей дисциплиной, остальные преподаватели
     // рабочей базы — за всеми дисциплинами групп исследования.

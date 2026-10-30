@@ -178,7 +178,7 @@ describe('Индивидуальные траектории (e2e)', () => {
       difficulty: 'BASIC',
       typeId: types[0]!.id,
       submissionFormats: ['TEXT'],
-      criteria: [{ title: 'Верность', maxScore: 5 }],
+      criteria: [{ title: 'Верность', maxScore: 100 }],
       attachments: [],
     });
     assignment = (

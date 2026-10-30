@@ -57,6 +57,11 @@ export const SYSTEM_ASSIGNMENT_TYPES = [
 ] as const;
 
 export const ASSIGNMENT_CRITERIA_MAX = 20;
+/**
+ * Шкала оценивания задания — 100 баллов, как шкала колледжа («4» — от 70, «5» — от 90):
+ * сумма максимальных баллов критериев равна 100.
+ */
+export const ASSIGNMENT_SCORE_MAX = 100;
 export const ASSIGNMENT_ATTACHMENTS_MAX = 20;
 
 // ── Контракты API ──
@@ -181,8 +186,19 @@ export const assessmentCriterionSchema = z.object({
   maxScore: z.coerce
     .number({ message: 'Укажите максимальный балл' })
     .positive('Балл должен быть больше нуля')
-    .max(1000, 'Не более 1000 баллов'),
+    .max(ASSIGNMENT_SCORE_MAX, `Не более ${ASSIGNMENT_SCORE_MAX} баллов`),
 });
+
+/**
+ * Сумма максимальных баллов критериев не равна шкале задания — текст ошибки; иначе null.
+ * Задание без критериев проверяется без баллов (FR-005).
+ */
+export function criteriaScaleIssue(criteria: readonly { maxScore: number }[]): string | null {
+  if (criteria.length === 0) return null;
+  const total = Math.round(criteria.reduce((sum, item) => sum + item.maxScore, 0) * 1000) / 1000;
+  if (total === ASSIGNMENT_SCORE_MAX) return null;
+  return `Сумма максимальных баллов критериев должна быть ${ASSIGNMENT_SCORE_MAX}, сейчас ${String(total).replace('.', ',')}`;
+}
 
 export const assignmentAttachmentSchema = z
   .object({

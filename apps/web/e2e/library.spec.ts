@@ -84,6 +84,13 @@ test.describe('Библиотека материалов и заданий', () 
     await dialog.getByRole('button', { name: 'Добавить критерий' }).click();
     await dialog.getByRole('textbox', { name: 'Критерий 1' }).fill('Верность решения');
     await dialog.getByLabel('Макс. балл').fill('5');
+    await dialog.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(
+      dialog.getByText('Сумма максимальных баллов критериев должна быть 100, сейчас 5'),
+    ).toBeVisible();
+    await dialog.getByLabel('Макс. балл').fill('100');
+    await dialog.getByLabel('Макс. балл').blur();
+    await expect(dialog.getByText('Сумма баллов: 100 из 100')).toBeVisible();
     await expectNoHorizontalScroll(page);
     await dialog.getByRole('button', { name: 'Сохранить' }).click();
     await expect(dialog).toBeHidden();
@@ -93,7 +100,7 @@ test.describe('Библиотека материалов и заданий', () 
       typeId: practical.id,
       difficulty: 'BASIC',
       submissionFormats: ['TEXT'],
-      criteria: [{ title: 'Верность решения', maxScore: 5 }],
+      criteria: [{ title: 'Верность решения', maxScore: 100 }],
     });
 
     const card = page.getByTestId('assignment-card');

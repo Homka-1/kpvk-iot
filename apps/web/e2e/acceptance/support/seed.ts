@@ -218,8 +218,8 @@ export async function seedAcceptance(options: {
       instruction: 'Решите задачи и запишите ход решения.',
       submissionFormats: ['TEXT', 'FILE'],
       criteria: [
-        { title: 'Верность решения', maxScore: 5 },
-        { title: 'Оформление', maxScore: 3 },
+        { title: 'Верность решения', maxScore: 60 },
+        { title: 'Оформление', maxScore: 40 },
       ],
       attachments: [],
     });

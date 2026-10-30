@@ -244,8 +244,8 @@ describe('Мониторинг и корректировка ИОТ (e2e)', () =
           .expect(201)
       ).body as LibraryAssignmentDto;
     scored = await task('Уравнения', [
-      { title: 'Верность', maxScore: 8 },
-      { title: 'Оформление', maxScore: 2 },
+      { title: 'Верность', maxScore: 80 },
+      { title: 'Оформление', maxScore: 20 },
     ]);
     plain = await task('Конспект', []);
     extra = await task('Дополнительная задача', []);
@@ -286,7 +286,7 @@ describe('Мониторинг и корректировка ИОТ (e2e)', () =
       missedCheckpoints: 1,
     });
 
-    await submitAndAccept(session, scoredItem.id, [6, 2]);
+    await submitAndAccept(session, scoredItem.id, [60, 20]);
     const after = await monitoring({ studentId: student.id });
     expect(after.rows[0]).toMatchObject({
       progress: { total: 2, completed: 1, percent: 50 },
@@ -389,7 +389,7 @@ describe('Мониторинг и корректировка ИОТ (e2e)', () =
   it('AT-09, UC-05, FR-043, FR-061: корректировка создаёт новую версию, прежняя сохраняется', async () => {
     const { trajectory, session, scoredItem, plainItem, student } =
       await activeTrajectory('Корректировка');
-    await submitAndAccept(session, scoredItem.id, [8, 2]);
+    await submitAndAccept(session, scoredItem.id, [80, 20]);
     await app.get(MonitoringAlertsService).run();
     const original = (
       await as(teacher, http().get(`/api/trajectories/${trajectory.id}/versions/1`)).expect(200)
@@ -492,7 +492,7 @@ describe('Мониторинг и корректировка ИОТ (e2e)', () =
 
   it('FR-042: этап без заданий завершается отметкой его контрольных точек', async () => {
     const { trajectory, session, scoredItem, plainItem } = await activeTrajectory('Точки');
-    await submitAndAccept(session, scoredItem.id, [8, 2]);
+    await submitAndAccept(session, scoredItem.id, [80, 20]);
     await submitAndAccept(session, plainItem.id);
     const stage = (await getTrajectory(trajectory.id)).stages[1]!;
     const path = `/api/trajectories/${trajectory.id}/checkpoints/${stage.checkpoints[0]!.id}/status`;

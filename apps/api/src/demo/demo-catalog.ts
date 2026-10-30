@@ -153,6 +153,7 @@ export interface DemoAssignment {
   stage: number | null;
 }
 
+/** Критерии задания: сумма баллов — шкала задания (ASSIGNMENT_SCORE_MAX = 100). */
 const criteria = (...items: [string, number][]): DemoCriterion[] =>
   items.map(([title, maxScore]) => ({ title, maxScore }));
 
@@ -174,8 +175,12 @@ function stageSet(
     formats: ['TEXT', 'FILE', 'LINK'],
     criteria:
       index === 0
-        ? criteria(['Правильность решения', 6], ['Оформление', 4])
-        : criteria(['Правильность решения', 5], ['Обоснование хода решения', 3], ['Оформление', 2]),
+        ? criteria(['Правильность решения', 60], ['Оформление', 40])
+        : criteria(
+            ['Правильность решения', 50],
+            ['Обоснование хода решения', 30],
+            ['Оформление', 20],
+          ),
     stage,
   }));
 }
@@ -489,7 +494,7 @@ function libraryOnly(
     difficulty,
     type,
     formats: ['TEXT', 'FILE'],
-    criteria: criteria(['Правильность', 6], ['Оформление', 4]),
+    criteria: criteria(['Правильность', 60], ['Оформление', 40]),
     stage: null,
   };
 }

@@ -1656,7 +1656,8 @@ export class DemoActivityGenerator {
         submittedAt = new Date(assessedAt.getTime() + between(random, 1, 3) * 86400000);
         continue;
       }
-      const ratio = clamp(0.55 + 0.4 * theta + noise(random, 0.08), 0.4, 1);
+      // Доля от 100 баллов — как оценки за семестр (66 + 24θ по шкале колледжа).
+      const ratio = clamp(0.66 + 0.24 * theta + noise(random, 0.06), 0.45, 1);
       const scores = assignment.assignment.criteria.map((criterion) => ({
         criterionId: criterion.id,
         score: clamp(
@@ -1676,9 +1677,12 @@ export class DemoActivityGenerator {
           assessorId: teacherId,
           decision: 'ACCEPTED',
           score: total,
+          // Комментарий — по шкале колледжа: от 90 баллов «5», от 70 — «4».
           comment: pick(
             random,
-            ASSESSMENT_COMMENTS[ratio >= 0.85 ? 'high' : ratio >= 0.65 ? 'medium' : 'low'],
+            ASSESSMENT_COMMENTS[
+              total >= 0.9 * maxScore ? 'high' : total >= 0.7 * maxScore ? 'medium' : 'low'
+            ],
           ),
           createdAt: assessedAt,
           criterionScores: { create: scores },

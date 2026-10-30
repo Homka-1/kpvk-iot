@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ASSIGNMENT_ATTACHMENTS_MAX,
   ASSIGNMENT_CRITERIA_MAX,
+  ASSIGNMENT_SCORE_MAX,
   DifficultyLevel,
   MaterialKind,
   SubmissionFormat,
@@ -164,13 +165,17 @@ export class CriterionInputDto {
   @OptionalText(1000)
   description?: string | null;
 
-  @ApiProperty({ description: 'Максимальный балл по критерию', minimum: 0.001, maximum: 1000 })
+  @ApiProperty({
+    description: `Максимальный балл по критерию; сумма по критериям задания — ${ASSIGNMENT_SCORE_MAX}`,
+    minimum: 0.001,
+    maximum: ASSIGNMENT_SCORE_MAX,
+  })
   @IsNumber(
     { maxDecimalPlaces: 3, allowNaN: false, allowInfinity: false },
     { message: 'Укажите максимальный балл' },
   )
   @Min(0.001, { message: 'Балл должен быть больше нуля' })
-  @Max(1000, { message: 'Не более 1000 баллов' })
+  @Max(ASSIGNMENT_SCORE_MAX, { message: `Не более ${ASSIGNMENT_SCORE_MAX} баллов` })
   maxScore: number;
 }
 

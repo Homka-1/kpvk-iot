@@ -130,8 +130,8 @@ describe('Сдача и проверка заданий (e2e)', () => {
       'Уравнения',
       ['TEXT', 'FILE'],
       [
-        { title: 'Верность', maxScore: 5 },
-        { title: 'Оформление', maxScore: 2.5 },
+        { title: 'Верность', maxScore: 70 },
+        { title: 'Оформление', maxScore: 30 },
       ],
     );
     plain = await task('Эссе', ['TEXT'], []);
@@ -227,14 +227,14 @@ describe('Сдача и проверка заданий (e2e)', () => {
       submissionId: latest,
       decision: 'ACCEPTED',
       criterionScores: [
-        { criterionId: verity!.id, score: 6 },
-        { criterionId: layout!.id, score: 2 },
+        { criterionId: verity!.id, score: 71 },
+        { criterionId: layout!.id, score: 25 },
       ],
     }).expect(400);
     await assess(id, {
       submissionId: latest,
       decision: 'ACCEPTED',
-      criterionScores: [{ criterionId: verity!.id, score: 5 }],
+      criterionScores: [{ criterionId: verity!.id, score: 65 }],
     }).expect(400);
     const accepted = (
       await assess(id, {
@@ -242,8 +242,8 @@ describe('Сдача и проверка заданий (e2e)', () => {
         decision: 'ACCEPTED',
         comment: 'Верно',
         criterionScores: [
-          { criterionId: verity!.id, score: 5 },
-          { criterionId: layout!.id, score: 2, comment: 'Не подписан ответ' },
+          { criterionId: verity!.id, score: 65 },
+          { criterionId: layout!.id, score: 25, comment: 'Не подписан ответ' },
         ],
       }).expect(201)
     ).body as AssignmentReviewDto;
@@ -251,19 +251,19 @@ describe('Сдача и проверка заданий (e2e)', () => {
     expect(accepted.completedAt).not.toBeNull();
     expect(accepted.submissions[1]!.assessment).toMatchObject({
       decision: 'ACCEPTED',
-      score: 7,
-      maxScore: 7.5,
+      score: 90,
+      maxScore: 100,
       criterionScores: [
-        { title: 'Верность', score: 5, maxScore: 5, comment: null },
-        { title: 'Оформление', score: 2, maxScore: 2.5, comment: 'Не подписан ответ' },
+        { title: 'Верность', score: 65, maxScore: 70, comment: null },
+        { title: 'Оформление', score: 25, maxScore: 30, comment: 'Не подписан ответ' },
       ],
     });
 
     // Оценка — в учебных достижениях; итог — в списках; события — в истории студента.
     const results = await prisma.academicResult.findMany({ where: { trajectoryAssignmentId: id } });
     expect(results).toHaveLength(1);
-    expect(Number(results[0]!.score)).toBe(7);
-    expect(Number(results[0]!.maxScore)).toBe(7.5);
+    expect(Number(results[0]!.score)).toBe(90);
+    expect(Number(results[0]!.maxScore)).toBe(100);
     const tab = (
       await as(teacher, http().get('/api/student-assignments'))
         .query({ studentId: student.id })
@@ -271,8 +271,8 @@ describe('Сдача и проверка заданий (e2e)', () => {
     ).body as StudentAssignmentDto[];
     expect(tab.find((item) => item.id === id)!.result).toMatchObject({
       decision: 'ACCEPTED',
-      score: 7,
-      maxScore: 7.5,
+      score: 90,
+      maxScore: 100,
     });
     const cabinet = (await as(session, http().get('/api/cabinet/assignments')).expect(200))
       .body as CabinetAssignmentsDto;

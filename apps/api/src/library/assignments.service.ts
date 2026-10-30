@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   type AssignmentTypeDto,
+  criteriaScaleIssue,
   type CurrentUser,
   type LibraryAssignmentDto,
   SYSTEM_ASSIGNMENT_TYPES,
@@ -246,6 +247,16 @@ export class LibraryAssignmentsService {
       throw new BadRequestException({
         message: 'Проверьте правильность заполнения формы',
         fields: { typeId: 'Выберите тип задания' },
+      });
+    }
+    // Шкала 100 баллов: проверяется для новых критериев; прежние задания с неизменными
+    // критериями редактируются как раньше.
+    const scaleIssue =
+      !existing || this.criteriaChanged(existing, dto) ? criteriaScaleIssue(dto.criteria) : null;
+    if (scaleIssue) {
+      throw new BadRequestException({
+        message: 'Проверьте правильность заполнения формы',
+        fields: { criteria: scaleIssue },
       });
     }
     const attachedFiles = new Set(

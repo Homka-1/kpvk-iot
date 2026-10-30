@@ -242,12 +242,12 @@ async function seedLibrary(prisma: PrismaClient): Promise<void> {
         typeId: type.id,
         instruction: 'Решите 10 уравнений из файла задания. Для каждого выполните проверку.',
         submissionFormats: ['TEXT', 'FILE'],
-        maxScore: 10,
+        maxScore: 100,
         createdById: teacher?.id ?? null,
         criteria: {
           create: [
-            { sortOrder: 0, title: 'Верность решений', maxScore: 7 },
-            { sortOrder: 1, title: 'Проверка подстановкой', maxScore: 3 },
+            { sortOrder: 0, title: 'Верность решений', maxScore: 70 },
+            { sortOrder: 1, title: 'Проверка подстановкой', maxScore: 30 },
           ],
         },
       },
