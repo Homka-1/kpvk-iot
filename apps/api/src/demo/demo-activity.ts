@@ -79,6 +79,8 @@ export interface DemoState {
   dispositions: Record<string, Disposition>;
   /** Прирост внутренней мотивации за время ИОТ (экспериментальная группа). */
   growth: Record<string, number>;
+  /** Отстающие по веб-дизайну: входной контроль ниже 70 баллов (в состояниях до 1.28.5 нет). */
+  lagging?: string[];
   curatorId: string;
 }
 
@@ -319,6 +321,7 @@ export class DemoActivityGenerator {
         projectId: null,
         dispositions: {},
         growth: {},
+        lagging: [],
         curatorId: '',
       },
       adminId: admins[0] ?? null,
@@ -366,6 +369,17 @@ export class DemoActivityGenerator {
       };
       if (student.experimental) ctx.state.growth[student.id] = between(random, 0.15, 0.3);
     }
+    // Отстающие — самые слабо мотивированные: по одному в каждой группе, иногда ещё один.
+    const intrinsic = (id: string) => ctx.state.dispositions[id]!.INTRINSIC;
+    const weakest = [...ctx.students].sort((a, b) => intrinsic(a.id) - intrinsic(b.id));
+    const lagging = [true, false].flatMap((experimental) =>
+      weakest.filter((student) => student.experimental === experimental).slice(0, 1),
+    );
+    if (chance(ctx.random, 0.5)) {
+      const extra = weakest.find((student) => !lagging.includes(student));
+      if (extra) lagging.push(extra);
+    }
+    ctx.state.lagging = lagging.map((student) => student.id);
   }
 
   // ── Перенос существующих данных ──
@@ -2108,7 +2122,8 @@ export class DemoActivityGenerator {
 
   /**
    * Контрольная работа обеих групп с результатами: у каждого студента балл, без отметок.
-   * Входной уровень следует мотивации студента по шкале колледжа («4» с 70, «5» с 90);
+   * Входной уровень следует мотивации студента по шкале колледжа («4» с 70, «5» с 90):
+   * ниже 70 на входном контроле — только 2–3 отстающих (`DemoState.lagging`);
    * к итоговому ЭГ растёт заметно (прирост мотивации за ИОТ), КГ — немного.
    */
   private async controlWork(
@@ -2147,13 +2162,16 @@ export class DemoActivityGenerator {
       const growth = ctx.state.growth[student.id] ?? 0.2;
       // При повторном замере мотивация ЭГ уже выросла: входной уровень считается от исходной.
       const level = plan.kind === 'FINAL' && student.experimental ? theta - growth : theta;
+      const lagging = ctx.state.lagging?.includes(student.id) ?? false;
+      const base = lagging ? 58 + 8 * level : 66 + 24 * level;
       // Рост — доля запаса до 100 баллов: слабые растут сильнее, сильные не упираются в потолок.
-      const base = 66 + 24 * level;
       const share = student.experimental ? 0.55 + growth : between(random, 0.1, 0.25);
+      // На входном контроле ниже 70 баллов — только отстающие.
+      const [min, max] = plan.kind === 'ENTRY' ? (lagging ? [40, 69] : [70, 100]) : [40, 100];
       const score = clamp(
         Math.round(base + plan.progress * share * (100 - base) + noise(random, 4)),
-        40,
-        100,
+        min,
+        max,
       );
       rows.push({
         workId: work.id,

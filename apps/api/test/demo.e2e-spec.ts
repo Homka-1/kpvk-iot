@@ -395,6 +395,11 @@ describe('Демо-режим (e2e)', () => {
     expect(
       works.every((work) => work.results.length === experimental.length + control.length),
     ).toBe(true);
+    // На входном контроле ниже «4» (70 баллов) — только 2–3 отстающих.
+    const entry = works.find((work) => work.kind === 'ENTRY')!;
+    const below = entry.results.filter((result) => result.score!.toNumber() < 70);
+    expect(below.length).toBeGreaterThanOrEqual(2);
+    expect(below.length).toBeLessThanOrEqual(3);
     // Только баллы, без отметок «отсутствовал», «не сдал», «освобождён».
     expect(
       works.every((work) =>
