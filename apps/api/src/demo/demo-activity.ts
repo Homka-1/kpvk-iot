@@ -2107,9 +2107,9 @@ export class DemoActivityGenerator {
   // ── Контрольные работы ──
 
   /**
-   * Контрольная работа обеих групп с результатами. Входной уровень следует мотивации студента;
-   * к итоговому ЭГ растёт заметно (прирост мотивации за ИОТ), КГ — едва. Отметки вместо балла
-   * редки: отсутствие чаще у слабо мотивированных, невыполнение и освобождение — единичны.
+   * Контрольная работа обеих групп с результатами: у каждого студента балл, без отметок.
+   * Входной уровень следует мотивации студента по шкале колледжа («4» с 70, «5» с 90);
+   * к итоговому ЭГ растёт заметно (прирост мотивации за ИОТ), КГ — немного.
    */
   private async controlWork(
     ctx: Context,
@@ -2144,27 +2144,18 @@ export class DemoActivityGenerator {
     const rows: Prisma.ControlResultCreateManyInput[] = [];
     for (const student of ctx.students) {
       const theta = ctx.state.dispositions[student.id]?.INTRINSIC ?? 0.5;
-      const absent = chance(random, 0.008 + 0.02 * (1 - theta));
-      const mark = absent
-        ? ('ABSENT' as const)
-        : chance(random, 0.006)
-          ? ('NOT_SUBMITTED' as const)
-          : chance(random, 0.002)
-            ? ('EXEMPT' as const)
-            : null;
       const growth = ctx.state.growth[student.id] ?? 0.2;
       // При повторном замере мотивация ЭГ уже выросла: входной уровень считается от исходной.
       const level = plan.kind === 'FINAL' && student.experimental ? theta - growth : theta;
       const gain = student.experimental
-        ? plan.progress * (8 + 45 * growth)
-        : plan.progress * between(random, -1, 5);
-      const score = clamp(Math.round(42 + 34 * level + gain + noise(random, 6)), 15, 100);
+        ? plan.progress * (5 + 30 * growth)
+        : plan.progress * between(random, 2, 6);
+      const score = clamp(Math.round(58 + 34 * level + gain + noise(random, 5)), 40, 100);
       rows.push({
         workId: work.id,
         studentId: student.id,
         groupId: student.groupId,
-        score: mark ? null : score,
-        mark,
+        score,
         updatedById: teacherId,
         createdAt: recordedAt,
         updatedAt: recordedAt,
@@ -2175,8 +2166,8 @@ export class DemoActivityGenerator {
       const own = rows.filter((row) => row.groupId === groupId);
       this.audit(ctx, 'control_results.saved', 'control_work', work.id, teacherId, recordedAt, {
         groupId,
-        scored: own.filter((row) => row.score !== null).length,
-        marked: own.filter((row) => row.mark !== null).length,
+        scored: own.length,
+        marked: 0,
       });
     }
   }
@@ -2203,14 +2194,14 @@ export class DemoActivityGenerator {
         for (const discipline of disciplines.values()) {
           const key = `${student.id}:${discipline.id}`;
           if (!offsets.has(key)) offsets.set(key, noise(random, 7));
-          let score = 52 + 35 * theta + offsets.get(key)!;
+          let score = 60 + 30 * theta + offsets.get(key)!;
           if (semester === 2) {
             score += student.experimental
               ? 10 * (ctx.state.growth[student.id] ?? 0.2) +
                 (TRAJECTORY_DISCIPLINES.includes(discipline.name)
                   ? between(random, 3, 8)
                   : between(random, 1, 5))
-              : between(random, -3, 4);
+              : between(random, 1, 4);
           }
           rows.push({
             studentId: student.id,
@@ -2218,7 +2209,7 @@ export class DemoActivityGenerator {
             groupId: student.groupId,
             periodId: period.id,
             source: 'SEMESTER_IMPORT',
-            score: clamp(Math.round(score), 30, 100),
+            score: clamp(Math.round(score), 40, 100),
             maxScore: 100,
             recordedAt,
             recordedById: authorId,

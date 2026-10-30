@@ -395,6 +395,12 @@ describe('Демо-режим (e2e)', () => {
     expect(
       works.every((work) => work.results.length === experimental.length + control.length),
     ).toBe(true);
+    // Только баллы, без отметок «отсутствовал», «не сдал», «освобождён».
+    expect(
+      works.every((work) =>
+        work.results.every((result) => result.mark === null && result.score !== null),
+      ),
+    ).toBe(true);
 
     // Сгенерированные преподаватели входят с паролем из ТЗ заказчика.
     await http()
@@ -442,6 +448,9 @@ describe('Демо-режим (e2e)', () => {
     const growthKg = (await scores('FINAL', control)) - (await scores('ENTRY', control));
     expect(growthEg).toBeGreaterThan(growthKg);
     expect(growthEg).toBeGreaterThan(8);
+    // КГ тоже немного растёт, но слабее ЭГ.
+    expect(growthKg).toBeGreaterThan(0);
+    expect(await prisma.controlResult.count({ where: { mark: { not: null } } })).toBe(0);
     await as(admin, http().post('/api/admin/demo/repeat')).expect(409);
   }, 180_000);
 
