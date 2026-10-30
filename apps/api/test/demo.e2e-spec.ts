@@ -450,6 +450,8 @@ describe('Демо-режим (e2e)', () => {
     expect(growthEg).toBeGreaterThan(8);
     // КГ тоже немного растёт, но слабее ЭГ.
     expect(growthKg).toBeGreaterThan(0);
+    // Шкала колледжа: «4» — с 70 баллов; в среднем КГ к итоговому контролю на «4».
+    expect(await scores('FINAL', control)).toBeGreaterThanOrEqual(70);
     expect(await prisma.controlResult.count({ where: { mark: { not: null } } })).toBe(0);
     await as(admin, http().post('/api/admin/demo/repeat')).expect(409);
   }, 180_000);

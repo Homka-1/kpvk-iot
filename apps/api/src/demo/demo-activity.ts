@@ -2147,10 +2147,14 @@ export class DemoActivityGenerator {
       const growth = ctx.state.growth[student.id] ?? 0.2;
       // При повторном замере мотивация ЭГ уже выросла: входной уровень считается от исходной.
       const level = plan.kind === 'FINAL' && student.experimental ? theta - growth : theta;
-      const gain = student.experimental
-        ? plan.progress * (5 + 30 * growth)
-        : plan.progress * between(random, 2, 6);
-      const score = clamp(Math.round(58 + 34 * level + gain + noise(random, 5)), 40, 100);
+      // Рост — доля запаса до 100 баллов: слабые растут сильнее, сильные не упираются в потолок.
+      const base = 66 + 24 * level;
+      const share = student.experimental ? 0.55 + growth : between(random, 0.1, 0.25);
+      const score = clamp(
+        Math.round(base + plan.progress * share * (100 - base) + noise(random, 4)),
+        40,
+        100,
+      );
       rows.push({
         workId: work.id,
         studentId: student.id,
@@ -2194,7 +2198,7 @@ export class DemoActivityGenerator {
         for (const discipline of disciplines.values()) {
           const key = `${student.id}:${discipline.id}`;
           if (!offsets.has(key)) offsets.set(key, noise(random, 7));
-          let score = 60 + 30 * theta + offsets.get(key)!;
+          let score = 66 + 24 * theta + offsets.get(key)!;
           if (semester === 2) {
             score += student.experimental
               ? 10 * (ctx.state.growth[student.id] ?? 0.2) +
