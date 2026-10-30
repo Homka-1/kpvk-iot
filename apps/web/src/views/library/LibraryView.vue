@@ -282,12 +282,26 @@ function resetFilters(): void {
 </template>
 
 <style scoped>
+.library {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iot-space-4);
+}
+
+.library > p {
+  margin: 0;
+}
+
 .library__title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--iot-space-2);
+  gap: var(--iot-space-3);
+}
+
+.library__title h1 {
+  margin: 0;
 }
 
 .library__toolbar {

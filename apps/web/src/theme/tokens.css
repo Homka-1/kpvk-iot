@@ -112,6 +112,14 @@ a {
   max-width: 1280px;
 }
 
+/*
+ * Метка Select — span и наследует line-height 1.5 от body, а <input> и <button> используют
+ * normal. Без выравнивания выпадающий список на 2 px выше соседних полей и кнопок.
+ */
+.p-select-label {
+  line-height: normal;
+}
+
 .iot-card {
   background: var(--iot-color-surface);
   border: 1px solid var(--iot-color-border);

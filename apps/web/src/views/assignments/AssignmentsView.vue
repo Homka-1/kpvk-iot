@@ -411,12 +411,22 @@ function resetFilters(): void {
   gap: var(--iot-space-3);
 }
 
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--iot-space-4);
+}
+
 .tasks__title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--iot-space-2);
+  gap: var(--iot-space-3);
+}
+
+.tasks__title h1 {
+  margin: 0;
 }
 
 .tasks__info {

@@ -113,13 +113,7 @@ onMounted(async () => {
           />
         </div>
       </div>
-      <Button
-        v-if="canManage"
-        label="Новая работа"
-        icon="pi pi-plus"
-        size="small"
-        @click="createOpen = true"
-      />
+      <Button v-if="canManage" label="Новая работа" icon="pi pi-plus" @click="createOpen = true" />
     </div>
     <p class="works__hint">
       Входной контроль — стартовый уровень знаний, текущий — результаты практических работ, итоговый

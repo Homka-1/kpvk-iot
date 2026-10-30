@@ -120,13 +120,13 @@ function resetPeriod(): void {
         aria-label="Фильтр по статусу ИОТ"
         class="monitoring__status"
       />
-      <div class="iot-field">
+      <div class="iot-field monitoring__date">
         <label for="monitoring-from">Период с</label>
-        <DateInput v-model="from" input-id="monitoring-from" />
+        <DateInput v-model="from" input-id="monitoring-from" fluid />
       </div>
-      <div class="iot-field">
+      <div class="iot-field monitoring__date">
         <label for="monitoring-to">по</label>
-        <DateInput v-model="to" input-id="monitoring-to" :invalid="!!periodError" />
+        <DateInput v-model="to" input-id="monitoring-to" :invalid="!!periodError" fluid />
       </div>
       <Button
         label="Весь период"
@@ -289,13 +289,19 @@ function resetPeriod(): void {
   align-items: flex-end;
 }
 
+/* Поиск — отдельной строкой, ниже статус и период: иначе поля дат переносятся по одному. */
 .monitoring__search {
-  flex: 1 1 260px;
+  flex: 1 1 100%;
 }
 
 .monitoring__status {
-  flex: 0 1 220px;
+  flex: 1 1 220px;
   min-width: 0;
+}
+
+.monitoring__date {
+  flex: 1 1 140px;
+  max-width: 200px;
 }
 
 .monitoring__summary {
