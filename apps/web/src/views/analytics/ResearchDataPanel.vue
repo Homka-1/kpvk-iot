@@ -23,6 +23,7 @@ import DateInput from '@/components/DateInput.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import ErrorState from '@/components/ErrorState.vue';
 import { measurementText, periodText } from './research';
+import ResearchAnalysisBlock from './ResearchAnalysisBlock.vue';
 import ResearchOutcomesBlock from './ResearchOutcomesBlock.vue';
 import StatsTable, { type StatsRow } from './StatsTable.vue';
 
@@ -30,7 +31,9 @@ import StatsTable, { type StatsRow } from './StatsTable.vue';
  * Данные исследования (UC-07): выбор замеров и шкал → полные и неполные наблюдения ЭГ и КГ,
  * описательные статистики (FR-069, FR-070), изменение между замерами только по сопоставимым
  * версиям (FR-072); средний балл за семестры и наблюдения на занятиях «до/после» (этап 27);
- * обезличенный экспорт исходных, сводных и «широких» данных в CSV или XLSX (FR-071, FR-075).
+ * сводный статистический анализ эксперимента (этап 29);
+ * обезличенный экспорт исходных, сводных и «широких» данных и таблиц анализа в CSV или XLSX
+ * (FR-071, FR-075).
  * Пропуски — «Нет данных», а не нули (FR-074).
  */
 const props = defineProps<{
@@ -391,6 +394,8 @@ async function download(): Promise<void> {
 
       <ResearchOutcomesBlock :outcomes="data.outcomes" />
 
+      <ResearchAnalysisBlock :data="data" />
+
       <form
         v-if="canExport"
         class="research-data__export"
@@ -402,8 +407,11 @@ async function download(): Promise<void> {
         <p class="research-data__note">
           Обезличенный файл: коды участников, группа (ЭГ или КГ), версии методик. Ф. И. О. и учётные
           данные не выгружаются; пропуск — пустая ячейка. Широкая таблица — одна строка на
-          участника: шкалы «до» и «после», средний балл за выбранные семестры и средние наблюдений
-          за выбранные периоды — для расчёта критериев во внешней программе.
+          участника: шкалы «до» и «после», средний балл за выбранные семестры, средние наблюдений за
+          выбранные периоды, входной, текущий и итоговый контроль — для расчёта во внешней
+          программе. Статистический анализ — таблицы для ВКР: проверки данных, динамика и критерий
+          Вилкоксона, критерий Манна — Уитни, корреляции Спирмена, контрольные работы (в XLSX —
+          отдельные листы).
         </p>
         <fieldset class="research-data__options">
           <legend class="iot-field__label">Набор данных</legend>

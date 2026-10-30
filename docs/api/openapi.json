@@ -9423,13 +9423,14 @@
             "name": "dataset",
             "required": true,
             "in": "query",
-            "description": "raw — исходные данные по участникам, aggregate — сводные показатели, wide — широкая таблица «до/после» (строка — участник: шкалы, средний балл за семестры, наблюдения)",
+            "description": "raw — исходные данные по участникам, aggregate — сводные показатели, wide — широкая таблица «до/после» (строка — участник: шкалы, средний балл за семестры, наблюдения, контрольные работы), analysis — таблицы статистического анализа для ВКР (проверки данных, динамика и критерий Вилкоксона, критерий Манна — Уитни, корреляции Спирмена, контрольные работы; в XLSX — отдельные листы)",
             "schema": {
               "type": "string",
               "enum": [
                 "raw",
                 "aggregate",
-                "wide"
+                "wide",
+                "analysis"
               ]
             }
           }
@@ -21859,6 +21860,16 @@
           "questionnaire": {
             "$ref": "#/components/schemas/VersionLabelResponseDto"
           },
+          "direction": {
+            "nullable": true,
+            "description": "Диагностическое направление методики: по нему показатель попадает в раздел анализа",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DirectionResponseDto"
+              }
+            ]
+          },
           "startsOn": {
             "type": "string",
             "nullable": true,
@@ -21878,6 +21889,7 @@
           "title",
           "measurementType",
           "questionnaire",
+          "direction",
           "startsOn",
           "endsOn",
           "createdAt"
@@ -22194,6 +22206,99 @@
           "change"
         ]
       },
+      "ResearchNamedRefResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "ResearchControlWorkResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ENTRY",
+              "CURRENT",
+              "FINAL"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Самая ранняя дата проведения в группах"
+          }
+        },
+        "required": [
+          "id",
+          "topic",
+          "kind",
+          "date"
+        ]
+      },
+      "ResearchControlSeriesStatsResponseDto": {
+        "type": "object",
+        "properties": {
+          "workId": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "EXPERIMENTAL",
+              "CONTROL"
+            ]
+          },
+          "stats": {
+            "$ref": "#/components/schemas/DescriptiveStatsResponseDto"
+          }
+        },
+        "required": [
+          "workId",
+          "group",
+          "stats"
+        ]
+      },
+      "ResearchControlSeriesResponseDto": {
+        "type": "object",
+        "properties": {
+          "discipline": {
+            "$ref": "#/components/schemas/ResearchNamedRefResponseDto"
+          },
+          "works": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResearchControlWorkResponseDto"
+            }
+          },
+          "stats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResearchControlSeriesStatsResponseDto"
+            }
+          }
+        },
+        "required": [
+          "discipline",
+          "works",
+          "stats"
+        ]
+      },
       "ResearchOutcomesResponseDto": {
         "type": "object",
         "properties": {
@@ -22254,7 +22359,14 @@
           },
           "values": {
             "type": "object",
-            "description": "По коду участника и ключу показателя: { before: число | null, after: число | null }"
+            "description": "По коду участника и ключу показателя: { before: число | null, after: число | null }; для контрольных работ ещё current — средний балл текущего контроля"
+          },
+          "controlSeries": {
+            "description": "Контрольные работы по дисциплинам: входной, текущий и итоговый контроль по датам",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResearchControlSeriesResponseDto"
+            }
           }
         },
         "required": [
@@ -22265,7 +22377,8 @@
           "observationsAfter",
           "indicators",
           "stats",
-          "values"
+          "values",
+          "controlSeries"
         ]
       },
       "ResearchScaleResponseDto": {
@@ -22458,6 +22571,10 @@
               "$ref": "#/components/schemas/ResearchScaleResponseDto"
             }
           },
+          "versionScales": {
+            "type": "object",
+            "description": "Шкалы каждой версии замеров по id версии: [{ code, name, aggregation: SUM | MEAN }] — для проверки шкал перед анализом"
+          },
           "observations": {
             "type": "array",
             "items": {
@@ -22490,6 +22607,7 @@
           "outcomes",
           "measurements",
           "scales",
+          "versionScales",
           "observations",
           "stats",
           "changes",

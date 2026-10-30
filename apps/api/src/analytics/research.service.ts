@@ -8,6 +8,7 @@ import {
   type AcademicPeriodDto,
   academicPeriodDto,
   buildResearchAggregateTable,
+  buildResearchAnalysisSheets,
   buildResearchData,
   buildResearchOutcomes,
   buildResearchRawTable,
@@ -17,6 +18,7 @@ import {
   type CurrentUser,
   dateRangeSet,
   dateRangesOverlap,
+  type ExportSheet,
   type ExportTable,
   formatFullName,
   type MeasurementType,
@@ -38,6 +40,7 @@ import {
   type ResearchProjectDetailDto,
   type ResearchProjectDto,
   type ResearchProjectStatus,
+  type ResearchVersionScaleDto,
   TrajectoryStatus,
 } from '@iot/shared';
 import { randomInt } from 'node:crypto';
@@ -77,7 +80,17 @@ const projectInclude = {
 type ProjectRow = Prisma.ResearchProjectGetPayload<{ include: typeof projectInclude }>;
 
 const measurementInclude = {
-  version: { select: versionLabelSelect },
+  version: {
+    select: {
+      ...versionLabelSelect,
+      questionnaire: {
+        select: {
+          ...versionLabelSelect.questionnaire.select,
+          direction: { select: { code: true, name: true } },
+        },
+      },
+    },
+  },
 } satisfies Prisma.ResearchMeasurementInclude;
 
 type MeasurementRow = Prisma.ResearchMeasurementGetPayload<{ include: typeof measurementInclude }>;
@@ -111,6 +124,7 @@ function toMeasurementDto(row: MeasurementRow): ResearchMeasurementDto {
     title: row.title,
     measurementType: row.measurementType as MeasurementType,
     questionnaire: toVersionLabel(row.version),
+    direction: row.version.questionnaire.direction,
     startsOn: isoDate(row.startsAt),
     endsOn: isoDate(row.endsAt),
     createdAt: row.createdAt.toISOString(),
@@ -120,7 +134,11 @@ function toMeasurementDto(row: MeasurementRow): ResearchMeasurementDto {
 /** Наборы обезличенной выгрузки (FR-071, FR-075): построение таблицы, имя файла и листа. */
 const EXPORT_DATASETS: Record<
   ResearchDataset,
-  { build: (data: ResearchDataDto) => ExportTable; fileName: string; sheet: string }
+  {
+    build: (data: ResearchDataDto) => ExportTable | ExportSheet[];
+    fileName: string;
+    sheet: string;
+  }
 > = {
   raw: { build: buildResearchRawTable, fileName: 'research-raw', sheet: 'Исходные данные' },
   aggregate: {
@@ -129,6 +147,11 @@ const EXPORT_DATASETS: Record<
     sheet: 'Сводные показатели',
   },
   wide: { build: buildResearchWideTable, fileName: 'research-wide', sheet: 'До и после' },
+  analysis: {
+    build: buildResearchAnalysisSheets,
+    fileName: 'research-analysis',
+    sheet: 'Статистический анализ',
+  },
 };
 
 /** Перемешивание Фишера — Йетса: порядок кодов не повторяет алфавитный список группы. */
@@ -533,7 +556,7 @@ export class ResearchService {
       }),
       this.prisma.questionnaireScale.findMany({
         where: { versionId: { in: versionIds } },
-        select: { versionId: true, code: true, name: true },
+        select: { versionId: true, code: true, name: true, aggregation: true },
         orderBy: { sortOrder: 'asc' },
       }),
       this.prisma.versionComparability.findMany({
@@ -556,10 +579,10 @@ export class ResearchService {
         scores: { include: scoreInclude },
       },
     });
-    const versionScales = new Map<string, { code: string; name: string }[]>();
+    const versionScales = new Map<string, ResearchVersionScaleDto[]>();
     for (const scale of scales) {
       const list = versionScales.get(scale.versionId) ?? [];
-      list.push({ code: scale.code, name: scale.name });
+      list.push({ code: scale.code, name: scale.name, aggregation: scale.aggregation });
       versionScales.set(scale.versionId, list);
     }
     const included = participants.map((item) => ({
@@ -589,7 +612,8 @@ export class ResearchService {
    * Успеваемость и наблюдения участников «до» и «после» (этап 27). Семестры и периоды выбирает
    * исследователь; если не выбраны — два последних семестра с оценками участников и периоды
    * относительно дат исследования: «до» — по день накануне начала, «после» — с начала до окончания.
-   * Контрольные работы (этап 28): «до» — входной контроль, «после» — итоговый, по дисциплинам.
+   * Контрольные работы (этап 28): «до» — входной контроль, «после» — итоговый, по дисциплинам;
+   * текущий контроль и ряд работ по датам — для анализа академических достижений (этап 29).
    */
   private async outcomes(
     project: { startsAt: Date | null; endsAt: Date | null },
@@ -663,17 +687,21 @@ export class ResearchService {
         select: { id: true, name: true },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       }),
-      // Входной и итоговый контроль (этап 28): только баллы, отметки — пропуск.
+      // Контрольные работы (этапы 28, 29): только баллы, отметки — пропуск.
       this.prisma.controlResult.findMany({
-        where: {
-          studentId: { in: studentIds },
-          score: { not: null },
-          work: { kind: { in: ['ENTRY', 'FINAL'] } },
-        },
+        where: { studentId: { in: studentIds }, score: { not: null } },
         select: {
           studentId: true,
           score: true,
-          work: { select: { kind: true, discipline: { select: { id: true, name: true } } } },
+          work: {
+            select: {
+              id: true,
+              topic: true,
+              kind: true,
+              discipline: { select: { id: true, name: true } },
+              groups: { select: { date: true }, orderBy: { date: 'asc' }, take: 1 },
+            },
+          },
         },
       }),
     ]);
@@ -703,6 +731,12 @@ export class ResearchService {
         discipline: row.work.discipline,
         kind: row.work.kind,
         score: row.score!.toNumber(),
+        work: {
+          id: row.work.id,
+          topic: row.work.topic,
+          kind: row.work.kind,
+          date: isoDate(row.work.groups[0]?.date ?? null)!,
+        },
       })),
     });
   }
@@ -773,8 +807,8 @@ export class ResearchService {
   async export(id: string, query: ResearchExportQueryDto): Promise<ExportFile> {
     const data = await this.data(id, query);
     const { build, fileName, sheet } = EXPORT_DATASETS[query.dataset];
-    const table = build(data);
-    const file = await exportFile(table, query.format, fileName, sheet);
+    const content = build(data);
+    const file = await exportFile(content, query.format, fileName, sheet);
     const { outcomes } = data;
     await this.audit.log({
       action: 'research_data.exported',
@@ -793,7 +827,9 @@ export class ResearchService {
               observationsBefore: rangeJson(outcomes.observationsBefore),
               observationsAfter: rangeJson(outcomes.observationsAfter),
             }),
-        rowCount: table.rows.length,
+        rowCount: Array.isArray(content)
+          ? content.reduce((sum, item) => sum + item.table.rows.length, 0)
+          : content.rows.length,
       },
     });
     return file;

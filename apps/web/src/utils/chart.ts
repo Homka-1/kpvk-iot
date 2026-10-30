@@ -14,3 +14,12 @@ const reducedMotion =
 
 /** Короткая функциональная анимация или никакой. */
 export const chartAnimation = reducedMotion ? (false as const) : { duration: 200 };
+
+/** Цвет токена с прозрачностью (заливка столбца «до» при обводке цветом серии). */
+export function chartColorAlpha(token: string, alpha: number): string {
+  const color = chartColor(token);
+  const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
+  if (!hex) return color;
+  const [r, g, b] = [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}

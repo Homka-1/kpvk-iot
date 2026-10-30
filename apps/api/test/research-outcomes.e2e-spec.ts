@@ -36,6 +36,7 @@ describe('Исследовательская аналитика ЭГ и КГ: у
   let criteria: { id: string; name: string }[];
   const students: Record<'eg' | 'cg', StudentCreatedDto[]> = { eg: [], cg: [] };
   const codeOf = new Map<string, string>();
+  const ids = { discipline: '', eg: '', cg: '', teacher: '' };
 
   const http = () => request(app.getHttpServer());
   const as = (session: LoggedIn, req: request.Test) =>
@@ -70,6 +71,12 @@ describe('Исследовательская аналитика ЭГ и КГ: у
         .send({ name: `Математика ${tag}` })
         .expect(201)
     ).body.id as string;
+    Object.assign(ids, {
+      discipline: disciplineId,
+      eg: egGroupId,
+      cg: cgGroupId,
+      teacher: teacherUser.id,
+    });
     for (const groupId of [egGroupId, cgGroupId]) {
       await as(admin, http().post('/api/teacher-assignments'))
         .send({ teacherId: teacherUser.id, groupId, disciplineId })
@@ -319,6 +326,106 @@ describe('Исследовательская аналитика ЭГ и КГ: у
     await as(teacher, http().get(`/api/research-projects/${project.id}/export`))
       .query({ format: 'csv', dataset: 'wide' })
       .expect(403);
+  });
+
+  it('этап 29: контрольные работы по датам, текущий контроль и таблицы анализа для ВКР', async () => {
+    // Входная, текущая и итоговая работа для обеих групп; у КГ итоговая — отметка (не балл).
+    const work = async (kind: 'ENTRY' | 'CURRENT' | 'FINAL', date: string) =>
+      prisma.controlWork.create({
+        data: {
+          disciplineId: ids.discipline,
+          topic: `Работа ${kind} ${tag}`,
+          kind,
+          groups: {
+            create: [
+              { groupId: ids.eg, date: new Date(date) },
+              { groupId: ids.cg, date: new Date(date) },
+            ],
+          },
+        },
+      });
+    const entry = await work('ENTRY', '2026-09-10');
+    const current = await work('CURRENT', '2026-10-15');
+    const final = await work('FINAL', '2026-12-20');
+    const result = (
+      workId: string,
+      student: StudentCreatedDto,
+      groupId: string,
+      score: number | null,
+    ) => ({
+      workId,
+      studentId: student.student.id,
+      groupId,
+      ...(score === null ? { mark: 'ABSENT' as const } : { score }),
+    });
+    await prisma.controlResult.createMany({
+      data: [
+        result(entry.id, students.eg[0]!, ids.eg, 50),
+        result(current.id, students.eg[0]!, ids.eg, 60),
+        result(final.id, students.eg[0]!, ids.eg, 75),
+        result(entry.id, students.cg[0]!, ids.cg, 55),
+        result(final.id, students.cg[0]!, ids.cg, null),
+      ],
+    });
+
+    const response = await data();
+    const [series] = response.outcomes.controlSeries;
+    expect(series!.works.map((item) => [item.kind, item.date])).toEqual([
+      ['ENTRY', '2026-09-10'],
+      ['CURRENT', '2026-10-15'],
+      ['FINAL', '2026-12-20'],
+    ]);
+    const finalCg = series!.stats.find(
+      (row) => row.workId === final.id && row.group === 'CONTROL',
+    )!;
+    // Отметка «отсутствовал» — пропуск, не ноль (FR-074).
+    expect(finalCg.stats).toMatchObject({ n: 0, mean: null });
+    const eg0 = codeOf.get(students.eg[0]!.student.id)!;
+    const controlsKey = response.outcomes.indicators.find((item) =>
+      item.key.startsWith('controls:'),
+    )!.key;
+    expect(response.outcomes.values[eg0]![controlsKey]).toEqual({
+      before: 50,
+      after: 75,
+      current: 60,
+    });
+    expect(response.versionScales).toEqual({});
+
+    const xlsx = await as(researcher, http().get(`/api/research-projects/${project.id}/export`))
+      .query({ format: 'xlsx', dataset: 'analysis' })
+      .buffer(true)
+      .parse(binary)
+      .expect(200);
+    expect(xlsx.headers['content-disposition']).toMatch(/research-analysis-/);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(xlsx.body as ArrayBuffer);
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
+      'Проверка данных',
+      'Внутри групп',
+      'ЭГ и КГ',
+      'Корреляции',
+      'Контрольные работы',
+    ]);
+    // Две группы по 2 участника — меньше 5 пар: критерии не считаются, причина в проверке.
+    const checks = workbook.getWorksheet('Проверка данных')!;
+    const checkTexts: string[] = [];
+    checks.eachRow((row) => checkTexts.push(row.values!.toString()));
+    expect(checkTexts.join('\n')).toContain('Для критериев нужно не менее 5 пар');
+    expect(workbook.getWorksheet('Контрольные работы')!.rowCount).toBe(1 + 3 * 2);
+
+    const csv = await as(researcher, http().get(`/api/research-projects/${project.id}/export`))
+      .query({ format: 'csv', dataset: 'analysis' })
+      .expect(200);
+    expect(csv.text).toContain('Таблица 2. Описательные статистики');
+    expect(csv.text).toContain('Таблица 5. Контрольные работы');
+    for (const secret of [students.eg[0]!.login, 'ЭГУ-', 'КГУ-']) {
+      expect(csv.text).not.toContain(secret);
+    }
+    const audit = await prisma.auditLog.findFirst({
+      where: { action: 'research_data.exported', entityId: project.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(audit?.after).toMatchObject({ dataset: 'analysis', format: 'csv' });
   });
 
   it('исключённый участник не попадает в показатели и широкую выгрузку', async () => {

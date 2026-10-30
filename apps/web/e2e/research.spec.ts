@@ -146,6 +146,7 @@ test.describe('исследовательский режим', () => {
             title: 'Учебная мотивация (ДЕМО)',
             isDemo: true,
           },
+          direction: { code: 'LEARNING_MOTIVATION', name: 'Учебная мотивация' },
           startsOn: null,
           endsOn: null,
           createdAt: '2026-10-19T08:00:00.000Z',
@@ -170,6 +171,7 @@ test.describe('исследовательский режим', () => {
               name: 'Познавательный интерес',
             },
           ],
+          versionScales: {},
           observations: [
             { group: 'EXPERIMENTAL', participants: 20, complete: 18, incomplete: 2 },
             { group: 'CONTROL', participants: 0, complete: 0, incomplete: 0 },
@@ -190,7 +192,21 @@ test.describe('исследовательский режим', () => {
           ]),
           changes: [],
           excludedParticipants: 0,
-          rows: [],
+          // Этап 29: участники ЭГ с баллом первичного замера — карточки анализа.
+          rows: measurements.length
+            ? Array.from({ length: 20 }, (_, index) => ({
+                code: `R${String(index + 1).padStart(3, '0')}`,
+                group: 'EXPERIMENTAL' as const,
+                values: {
+                  m1: {
+                    completedAt: '2026-10-19T08:00:00.000Z',
+                    versionNumber: 1,
+                    scores: { 'q1:COGNITIVE': 5 + (index % 5) },
+                  },
+                },
+                complete: true,
+              }))
+            : [],
           outcomes: {
             periods: [],
             gradesBefore: null,
@@ -200,6 +216,7 @@ test.describe('исследовательский режим', () => {
             indicators: [],
             stats: [],
             values: {},
+            controlSeries: [],
           },
         };
         return route.fulfill({ json: data });
@@ -259,6 +276,15 @@ test.describe('исследовательский режим', () => {
       '18',
     );
     await expect(page.getByText('Нет данных').first()).toBeVisible();
+
+    // Этап 29: сводный анализ — раздел «Мотивация», проверка «один замер», графики не ломают 360 px.
+    await expect(page.getByRole('heading', { name: 'Мотивация', exact: true })).toBeVisible();
+    await page.getByText('Познавательный интерес', { exact: true }).last().click();
+    await expect(page.getByText(/Есть только один замер методики/)).toBeVisible();
+    await expect(
+      page.getByText(/Нет данных: нет замеров по методикам направления «Саморегуляция»/),
+    ).toBeVisible();
+    await expectNoHorizontalScroll(page);
 
     // Обезличенный экспорт.
     await page.getByLabel('CSV (UTF-8, «;»)').check();

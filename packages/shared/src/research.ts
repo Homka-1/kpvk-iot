@@ -3,7 +3,7 @@
 // и версиям методик, обезличенная выгрузка. Расчёт данных и таблицы выгрузки — чистые функции.
 import { z } from 'zod';
 import { versionsComparable, type ExportCell, type ExportTable } from './diagnostic-results.js';
-import { type ControlKind, controlProgress } from './control-works.js';
+import { type ControlKind, controlMean, controlProgress } from './control-works.js';
 import { type AcademicPeriodDto, type NamedRef, summarizeSemester } from './grades.js';
 import type { QuestionnaireVersionLabel, ScaleResultDto } from './diagnostic-sessions.js';
 import {
@@ -12,6 +12,7 @@ import {
   RESEARCH_GROUP_LABELS,
   ResearchGroup,
   ResearchProjectStatus,
+  type ScaleAggregation,
 } from './enums.js';
 import {
   DESCRIPTIVE_STATS_COLUMNS,
@@ -145,6 +146,8 @@ export interface ResearchMeasurementDto {
   title: string;
   measurementType: MeasurementType;
   questionnaire: QuestionnaireVersionLabel;
+  /** Диагностическое направление методики (мотивация, саморегуляция…); null — не указано. */
+  direction: { code: string; name: string } | null;
   startsOn: string | null;
   endsOn: string | null;
   createdAt: string;
@@ -223,6 +226,13 @@ export interface ResearchChangeDto {
   rows: { scaleKey: string; group: ResearchGroup; stats: DescriptiveStats }[];
 }
 
+/** Шкала версии методики: код, название и способ расчёта балла. */
+export interface ResearchVersionScaleDto {
+  code: string;
+  name: string;
+  aggregation: ScaleAggregation;
+}
+
 /** Значения участника в замере; null — участник не прошёл замер (неполное наблюдение). */
 export interface ResearchObservationValueDto {
   completedAt: string;
@@ -241,6 +251,8 @@ export interface ResearchParticipantRowDto {
 export interface ResearchDiagnosticDataDto {
   measurements: ResearchMeasurementDto[];
   scales: ResearchScaleDto[];
+  /** Шкалы каждой версии замеров (по id версии) — для проверки корректности шкал перед анализом. */
+  versionScales: Record<string, ResearchVersionScaleDto[]>;
   observations: ResearchObservationCountsDto[];
   stats: ResearchStatsRowDto[];
   changes: ResearchChangeDto[];
@@ -274,7 +286,7 @@ export interface ResearchDataInput {
   /** Замеры исследования: выбранные пользователем. */
   measurements: readonly ResearchMeasurementDto[];
   /** Шкалы версий замеров по id версии, в порядке методики. */
-  versionScales: ReadonlyMap<string, readonly { code: string; name: string }[]>;
+  versionScales: ReadonlyMap<string, readonly ResearchVersionScaleDto[]>;
   sessions: readonly ResearchSessionInput[];
   /** Утверждённые пары сопоставимых версий (`comparabilityKey`). */
   approved: ReadonlySet<string>;
@@ -462,6 +474,11 @@ export function buildResearchData(input: ResearchDataInput): ResearchDiagnosticD
   return {
     measurements,
     scales,
+    versionScales: Object.fromEntries(
+      [...new Set(measurements.map((measurement) => measurement.questionnaire.versionId))].map(
+        (versionId) => [versionId, [...(input.versionScales.get(versionId) ?? [])]],
+      ),
+    ),
     observations,
     stats,
     changes,
@@ -494,10 +511,32 @@ export interface ResearchIndicatorDto {
   name: string;
 }
 
-/** Значения показателя у участника «до» и «после»; null — нет данных (FR-074). */
+/**
+ * Значения показателя у участника «до» и «после»; null — нет данных (FR-074). Для контрольных
+ * работ `current` — средний балл текущего контроля по дисциплине (в сравнение «до/после» не входит).
+ */
 export interface ResearchOutcomeValueDto {
   before: number | null;
   after: number | null;
+  current?: number | null;
+}
+
+/** Контрольная работа в ряду дисциплины; `date` — самая ранняя дата проведения в группах. */
+export interface ResearchControlWorkDto {
+  id: string;
+  topic: string;
+  kind: ControlKind;
+  date: string;
+}
+
+/**
+ * Ряд контрольных работ дисциплины (этап 29): входной, текущий и итоговый контроль по датам и
+ * описательные статистики баллов ЭГ и КГ по каждой работе. Отметки и отсутствие результата — пропуск.
+ */
+export interface ResearchControlSeriesDto {
+  discipline: NamedRef;
+  works: ResearchControlWorkDto[];
+  stats: { workId: string; group: ResearchGroup; stats: DescriptiveStats }[];
 }
 
 /** Статистики показателя по группе: «до», «после» и разность у участников с обоими значениями. */
@@ -520,6 +559,8 @@ export interface ResearchOutcomesDto {
   stats: ResearchOutcomeStatsDto[];
   /** По коду участника и ключу показателя. Исключённых участников нет. */
   values: Record<string, Record<string, ResearchOutcomeValueDto>>;
+  /** Контрольные работы по дисциплинам: входной, текущий и итоговый контроль. */
+  controlSeries: ResearchControlSeriesDto[];
 }
 
 export interface ResearchOutcomesInput {
@@ -535,12 +576,13 @@ export interface ResearchOutcomesInput {
   criteria: readonly { id: string; name: string }[];
   /** Оценки 1–5 на занятиях (без «Не наблюдалось»); `date` — дата занятия `YYYY-MM-DD`. */
   ratings: readonly { studentId: string; date: string; criterionId: string; score: number }[];
-  /** Баллы участников за входные и итоговые контрольные работы (отметки сюда не попадают). */
+  /** Баллы участников за контрольные работы всех видов (отметки сюда не попадают). */
   controls?: readonly {
     studentId: string;
     discipline: NamedRef;
     kind: ControlKind;
     score: number;
+    work: ResearchControlWorkDto;
   }[];
 }
 
@@ -685,7 +727,20 @@ export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOut
         }
         if (isResearchControlsKey(indicator.key)) {
           const item = progress.get(indicator.key);
-          return [indicator.key, { before: item?.entry ?? null, after: item?.final ?? null }];
+          const current = controlMean(
+            controls
+              .filter(
+                (control) =>
+                  control.studentId === participant.studentId &&
+                  control.kind === 'CURRENT' &&
+                  researchControlsKey(control.discipline.id) === indicator.key,
+              )
+              .map((control) => control.score),
+          );
+          return [
+            indicator.key,
+            { before: item?.entry ?? null, after: item?.final ?? null, current },
+          ];
         }
         return [
           indicator.key,
@@ -716,6 +771,42 @@ export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOut
     }),
   );
 
+  const kindOrder: Record<ControlKind, number> = { ENTRY: 0, CURRENT: 1, FINAL: 2 };
+  const controlSeries = indicators
+    .filter((indicator) => isResearchControlsKey(indicator.key))
+    .map((indicator): ResearchControlSeriesDto => {
+      const own = controls.filter(
+        (item) => researchControlsKey(item.discipline.id) === indicator.key,
+      );
+      const works = [...new Map(own.map((item) => [item.work.id, item.work])).values()].sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          kindOrder[a.kind] - kindOrder[b.kind] ||
+          a.topic.localeCompare(b.topic, 'ru'),
+      );
+      return {
+        discipline: own[0]!.discipline,
+        works,
+        stats: works.flatMap((work) =>
+          RESEARCH_GROUPS.map((group) => ({
+            workId: work.id,
+            group,
+            stats: descriptiveStats(
+              included
+                .filter((participant) => participant.group === group)
+                .map(
+                  (participant) =>
+                    own.find(
+                      (item) =>
+                        item.work.id === work.id && item.studentId === participant.studentId,
+                    )?.score ?? null,
+                ),
+            ),
+          })),
+        ),
+      };
+    });
+
   return {
     periods: input.periods,
     gradesBefore: input.gradesBefore,
@@ -725,18 +816,25 @@ export function buildResearchOutcomes(input: ResearchOutcomesInput): ResearchOut
     indicators,
     stats,
     values,
+    controlSeries,
   };
 }
 
 // ── Выгрузка (FR-071, FR-075) ──
 
-export const ResearchDataset = { RAW: 'raw', AGGREGATE: 'aggregate', WIDE: 'wide' } as const;
+export const ResearchDataset = {
+  RAW: 'raw',
+  AGGREGATE: 'aggregate',
+  WIDE: 'wide',
+  ANALYSIS: 'analysis',
+} as const;
 export type ResearchDataset = (typeof ResearchDataset)[keyof typeof ResearchDataset];
 
 export const RESEARCH_DATASET_LABELS: Record<ResearchDataset, string> = {
   raw: 'Исходные данные по участникам',
   aggregate: 'Сводные показатели',
   wide: 'Широкая таблица «до/после» (строка — участник)',
+  analysis: 'Статистический анализ: таблицы для ВКР',
 };
 
 const measurementLabel = (measurement: ResearchMeasurementDto) =>
@@ -913,6 +1011,15 @@ export function buildResearchWideTable(data: ResearchDataDto): ExportTable {
         label: `${indicator.name} — после (${prefix}${after})`,
         value: (code: string) => outcomes.values[code]?.[indicator.key]?.after ?? null,
       },
+      // Текущий контроль (этап 29) — справочно, в сравнение «до/после» не входит.
+      ...(isResearchControlsKey(indicator.key)
+        ? [
+            {
+              label: `${indicator.name} — текущий контроль (средний балл)`,
+              value: (code: string) => outcomes.values[code]?.[indicator.key]?.current ?? null,
+            },
+          ]
+        : []),
     ];
   });
   return {

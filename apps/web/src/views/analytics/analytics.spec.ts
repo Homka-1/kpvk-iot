@@ -234,6 +234,7 @@ describe('страница исследования', () => {
           title: 'Учебная мотивация',
           isDemo: true,
         },
+        direction: { code: 'LEARNING_MOTIVATION', name: 'Учебная мотивация' },
         startsOn: null,
         endsOn: null,
         createdAt: '2026-09-01T00:00:00.000Z',
@@ -271,6 +272,7 @@ describe('страница исследования', () => {
         name: 'Интерес',
       },
     ],
+    versionScales: {},
     observations: [
       { group: 'EXPERIMENTAL', participants: 1, complete: 1, incomplete: 0 },
       { group: 'CONTROL', participants: 1, complete: 0, incomplete: 1 },
@@ -335,6 +337,7 @@ describe('страница исследования', () => {
         },
       ],
       values: {},
+      controlSeries: [],
     },
   };
 

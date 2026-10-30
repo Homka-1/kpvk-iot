@@ -186,13 +186,14 @@ describe('данные исследования', () => {
     title: id === 'm1' ? 'Входной замер' : 'Итоговый замер',
     measurementType,
     questionnaire: version(versionId, versionNumber),
+    direction: { code: 'LEARNING_MOTIVATION', name: 'Учебная мотивация' },
     startsOn,
     endsOn,
     createdAt: '2026-09-01T00:00:00Z',
   });
   const scales = [
-    { code: 'INT', name: 'Интерес' },
-    { code: 'ACH', name: 'Достижения' },
+    { code: 'INT', name: 'Интерес', aggregation: 'SUM' as const },
+    { code: 'ACH', name: 'Достижения', aggregation: 'SUM' as const },
   ];
   const session = (
     studentId: string,
@@ -427,21 +428,37 @@ describe('данные исследования', () => {
 
     it('этап 28: контрольные работы — входной «до», итоговый «после», отметок и текущих нет', () => {
       const web = { id: 'web', name: 'Веб-дизайн' };
+      const work = (id: string, kind: 'ENTRY' | 'CURRENT' | 'FINAL', date: string) => ({
+        id,
+        topic: `Работа ${id}`,
+        kind,
+        date,
+      });
+      const entry = work('w1', 'ENTRY', '2025-10-21');
+      const current = work('w2', 'CURRENT', '2025-12-09');
+      const final1 = work('w3', 'FINAL', '2026-04-28');
+      const final2 = work('w4', 'FINAL', '2026-04-29');
       const outcomes = buildResearchOutcomes({
         ...outcomesInput,
         controls: [
-          { studentId: 's1', discipline: web, kind: 'ENTRY', score: 50 },
-          { studentId: 's1', discipline: web, kind: 'CURRENT', score: 99 },
-          { studentId: 's1', discipline: web, kind: 'FINAL', score: 70 },
-          { studentId: 's1', discipline: web, kind: 'FINAL', score: 80 },
-          { studentId: 's3', discipline: web, kind: 'ENTRY', score: 55 },
+          { studentId: 's1', discipline: web, kind: 'ENTRY', score: 50, work: entry },
+          { studentId: 's1', discipline: web, kind: 'CURRENT', score: 99, work: current },
+          { studentId: 's1', discipline: web, kind: 'FINAL', score: 70, work: final1 },
+          { studentId: 's1', discipline: web, kind: 'FINAL', score: 80, work: final2 },
+          { studentId: 's3', discipline: web, kind: 'ENTRY', score: 55, work: entry },
         ],
       });
       const key = researchControlsKey('web');
       expect(outcomes.indicators.at(-1)).toEqual({ key, name: 'Контрольные работы: Веб-дизайн' });
-      expect(outcomes.values.R001![key]).toEqual({ before: 50, after: 75 });
-      expect(outcomes.values.R002![key]).toEqual({ before: null, after: null });
-      expect(outcomes.values.R003![key]).toEqual({ before: 55, after: null });
+      expect(outcomes.values.R001![key]).toEqual({ before: 50, after: 75, current: 99 });
+      expect(outcomes.values.R002![key]).toEqual({ before: null, after: null, current: null });
+      expect(outcomes.values.R003![key]).toEqual({ before: 55, after: null, current: null });
+      // Этап 29: ряд работ по датам, статистики по группам; нет результата — пропуск.
+      const [series] = outcomes.controlSeries;
+      expect(series!.works.map((item) => item.id)).toEqual(['w1', 'w2', 'w3', 'w4']);
+      expect(
+        series!.stats.find((row) => row.workId === 'w1' && row.group === 'EXPERIMENTAL')!.stats,
+      ).toMatchObject({ n: 1, missing: 1, mean: 50 });
       const eg = outcomes.stats.find(
         (row) => row.indicatorKey === key && row.group === 'EXPERIMENTAL',
       )!;
@@ -456,10 +473,12 @@ describe('данные исследования', () => {
         }),
         outcomes,
       });
-      expect(wide.header.slice(-2)).toEqual([
+      expect(wide.header.slice(-3)).toEqual([
         'Контрольные работы: Веб-дизайн — до (входной контроль)',
         'Контрольные работы: Веб-дизайн — после (итоговый контроль)',
+        'Контрольные работы: Веб-дизайн — текущий контроль (средний балл)',
       ]);
+      expect(wide.rows[0]!.slice(-3)).toEqual([50, 75, 99]);
     });
 
     it('границы периодов включительно; пересечение периодов', () => {

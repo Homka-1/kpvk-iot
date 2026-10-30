@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ControlKind,
   DiagnosticExportFormat,
   MeasurementType,
   RESEARCH_DESCRIPTION_MAX,
@@ -162,9 +163,11 @@ export class ResearchExportQueryDto extends ResearchDataQueryDto {
   @ApiProperty({
     enum: Object.values(ResearchDataset),
     description:
-      'raw — исходные данные по участникам, aggregate — сводные показатели, wide — широкая таблица «до/после» (строка — участник: шкалы, средний балл за семестры, наблюдения)',
+      'raw — исходные данные по участникам, aggregate — сводные показатели, wide — широкая таблица «до/после» (строка — участник: шкалы, средний балл за семестры, наблюдения, контрольные работы), analysis — таблицы статистического анализа для ВКР (проверки данных, динамика и критерий Вилкоксона, критерий Манна — Уитни, корреляции Спирмена, контрольные работы; в XLSX — отдельные листы)',
   })
-  @IsIn(Object.values(ResearchDataset), { message: 'Набор данных: raw, aggregate или wide' })
+  @IsIn(Object.values(ResearchDataset), {
+    message: 'Набор данных: raw, aggregate, wide или analysis',
+  })
   dataset: ResearchDataset;
 }
 
@@ -197,11 +200,24 @@ class VersionLabelResponseDto {
   @ApiProperty() isDemo: boolean;
 }
 
+class DirectionResponseDto {
+  @ApiProperty({ description: 'Код направления, например LEARNING_MOTIVATION, SELF_REGULATION' })
+  code: string;
+  @ApiProperty() name: string;
+}
+
 export class ResearchMeasurementResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() title: string;
   @ApiProperty({ enum: Object.values(MeasurementType) }) measurementType: MeasurementType;
   @ApiProperty({ type: VersionLabelResponseDto }) questionnaire: VersionLabelResponseDto;
+  @ApiProperty({
+    type: DirectionResponseDto,
+    nullable: true,
+    description:
+      'Диагностическое направление методики: по нему показатель попадает в раздел анализа',
+  })
+  direction: DirectionResponseDto | null;
   @ApiProperty({ nullable: true, type: String, format: 'date' }) startsOn: string | null;
   @ApiProperty({ nullable: true, type: String, format: 'date' }) endsOn: string | null;
   @ApiProperty() createdAt: string;
@@ -312,6 +328,32 @@ class ResearchOutcomeStatsResponseDto {
   change: DescriptiveStatsResponseDto;
 }
 
+class ResearchNamedRefResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() name: string;
+}
+
+class ResearchControlWorkResponseDto {
+  @ApiProperty() id: string;
+  @ApiProperty() topic: string;
+  @ApiProperty({ enum: Object.values(ControlKind) }) kind: ControlKind;
+  @ApiProperty({ format: 'date', description: 'Самая ранняя дата проведения в группах' })
+  date: string;
+}
+
+class ResearchControlSeriesStatsResponseDto {
+  @ApiProperty() workId: string;
+  @ApiProperty({ enum: Object.values(ResearchGroup) }) group: ResearchGroup;
+  @ApiProperty({ type: DescriptiveStatsResponseDto }) stats: DescriptiveStatsResponseDto;
+}
+
+class ResearchControlSeriesResponseDto {
+  @ApiProperty({ type: ResearchNamedRefResponseDto }) discipline: ResearchNamedRefResponseDto;
+  @ApiProperty({ type: [ResearchControlWorkResponseDto] }) works: ResearchControlWorkResponseDto[];
+  @ApiProperty({ type: [ResearchControlSeriesStatsResponseDto] })
+  stats: ResearchControlSeriesStatsResponseDto[];
+}
+
 class ResearchOutcomesResponseDto {
   @ApiProperty({
     type: [AcademicPeriodResponseDto],
@@ -331,9 +373,14 @@ class ResearchOutcomesResponseDto {
   stats: ResearchOutcomeStatsResponseDto[];
   @ApiProperty({
     description:
-      'По коду участника и ключу показателя: { before: число | null, after: число | null }',
+      'По коду участника и ключу показателя: { before: число | null, after: число | null }; для контрольных работ ещё current — средний балл текущего контроля',
   })
   values: Record<string, unknown>;
+  @ApiProperty({
+    type: [ResearchControlSeriesResponseDto],
+    description: 'Контрольные работы по дисциплинам: входной, текущий и итоговый контроль по датам',
+  })
+  controlSeries: ResearchControlSeriesResponseDto[];
 }
 
 export class ResearchDataResponseDto {
@@ -346,6 +393,11 @@ export class ResearchDataResponseDto {
   @ApiProperty({ type: [ResearchMeasurementResponseDto] })
   measurements: ResearchMeasurementResponseDto[];
   @ApiProperty({ type: [ResearchScaleResponseDto] }) scales: ResearchScaleResponseDto[];
+  @ApiProperty({
+    description:
+      'Шкалы каждой версии замеров по id версии: [{ code, name, aggregation: SUM | MEAN }] — для проверки шкал перед анализом',
+  })
+  versionScales: Record<string, unknown>;
   @ApiProperty({ type: [ResearchObservationsResponseDto] })
   observations: ResearchObservationsResponseDto[];
   @ApiProperty({ type: [ResearchStatsRowResponseDto] }) stats: ResearchStatsRowResponseDto[];
