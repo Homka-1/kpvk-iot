@@ -7,8 +7,8 @@ import type { ControlKind, DifficultyLevel, MotivationLevel, SubmissionFormat } 
 export const DEMO_FRESH_DIAGNOSTICS = ['S-8JGXYQ'];
 
 /** Группы исследования: экспериментальная занимается по ИОТ, контрольная — без ИОТ. */
-export const EXPERIMENTAL_GROUP = 'ПО-9 ЭГ';
-export const CONTROL_GROUP = 'ПО-9 КГ';
+export const EXPERIMENTAL_GROUP = 'ДВ-2 ЭГ';
+export const CONTROL_GROUP = 'ДВ-1 КГ';
 
 /** Пароль сгенерированных преподавателей (по решению заказчика — постоянный). */
 export const DEMO_TEACHER_PASSWORD = 'teacher_kpvk123';

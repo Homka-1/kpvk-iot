@@ -1121,8 +1121,7 @@ export class DemoActivityGenerator {
     const project = await this.prisma.researchProject.create({
       data: {
         title: DEMO_RESEARCH_TITLE,
-        description:
-          'Экспериментальная группа ПО-9 ЭГ занимается по индивидуальным образовательным траекториям (математика, информатика), контрольная группа ПО-9 КГ — по обычной программе. Первичный замер — октябрь 2025 года, повторный — апрель 2026 года.',
+        description: `Экспериментальная группа ${EXPERIMENTAL_GROUP} занимается по индивидуальным образовательным траекториям (математика, информатика), контрольная группа ${CONTROL_GROUP} — по обычной программе. Первичный замер — октябрь 2025 года, повторный — апрель 2026 года.`,
         status: 'ACTIVE',
         startsAt: day(DEMO_PERIOD.researchFrom),
         endsAt: day(DEMO_PERIOD.researchTo),
@@ -2229,7 +2228,7 @@ export class DemoActivityGenerator {
       }
       const gradeImport = await this.prisma.gradeImport.create({
         data: {
-          fileName: `Успеваемость ПО-9, ${semester} семестр 2025-2026.xlsx`,
+          fileName: `Успеваемость ${EXPERIMENTAL_GROUP} и ${CONTROL_GROUP}, ${semester} семестр 2025-2026.xlsx`,
           contentHash: randomBytes(32).toString('hex'),
           rowCount: rows.length,
           createdById: authorId,
