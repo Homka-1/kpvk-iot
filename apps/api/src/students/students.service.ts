@@ -94,7 +94,10 @@ export function contextWhere(
 }
 
 /** Нерассмотренное сообщение студента о затруднении (FR-008). */
-const OPEN_DIFFICULTY: Prisma.FeedbackWhereInput = { kind: 'DIFFICULTY_REPORT', resolvedAt: null };
+export const OPEN_DIFFICULTY: Prisma.FeedbackWhereInput = {
+  kind: 'DIFFICULTY_REPORT',
+  resolvedAt: null,
+};
 
 /**
  * Студенты, требующие внимания (п. 4.1): отметка о сопровождении (FR-060) или нерассмотренное

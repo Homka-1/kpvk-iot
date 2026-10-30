@@ -15,6 +15,8 @@ import {
   type StudentHistoryItemDto,
   type StudentProfileDto,
   type StudentVisibleObservationDto,
+  type SupportStatus,
+  type SupportStatusDetailsDto,
   Visibility,
 } from '@iot/shared';
 import {
@@ -27,7 +29,7 @@ import { IdempotencyService } from '../common/idempotency.service.js';
 import type { PedagogicalObservation } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateObservationDto, UpdateObservationDto } from './profile.dto.js';
-import { StudentsService } from './students.service.js';
+import { OPEN_DIFFICULTY, StudentsService } from './students.service.js';
 
 /** Сколько последних событий показывает вкладка «История». */
 const HISTORY_LIMIT = 200;
@@ -164,6 +166,39 @@ export class StudentProfileService {
       return updated;
     });
     return this.toObservation(row, await this.people([row.authorId]), user.id);
+  }
+
+  /** Пояснение к статусу сопровождения: последняя отметка с основанием и открытые затруднения. */
+  async supportStatus(user: CurrentUser, studentId: string): Promise<SupportStatusDetailsDto> {
+    const scope = await this.scopes.forUser(user);
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, ...this.scopes.studentsWhere(scope) },
+      select: { supportStatus: true },
+    });
+    if (!student) throw new NotFoundException('Студент не найден');
+    const [log, openDifficulties] = await Promise.all([
+      this.prisma.auditLog.findFirst({
+        where: {
+          action: 'student.support_status_changed',
+          entityType: 'student',
+          entityId: studentId,
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          actor: { select: { id: true, lastName: true, firstName: true, middleName: true } },
+        },
+      }),
+      this.prisma.feedback.count({ where: { studentId, ...OPEN_DIFFICULTY } }),
+    ]);
+    return {
+      supportStatus: student.supportStatus as SupportStatus,
+      lastChange: log && {
+        at: log.createdAt.toISOString(),
+        actor: log.actor ? { id: log.actor.id, fullName: formatFullName(log.actor) } : null,
+        reason: log.reason,
+      },
+      openDifficulties,
+    };
   }
 
   /** Значимые изменения по студенту из журнала аудита (вкладка «История»). */

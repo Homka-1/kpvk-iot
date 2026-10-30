@@ -13,6 +13,7 @@ import {
   Permission,
   type StudentHistoryItemDto,
   type StudentProfileDto,
+  type SupportStatusDetailsDto,
 } from '@iot/shared';
 import { type AuthUser, RequirePermissions, User } from '../auth/decorators.js';
 import { IdempotencyKey } from '../common/idempotency.service.js';
@@ -22,6 +23,7 @@ import {
   OwnProfileResponseDto,
   StudentHistoryItemResponseDto,
   StudentProfileResponseDto,
+  SupportStatusDetailsResponseDto,
   UpdateInterestsDto,
   UpdateObservationDto,
 } from './profile.dto.js';
@@ -90,6 +92,20 @@ export class StudentProfileController {
     @User() user: AuthUser,
   ): Promise<ObservationDto> {
     return this.profiles.updateObservation(user, id, observationId, dto);
+  }
+
+  @Get('support-status')
+  @ApiOperation({
+    summary: 'Пояснение к статусу сопровождения (FR-060)',
+    description:
+      'Последняя отметка преподавателя с основанием из журнала аудита и число нерассмотренных сообщений о затруднениях.',
+  })
+  @ApiOkResponse({ type: SupportStatusDetailsResponseDto })
+  supportStatus(
+    @Param('id', uuid) id: string,
+    @User() user: AuthUser,
+  ): Promise<SupportStatusDetailsDto> {
+    return this.profiles.supportStatus(user, id);
   }
 
   @Get('history')

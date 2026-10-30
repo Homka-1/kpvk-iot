@@ -2,7 +2,8 @@
 import { formatFullName, type StudentSummaryDto } from '@iot/shared';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { formatDateTime, formatNumber } from '@/utils/format';
-import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
+import { NO_DATA, profileBadge, trajectoryBadge } from './labels';
+import SupportStatusBadge from './SupportStatusBadge.vue';
 
 /**
  * Карточка студента в списке (п. 4.2 ТЗ). Показатели, по которым ещё нет данных, подписаны
@@ -26,7 +27,12 @@ defineProps<{
         <span class="student-card__code">Код участника: {{ student.participantCode }}</span>
       </div>
       <StatusBadge v-if="student.archivedAt" label="В архиве" tone="neutral" icon="pi pi-box" />
-      <StatusBadge v-else v-bind="supportBadge(student.supportStatus)" />
+      <SupportStatusBadge
+        v-else
+        :student-id="student.id"
+        :status="student.supportStatus"
+        :interactive="!!to"
+      />
     </header>
     <p class="student-card__group">
       <template v-if="student.group">

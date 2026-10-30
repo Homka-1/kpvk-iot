@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { INTERESTS_MAX, OBSERVATION_TEXT_MAX, Visibility } from '@iot/shared';
+import { INTERESTS_MAX, OBSERVATION_TEXT_MAX, SupportStatus, Visibility } from '@iot/shared';
 import { Transform } from 'class-transformer';
 import {
   IsIn,
@@ -96,6 +96,25 @@ class StudentVisibleObservationResponseDto {
   @ApiProperty() text: string;
   @ApiProperty({ nullable: true, type: RefDto }) discipline: RefDto | null;
   @ApiProperty({ type: PersonRefDto }) author: PersonRefDto;
+}
+
+class SupportStatusChangeResponseDto {
+  @ApiProperty({ format: 'date-time' }) at: string;
+  @ApiProperty({ nullable: true, type: PersonRefDto }) actor: PersonRefDto | null;
+  @ApiProperty({ nullable: true, type: String, description: 'Основание отметки' })
+  reason: string | null;
+}
+
+export class SupportStatusDetailsResponseDto {
+  @ApiProperty({ enum: Object.values(SupportStatus) }) supportStatus: SupportStatus;
+  @ApiProperty({
+    nullable: true,
+    type: SupportStatusChangeResponseDto,
+    description: 'Последнее изменение статуса; нет записи в журнале — null',
+  })
+  lastChange: SupportStatusChangeResponseDto | null;
+  @ApiProperty({ description: 'Нерассмотренные сообщения о затруднениях' })
+  openDifficulties: number;
 }
 
 export class StudentHistoryItemResponseDto {

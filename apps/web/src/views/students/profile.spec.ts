@@ -10,6 +10,7 @@ import { mountWithApp, testUser } from '@/testing/mount';
 import MyProfileView from '@/views/student/MyProfileView.vue';
 import StudentCard from './StudentCard.vue';
 import StudentProfileView from './StudentProfileView.vue';
+import SupportStatusBadge from './SupportStatusBadge.vue';
 
 const STUDENT_ID = '01900000-0000-7000-8000-000000000010';
 const teacher = testUser(['teacher']);
@@ -78,6 +79,7 @@ function mockApi(responses: Record<string, unknown>) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  document.body.innerHTML = '';
 });
 
 describe('StudentCard', () => {
@@ -86,6 +88,48 @@ describe('StudentCard', () => {
       props: { student: profile, to: `/students/${STUDENT_ID}` },
     });
     expect(wrapper.find('a.student-card__name').attributes('href')).toBe(`/students/${STUDENT_ID}`);
+  });
+});
+
+describe('SupportStatusBadge', () => {
+  it('FR-060: отметка «Требует внимания» открывает основание и ссылки на вкладки профиля', async () => {
+    mockApi({
+      [`/students/${STUDENT_ID}/support-status`]: {
+        supportStatus: 'NEEDS_ATTENTION',
+        lastChange: {
+          at: '2026-10-20T08:00:00.000Z',
+          actor: { id: teacher.id, fullName: 'Иванова Анна' },
+          reason: 'Не сдал два задания подряд',
+        },
+        openDifficulties: 2,
+      },
+    });
+    const { wrapper } = await mountWithApp(SupportStatusBadge, {
+      props: { studentId: STUDENT_ID, status: 'NEEDS_ATTENTION', interactive: true },
+      attachTo: document.body,
+    });
+    await wrapper.get('button[aria-haspopup="dialog"]').trigger('click');
+    await flushPromises();
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('Не сдал два задания подряд');
+    expect(text).toContain('Иванова Анна');
+    expect(text).toContain('Нерассмотренных сообщений о затруднениях: 2');
+    const links = [...document.body.querySelectorAll('.support-details a')].map((link) =>
+      link.getAttribute('href'),
+    );
+    expect(links).toEqual([
+      `/students/${STUDENT_ID}?tab=support`,
+      `/students/${STUDENT_ID}?tab=history`,
+    ]);
+    wrapper.unmount();
+  });
+
+  it('FR-060: обычное сопровождение — простая плашка без пояснения', async () => {
+    const { wrapper } = await mountWithApp(SupportStatusBadge, {
+      props: { studentId: STUDENT_ID, status: 'STANDARD', interactive: true },
+    });
+    expect(wrapper.find('button').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Обычное сопровождение');
   });
 });
 
@@ -120,6 +164,21 @@ describe('StudentProfileView', () => {
     await tab!.trigger('click');
     await flushPromises();
   }
+
+  it('FR-060: ссылка «?tab=» на открытой странице профиля переключает вкладку', async () => {
+    const { wrapper, router } = await mountProfile();
+    const selected = () => wrapper.get('[role="tab"][aria-selected="true"]').text();
+    expect(selected()).toBe('Общие сведения');
+    await router.push(`/students/${STUDENT_ID}?tab=history`);
+    await flushPromises();
+    expect(selected()).toBe('История');
+    await openTab(wrapper, 'Сопровождение');
+    expect(router.currentRoute.value.query.tab).toBe('support');
+    await router.push(`/students/${STUDENT_ID}?tab=history`);
+    await flushPromises();
+    expect(selected()).toBe('История');
+    wrapper.unmount();
+  });
 
   it('п. 4.3, FR-009: верхняя карточка и семь вкладок профиля', async () => {
     const { wrapper } = await mountProfile();

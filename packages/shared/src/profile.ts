@@ -1,6 +1,6 @@
 // Профиль студента и педагогические наблюдения (ТЗ, п. 4.3, 6.3; FR-009, FR-012, FR-014, FR-016).
 import { z } from 'zod';
-import type { Visibility } from './enums.js';
+import type { SupportStatus, Visibility } from './enums.js';
 import type { OwnMotivationProfileDto } from './motivation-profiles.js';
 import type { GroupRef, PersonRef, StudentDetailsDto } from './students.js';
 
@@ -44,6 +44,18 @@ export interface StudentVisibleObservationDto {
   text: string;
   discipline: { id: string; name: string } | null;
   author: PersonRef;
+}
+
+/**
+ * Пояснение к статусу сопровождения (FR-060): последняя отметка преподавателя с основанием
+ * из журнала аудита и нерассмотренные сообщения студента о затруднениях.
+ */
+export interface SupportStatusDetailsDto {
+  supportStatus: SupportStatus;
+  /** Последнее изменение статуса; `null`, если в журнале нет записи. */
+  lastChange: { at: string; actor: PersonRef | null; reason: string | null } | null;
+  /** Сколько сообщений о затруднениях ещё не рассмотрено. */
+  openDifficulties: number;
 }
 
 /** Событие вкладки «История»: значимое изменение по студенту из журнала аудита. */

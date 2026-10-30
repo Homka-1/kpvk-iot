@@ -8,6 +8,7 @@ import {
   RoleCode,
   type StudentCreatedDto,
   type StudentHistoryItemDto,
+  type SupportStatusDetailsDto,
   type TrajectoryContent,
   type TrajectoryDto,
   type TrajectoryOptionsDto,
@@ -383,6 +384,44 @@ describe('Мониторинг и корректировка ИОТ (e2e)', () =
     expect(history[0]).toMatchObject({
       label: 'Изменён статус сопровождения',
       reason: 'Пропущена контрольная точка',
+    });
+  });
+
+  it('FR-060: пояснение к статусу сопровождения — основание отметки и открытые затруднения', async () => {
+    const { student } = await activeTrajectory('Пояснение');
+    const path = `/api/students/${student.id}/support-status`;
+    const details = async () =>
+      (await as(teacher, http().get(path)).expect(200)).body as SupportStatusDetailsDto;
+    expect(await details()).toEqual({
+      supportStatus: 'STANDARD',
+      lastChange: null,
+      openDifficulties: 0,
+    });
+    await as(otherTeacher, http().get(path)).expect(404);
+
+    await as(teacher, http().put(`/api/monitoring/students/${student.id}/support-status`))
+      .send({ supportStatus: 'NEEDS_ATTENTION', reason: 'Не сдал два задания подряд' })
+      .expect(200);
+    const { userId } = await prisma.student.findUniqueOrThrow({ where: { id: student.id } });
+    await prisma.feedback.createMany({
+      data: [
+        { studentId: student.id, authorId: userId!, kind: 'DIFFICULTY_REPORT', body: 'Не понял' },
+        {
+          studentId: student.id,
+          authorId: userId!,
+          kind: 'DIFFICULTY_REPORT',
+          body: 'Уже разобрались',
+          resolvedAt: new Date(),
+        },
+      ],
+    });
+    expect(await details()).toMatchObject({
+      supportStatus: 'NEEDS_ATTENTION',
+      lastChange: {
+        actor: { fullName: expect.any(String) },
+        reason: 'Не сдал два задания подряд',
+      },
+      openDifficulties: 1,
     });
   });
 

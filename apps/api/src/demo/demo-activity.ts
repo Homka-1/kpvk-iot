@@ -11,6 +11,7 @@ import {
   Permission,
   RoleCode,
   STANDARD_TRAJECTORY_STAGES,
+  type SupportStatus,
   scoreQuestionnaire,
 } from '@iot/shared';
 import { readContent, versionContentInclude } from '../diagnostics/questionnaire-content.js';
@@ -191,6 +192,7 @@ export class DemoActivityGenerator {
       await this.controlWork(ctx, discipline.id, discipline.teacherId, work);
     }
     report('Завершение');
+    await this.weakestSupport(ctx, discipline.teacherId);
     await this.finish(ctx, DemoStage.PRIMARY);
   }
 
@@ -1925,10 +1927,14 @@ export class DemoActivityGenerator {
       repliedAt,
     );
     if (input.kind === 'DIFFICULTY_REPORT' && chance(random, 0.4)) {
-      await this.prisma.student.update({
-        where: { id: student.id },
-        data: { supportStatus: 'NEEDS_ATTENTION' },
-      });
+      await this.markSupport(
+        ctx,
+        student.id,
+        'NEEDS_ATTENTION',
+        teacherId,
+        repliedAt,
+        'Студент сообщил о затруднении в задании — проверить выполнение следующего этапа',
+      );
     }
   }
 
@@ -2242,23 +2248,56 @@ export class DemoActivityGenerator {
 
   // ── Завершение ──
 
+  /** Нужда в дополнительном сопровождении (FR-060) — у студентов с самой низкой мотивацией. */
+  private async weakestSupport(ctx: Context, teacherId: string): Promise<void> {
+    const weakest = [...ctx.students]
+      .sort(
+        (a, b) => ctx.state.dispositions[a.id]!.INTRINSIC - ctx.state.dispositions[b.id]!.INTRINSIC,
+      )
+      .slice(0, 3);
+    const markedAt = workTime(DEMO_PERIOD.trajectoriesEnd, ctx.random);
+    for (const student of weakest) {
+      await this.markSupport(
+        ctx,
+        student.id,
+        student.experimental ? 'ADDITIONAL_SUPPORT' : 'NEEDS_ATTENTION',
+        teacherId,
+        markedAt,
+        'Низкая внутренняя мотивация и редкое выполнение заданий — нужна индивидуальная беседа',
+      );
+    }
+  }
+
+  /** Отметка о сопровождении с основанием в журнале аудита — как в мониторинге. */
+  private async markSupport(
+    ctx: Context,
+    studentId: string,
+    supportStatus: SupportStatus,
+    teacherId: string,
+    at: Date,
+    reason: string,
+  ): Promise<void> {
+    const before = await this.prisma.student.findUniqueOrThrow({
+      where: { id: studentId },
+      select: { supportStatus: true },
+    });
+    if (before.supportStatus === supportStatus) return;
+    await this.prisma.student.update({ where: { id: studentId }, data: { supportStatus } });
+    this.audit(
+      ctx,
+      'student.support_status_changed',
+      'student',
+      studentId,
+      teacherId,
+      at,
+      { supportStatus },
+      { supportStatus: before.supportStatus },
+      reason,
+    );
+  }
+
   private async finish(ctx: Context, stage: DemoStage): Promise<void> {
     const { random } = ctx;
-    if (stage === DemoStage.PRIMARY) {
-      // Нужда в дополнительном сопровождении (FR-060) — у студентов с самой низкой мотивацией.
-      const weakest = [...ctx.students]
-        .sort(
-          (a, b) =>
-            ctx.state.dispositions[a.id]!.INTRINSIC - ctx.state.dispositions[b.id]!.INTRINSIC,
-        )
-        .slice(0, 3);
-      for (const student of weakest) {
-        await this.prisma.student.update({
-          where: { id: student.id },
-          data: { supportStatus: student.experimental ? 'ADDITIONAL_SUPPORT' : 'NEEDS_ATTENTION' },
-        });
-      }
-    }
     const lastDay =
       stage === DemoStage.PRIMARY ? DEMO_PERIOD.trajectoriesEnd : DEMO_PERIOD.researchTo;
     for (const student of ctx.students) {

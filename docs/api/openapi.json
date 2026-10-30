@@ -2247,6 +2247,43 @@
         ]
       }
     },
+    "/api/students/{id}/support-status": {
+      "get": {
+        "description": "Последняя отметка преподавателя с основанием из журнала аудита и число нерассмотренных сообщений о затруднениях.",
+        "operationId": "StudentProfileController_supportStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportStatusDetailsResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Пояснение к статусу сопровождения (FR-060)",
+        "tags": [
+          "Профиль студента"
+        ]
+      }
+    },
     "/api/students/{id}/history": {
       "get": {
         "description": "События из журнала аудита: создание, перевод, архив, наблюдения и т. п.",
@@ -12022,6 +12059,66 @@
           "observedAt",
           "text",
           "visibility"
+        ]
+      },
+      "SupportStatusChangeResponseDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PersonRefDto"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Основание отметки"
+          }
+        },
+        "required": [
+          "at",
+          "actor",
+          "reason"
+        ]
+      },
+      "SupportStatusDetailsResponseDto": {
+        "type": "object",
+        "properties": {
+          "supportStatus": {
+            "type": "string",
+            "enum": [
+              "STANDARD",
+              "NEEDS_ATTENTION",
+              "ADDITIONAL_SUPPORT"
+            ]
+          },
+          "lastChange": {
+            "nullable": true,
+            "description": "Последнее изменение статуса; нет записи в журнале — null",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SupportStatusChangeResponseDto"
+              }
+            ]
+          },
+          "openDifficulties": {
+            "type": "number",
+            "description": "Нерассмотренные сообщения о затруднениях"
+          }
+        },
+        "required": [
+          "supportStatus",
+          "lastChange",
+          "openDifficulties"
         ]
       },
       "StudentHistoryItemResponseDto": {

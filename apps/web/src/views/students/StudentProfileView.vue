@@ -14,7 +14,7 @@ import TabPanel from 'primevue/tabpanel';
 import TabPanels from 'primevue/tabpanels';
 import Tabs from 'primevue/tabs';
 import { computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { api, ApiError } from '@/api/http';
 import EmptyState from '@/components/EmptyState.vue';
 import ErrorState from '@/components/ErrorState.vue';
@@ -23,7 +23,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useContextStore } from '@/stores/context';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { setDocumentTitle } from '@/utils/title';
-import { NO_DATA, profileBadge, supportBadge, trajectoryBadge } from './labels';
+import { NO_DATA, profileBadge, trajectoryBadge } from './labels';
 import ObservationDialog from './ObservationDialog.vue';
 import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
 import StudentAssignmentsTab from '@/views/assignments/StudentAssignmentsTab.vue';
@@ -34,6 +34,7 @@ import StudentControlResults from '@/views/achievements/StudentControlResults.vu
 import StudentLessonJournal from '@/views/lessons/StudentLessonJournal.vue';
 import StudentDiagnosticsTab from './StudentDiagnosticsTab.vue';
 import StudentDialog from './StudentDialog.vue';
+import SupportStatusBadge from './SupportStatusBadge.vue';
 
 /**
  * Профиль студента (п. 4.3, 6.3 ТЗ): верхняя карточка и семь вкладок. Данные собираются из модулей
@@ -41,6 +42,7 @@ import StudentDialog from './StudentDialog.vue';
  * показателей (FR-005). Служебные наблюдения видны только сотрудникам — это проверяет сервер.
  */
 const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const context = useContextStore();
 const studentId = computed(() => String(route.params.id));
@@ -132,7 +134,17 @@ watch(profile, (value) => {
 
 watch(tab, (value) => {
   if (value === 'history' && history.value === null) void loadHistory();
+  // Вкладка в адресе: ссылки «?tab=…» (в том числе из пояснения к статусу) открывают её снова.
+  const query = { ...route.query, tab: value === 'general' ? undefined : value };
+  if (route.query.tab !== query.tab) void router.replace({ query });
 });
+
+watch(
+  () => route.query.tab,
+  () => {
+    tab.value = initialTab();
+  },
+);
 
 function addObservation(): void {
   editing.value = null;
@@ -178,7 +190,12 @@ function onStudentChanged(): void {
             <span class="profile__muted">Код участника: {{ profile.participantCode }}</span>
           </div>
           <StatusBadge v-if="profile.archivedAt" label="В архиве" tone="neutral" icon="pi pi-box" />
-          <StatusBadge v-else v-bind="supportBadge(profile.supportStatus)" />
+          <SupportStatusBadge
+            v-else
+            :student-id="studentId"
+            :status="profile.supportStatus"
+            interactive
+          />
         </div>
         <p class="profile__muted">
           <template v-if="profile.group">
