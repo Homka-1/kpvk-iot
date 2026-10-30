@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TrajectoryStatus } from './enums.js';
 import {
   canTransition,
+  PROFILE_STAGE_DIFFICULTY,
   STANDARD_TRAJECTORY_STAGES,
   type StageContent,
   stageDurationDays,
@@ -61,6 +62,23 @@ describe('trajectories', () => {
       'Проектная деятельность',
       'Профессиональное развитие',
     ]);
+  });
+
+  it('п. 4.5: рекомендуемая сложность — на каждый этап, по уровням не убывает', () => {
+    const rank = { BASIC: 0, INTERMEDIATE: 1, ADVANCED: 2 } as const;
+    for (const levels of Object.values(PROFILE_STAGE_DIFFICULTY)) {
+      expect(levels).toHaveLength(STANDARD_TRAJECTORY_STAGES.length);
+    }
+    STANDARD_TRAJECTORY_STAGES.forEach((_, index) => {
+      const [low, medium, high] = (['LOW', 'MEDIUM', 'HIGH'] as const).map(
+        (level) => rank[PROFILE_STAGE_DIFFICULTY[level][index]!],
+      );
+      expect(low).toBeLessThanOrEqual(medium!);
+      expect(medium).toBeLessThanOrEqual(high!);
+    });
+    expect(STANDARD_TRAJECTORY_STAGES.every((stage) => stage.recommendedDifficulty === null)).toBe(
+      true,
+    );
   });
 
   it('FR-035: предлагается шаблон уровня профиля, иначе стандартный', () => {
@@ -139,6 +157,7 @@ describe('сравнение версий ИОТ', () => {
     goal: 'Цель',
     description: null,
     plannedResults: null,
+    recommendedDifficulty: null,
     startDate: '2026-09-01',
     endDate: '2026-09-30',
     status: 'NOT_STARTED',

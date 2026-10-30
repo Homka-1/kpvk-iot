@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   DIFFICULTY_LEVEL_LABELS,
+  DifficultyLevel,
   type LibraryAssignmentDto,
   MATERIAL_KIND_LABELS,
   type MaterialDto,
@@ -13,6 +14,7 @@ import Dialog from 'primevue/dialog';
 import IconField from 'primevue/iconfield';
 import InputIcon from 'primevue/inputicon';
 import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
 import { computed, ref, watch } from 'vue';
 import { api, ApiError } from '@/api/http';
 import EmptyState from '@/components/EmptyState.vue';
@@ -20,13 +22,17 @@ import ErrorState from '@/components/ErrorState.vue';
 
 /**
  * Выбор материалов или заданий библиотеки для этапа (FR-037). Предлагаются только записи
- * дисциплины маршрута (и общие материалы), архивные не предлагаются.
+ * дисциплины маршрута (и общие материалы), архивные не предлагаются. Задания изначально
+ * отфильтрованы по рекомендуемой сложности этапа из шаблона ИОТ; фильтр можно сбросить —
+ * профиль не ограничивает сложность (FR-033).
  */
 const props = defineProps<{
   kind: 'materials' | 'assignments';
   disciplineId: string;
   /** Уже добавленные в этап id — отмечены и не добавляются повторно. */
   selectedIds: string[];
+  /** Рекомендуемая сложность заданий этапа; null — без рекомендации. */
+  recommendedDifficulty?: DifficultyLevel | null;
 }>();
 const visible = defineModel<boolean>('visible', { required: true });
 const emit = defineEmits<{
@@ -38,6 +44,7 @@ interface Row {
   id: string;
   title: string;
   hint: string;
+  difficulty?: DifficultyLevel;
   material?: StageMaterialDto;
   assignment?: StageAssignmentDto['assignment'];
 }
@@ -46,6 +53,11 @@ const rows = ref<Row[] | null>(null);
 const error = ref<string | null>(null);
 const search = ref('');
 const chosen = ref<string[]>([]);
+const difficulty = ref<DifficultyLevel | null>(null);
+const difficultyOptions = Object.values(DifficultyLevel).map((value) => ({
+  value,
+  label: DIFFICULTY_LEVEL_LABELS[value],
+}));
 const title = computed(() =>
   props.kind === 'materials' ? 'Материалы из библиотеки' : 'Задания из библиотеки',
 );
@@ -73,6 +85,7 @@ async function load(): Promise<void> {
       rows.value = items.map((item) => ({
         id: item.id,
         title: item.title,
+        difficulty: item.difficulty,
         hint: [
           item.type.name,
           `сложность: ${DIFFICULTY_LEVEL_LABELS[item.difficulty].toLowerCase()}`,
@@ -100,6 +113,7 @@ watch(
     if (!open) return;
     search.value = '';
     chosen.value = [];
+    difficulty.value = props.recommendedDifficulty ?? null;
     void load();
   },
   { immediate: true },
@@ -108,7 +122,9 @@ watch(
 const filtered = computed(() => {
   const query = search.value.trim().toLowerCase();
   return (rows.value ?? []).filter(
-    (row) => !query || `${row.title} ${row.hint}`.toLowerCase().includes(query),
+    (row) =>
+      (!query || `${row.title} ${row.hint}`.toLowerCase().includes(query)) &&
+      (!difficulty.value || row.difficulty === difficulty.value),
   );
 });
 
@@ -146,6 +162,23 @@ function add(): void {
           fluid
         />
       </IconField>
+      <template v-if="kind === 'assignments'">
+        <Select
+          v-model="difficulty"
+          :options="difficultyOptions"
+          option-label="label"
+          option-value="value"
+          placeholder="Любая сложность"
+          show-clear
+          aria-label="Фильтр по уровню сложности"
+          fluid
+        />
+        <p v-if="recommendedDifficulty" class="picker__hint">
+          Рекомендуемая сложность для этапа по шаблону ИОТ:
+          {{ DIFFICULTY_LEVEL_LABELS[recommendedDifficulty].toLowerCase() }}. Это подсказка — можно
+          выбрать задания любой сложности.
+        </p>
+      </template>
       <ErrorState v-if="error" :message="error" retryable @retry="load" />
       <p v-else-if="!rows" role="status">Загрузка…</p>
       <EmptyState
@@ -154,7 +187,9 @@ function add(): void {
         :title="rows.length ? 'Ничего не найдено' : 'В библиотеке дисциплины пока пусто'"
         :description="
           rows.length
-            ? 'Измените запрос поиска.'
+            ? kind === 'assignments'
+              ? 'Измените запрос поиска или уровень сложности.'
+              : 'Измените запрос поиска.'
             : 'Добавьте записи в разделах «Задания» и «Библиотека материалов».'
         "
       />

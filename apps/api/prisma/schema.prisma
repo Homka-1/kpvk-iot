@@ -993,6 +993,8 @@ model TrajectoryTemplateStage {
   description    String?
   plannedResults String? @map("planned_results")
   durationDays   Int?    @map("duration_days")
+  /// Рекомендуемая сложность заданий этапа — подсказка при выборе заданий, не ограничение (FR-033).
+  recommendedDifficulty DifficultyLevel? @map("recommended_difficulty")
 
   template TrajectoryTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
@@ -1078,6 +1080,8 @@ model TrajectoryStage {
   goal           String?
   description    String?
   plannedResults String?     @map("planned_results")
+  /// Копия рекомендации этапа шаблона при создании маршрута; null — без рекомендации.
+  recommendedDifficulty DifficultyLevel? @map("recommended_difficulty")
   startDate      DateTime?   @map("start_date") @db.Date
   endDate        DateTime?   @map("end_date") @db.Date
   status         StageStatus @default(NOT_STARTED)

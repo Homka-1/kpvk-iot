@@ -314,6 +314,12 @@ class TemplateStageResponseDto {
   @ApiProperty({ nullable: true, type: String }) description: string | null;
   @ApiProperty({ nullable: true, type: String }) plannedResults: string | null;
   @ApiProperty({ nullable: true, type: Number }) durationDays: number | null;
+  @ApiProperty({
+    enum: Object.values(DifficultyLevel),
+    nullable: true,
+    description: 'Рекомендуемая сложность заданий этапа (подсказка, не ограничение)',
+  })
+  recommendedDifficulty: DifficultyLevel | null;
 }
 
 class TemplateResponseDto {
@@ -381,6 +387,12 @@ class StageResponseDto {
   @ApiProperty({ nullable: true, type: String }) goal: string | null;
   @ApiProperty({ nullable: true, type: String }) description: string | null;
   @ApiProperty({ nullable: true, type: String }) plannedResults: string | null;
+  @ApiProperty({
+    enum: Object.values(DifficultyLevel),
+    nullable: true,
+    description: 'Рекомендуемая сложность заданий этапа (подсказка, не ограничение)',
+  })
+  recommendedDifficulty: DifficultyLevel | null;
   @ApiProperty({ nullable: true, type: String, format: 'date' }) startDate: string | null;
   @ApiProperty({ nullable: true, type: String, format: 'date' }) endDate: string | null;
   @ApiProperty({ enum: Object.values(StageStatus) }) status: StageStatus;

@@ -206,6 +206,7 @@ function toStageBase(stage: StageRow): Omit<TrajectoryStageDto, 'materials'> {
     goal: stage.goal,
     description: stage.description,
     plannedResults: stage.plannedResults,
+    recommendedDifficulty: stage.recommendedDifficulty as DifficultyLevel | null,
     startDate: isoDate(stage.startDate),
     endDate: isoDate(stage.endDate),
     status: stage.status as StageStatus,
@@ -534,6 +535,7 @@ export class TrajectoriesService {
                   goal: stage.goal,
                   description: stage.description,
                   plannedResults: stage.plannedResults,
+                  recommendedDifficulty: stage.recommendedDifficulty,
                 })),
               },
             },
@@ -1183,6 +1185,7 @@ export class TrajectoriesService {
         description: stage.description,
         plannedResults: stage.plannedResults,
         durationDays: stage.durationDays,
+        recommendedDifficulty: stage.recommendedDifficulty as DifficultyLevel | null,
       })),
     }));
   }

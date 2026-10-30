@@ -167,6 +167,7 @@ function addStage(): void {
     goal: '',
     description: '',
     plannedResults: '',
+    recommendedDifficulty: null,
     startDate: '',
     endDate: '',
     checkpoints: [],
@@ -834,6 +835,7 @@ function cancelCorrection(): void {
       :kind="picker.kind"
       :discipline-id="saved.discipline.id"
       :selected-ids="pickerSelected"
+      :recommended-difficulty="picker.stage.recommendedDifficulty"
       @pick-materials="pickMaterials"
       @pick-assignments="pickAssignments"
     />

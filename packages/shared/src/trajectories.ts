@@ -5,7 +5,7 @@
 import {
   type AssignmentStatus,
   type CheckpointStatus,
-  type DifficultyLevel,
+  DifficultyLevel,
   type MaterialKind,
   type MotivationLevel,
   type StageStatus,
@@ -76,6 +76,11 @@ export interface TemplateStageContent {
   description: string | null;
   plannedResults: string | null;
   durationDays: number | null;
+  /**
+   * Рекомендуемая сложность заданий этапа: по ней изначально фильтруется выбор заданий
+   * в конструкторе. Это подсказка, а не ограничение (FR-033); null — без рекомендации.
+   */
+  recommendedDifficulty: DifficultyLevel | null;
 }
 
 /** Пятиэтапная модель — дословно п. 4.6 ТЗ. Преподаватель адаптирует содержание и сроки. */
@@ -86,6 +91,7 @@ export const STANDARD_TRAJECTORY_STAGES: readonly TemplateStageContent[] = [
     description: null,
     plannedResults: null,
     durationDays: null,
+    recommendedDifficulty: null,
   },
   {
     title: 'Развитие учебной самостоятельности',
@@ -93,6 +99,7 @@ export const STANDARD_TRAJECTORY_STAGES: readonly TemplateStageContent[] = [
     description: null,
     plannedResults: null,
     durationDays: null,
+    recommendedDifficulty: null,
   },
   {
     title: 'Практико-ориентированная деятельность',
@@ -100,6 +107,7 @@ export const STANDARD_TRAJECTORY_STAGES: readonly TemplateStageContent[] = [
     description: null,
     plannedResults: null,
     durationDays: null,
+    recommendedDifficulty: null,
   },
   {
     title: 'Проектная деятельность',
@@ -107,6 +115,7 @@ export const STANDARD_TRAJECTORY_STAGES: readonly TemplateStageContent[] = [
     description: null,
     plannedResults: null,
     durationDays: null,
+    recommendedDifficulty: null,
   },
   {
     title: 'Профессиональное развитие',
@@ -114,8 +123,22 @@ export const STANDARD_TRAJECTORY_STAGES: readonly TemplateStageContent[] = [
     description: null,
     plannedResults: null,
     durationDays: null,
+    recommendedDifficulty: null,
   },
 ];
+
+const { BASIC, INTERMEDIATE, ADVANCED } = DifficultyLevel;
+
+/**
+ * Рекомендуемая сложность заданий по этапам шаблонов уровней профиля (п. 4.5): низкий —
+ * достижимые цели и пошаговая работа, средний — постепенное усложнение, высокий — задания
+ * повышенной сложности. Индекс — номер этапа пятиэтапной модели (п. 4.6).
+ */
+export const PROFILE_STAGE_DIFFICULTY: Record<MotivationLevel, readonly DifficultyLevel[]> = {
+  LOW: [BASIC, BASIC, BASIC, INTERMEDIATE, INTERMEDIATE],
+  MEDIUM: [BASIC, INTERMEDIATE, INTERMEDIATE, INTERMEDIATE, ADVANCED],
+  HIGH: [INTERMEDIATE, ADVANCED, ADVANCED, ADVANCED, ADVANCED],
+};
 
 export interface TrajectoryTemplateDto {
   id: string;
@@ -331,6 +354,8 @@ export interface TrajectoryStageDto {
   goal: string | null;
   description: string | null;
   plannedResults: string | null;
+  /** Из шаблона при создании маршрута; null — без рекомендации (этап добавлен вручную). */
+  recommendedDifficulty: DifficultyLevel | null;
   startDate: string | null;
   endDate: string | null;
   status: StageStatus;

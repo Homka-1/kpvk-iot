@@ -124,6 +124,7 @@ const active: TrajectoryDto = {
       goal: stage.goal,
       description: null,
       plannedResults: null,
+      recommendedDifficulty: null,
       startDate: `${year}-${months[index]}-01`,
       endDate: `${year}-${months[index]}-28`,
       status: index === 0 ? 'IN_PROGRESS' : 'NOT_STARTED',

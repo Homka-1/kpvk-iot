@@ -4,6 +4,7 @@ import {
   type AssignmentStatus,
   CHECKPOINT_STATUS_LABELS,
   type CheckpointStatus,
+  type DifficultyLevel,
   STAGE_STATUS_LABELS,
   type StageAssignmentDto,
   type StageMaterialDto,
@@ -42,6 +43,8 @@ export interface StageForm {
   goal: string;
   description: string;
   plannedResults: string;
+  /** Только для чтения: рекомендация шаблона, по ней фильтруется выбор заданий. */
+  recommendedDifficulty: DifficultyLevel | null;
   startDate: string;
   endDate: string;
   checkpoints: CheckpointForm[];
@@ -110,6 +113,7 @@ export function toForm(dto: TrajectoryDto): TrajectoryForm {
       goal: stage.goal ?? '',
       description: stage.description ?? '',
       plannedResults: stage.plannedResults ?? '',
+      recommendedDifficulty: stage.recommendedDifficulty ?? null,
       startDate: stage.startDate ?? '',
       endDate: stage.endDate ?? '',
       checkpoints: stage.checkpoints.map((checkpoint) => ({
@@ -175,6 +179,7 @@ export function formStages(form: TrajectoryForm, saved: TrajectoryDto): Trajecto
     goal: orNull(stage.goal),
     description: orNull(stage.description),
     plannedResults: orNull(stage.plannedResults),
+    recommendedDifficulty: stage.recommendedDifficulty,
     startDate: orNull(stage.startDate),
     endDate: orNull(stage.endDate),
     status: saved.stages.find((item) => item.id === stage.id)?.status ?? 'NOT_STARTED',

@@ -42,6 +42,7 @@ const stage = (index: number, overrides: Partial<CabinetStageDto> = {}): Cabinet
   goal: STANDARD_TRAJECTORY_STAGES[index]!.goal,
   description: null,
   plannedResults: null,
+  recommendedDifficulty: null,
   startDate: '2026-09-01',
   endDate: '2026-09-30',
   status: index === 0 ? 'IN_PROGRESS' : 'NOT_STARTED',

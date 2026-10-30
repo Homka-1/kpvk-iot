@@ -4,6 +4,7 @@ import {
   MOTIVATION_LEVEL_LABELS,
   MOTIVATION_LEVELS,
   type MotivationLevel,
+  PROFILE_STAGE_DIFFICULTY,
   STANDARD_TRAJECTORY_STAGES,
 } from '@iot/shared';
 import type { PrismaClient } from '../generated/prisma/client.js';
@@ -19,7 +20,8 @@ interface CatalogTemplate {
 /**
  * Системные шаблоны ИОТ: стандартный пятиэтапный (п. 4.6) и варианты под три уровня профиля
  * (FR-035). Этапы вариантов — те же пять этапов п. 4.6; вариант отличается акцентом
- * сопровождения из стратегии уровня (п. 4.5). Содержание вариантов уточняет заказчик
+ * сопровождения из стратегии уровня (п. 4.5) и рекомендуемой сложностью заданий этапов
+ * (PROFILE_STAGE_DIFFICULTY). Содержание вариантов уточняет заказчик
  * (open-questions, вопрос 16).
  */
 const CATALOG: CatalogTemplate[] = [
@@ -64,6 +66,9 @@ export async function syncTrajectoryTemplates(prisma: PrismaClient): Promise<voi
           stages: {
             create: STANDARD_TRAJECTORY_STAGES.map((stage, index) => ({
               ...stage,
+              recommendedDifficulty: template.motivationLevel
+                ? (PROFILE_STAGE_DIFFICULTY[template.motivationLevel][index] ?? null)
+                : null,
               sortOrder: index,
             })),
           },

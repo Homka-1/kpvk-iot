@@ -123,6 +123,7 @@ const stage = (index: number, overrides: Partial<TrajectoryStageDto> = {}): Traj
   goal: 'Цель',
   description: null,
   plannedResults: null,
+  recommendedDifficulty: null,
   startDate: `2026-0${index + 1}-01`,
   endDate: `2026-0${index + 1}-28`,
   status: 'IN_PROGRESS',

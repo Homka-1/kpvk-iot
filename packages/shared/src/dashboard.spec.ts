@@ -24,6 +24,7 @@ const stage = (
   goal: `Цель ${sortOrder}`,
   description: null,
   plannedResults: null,
+  recommendedDifficulty: null,
   startDate: null,
   endDate: null,
   status,

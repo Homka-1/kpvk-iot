@@ -4,6 +4,7 @@ import {
   DEFAULT_MOTIVATION_STRATEGIES,
   type LibraryAssignmentDto,
   type MaterialDto,
+  PROFILE_STAGE_DIFFICULTY,
   RoleCode,
   STANDARD_TRAJECTORY_STAGES,
   type StudentCreatedDto,
@@ -291,6 +292,39 @@ describe('Индивидуальные траектории (e2e)', () => {
       await as(teacher, http().get(`/api/students/${student.student.id}/history`)).expect(200)
     ).body as StudentHistoryItemDto[];
     expect(history.map((item) => item.action)).toContain('trajectory.created');
+  });
+
+  it('FR-033, FR-047: этапы шаблона уровня несут рекомендуемую сложность, она сохраняется при правке', async () => {
+    const student = await createStudent('Сложность');
+    const { templates } = await options(student.student.id);
+    expect(
+      templates.find((t) => t.isStandard)!.stages.every((s) => s.recommendedDifficulty === null),
+    ).toBe(true);
+    const high = templates.find((t) => t.motivationLevel === 'HIGH')!;
+    expect(high.stages.map((s) => s.recommendedDifficulty)).toEqual(PROFILE_STAGE_DIFFICULTY.HIGH);
+
+    const draft = (
+      await create({ studentId: student.student.id, disciplineId, templateId: high.id }).expect(201)
+    ).body as TrajectoryDto;
+    expect(draft.stages.map((s) => s.recommendedDifficulty)).toEqual(PROFILE_STAGE_DIFFICULTY.HIGH);
+
+    // Правка и перестановка этапов не теряют рекомендацию; новый этап — без рекомендации.
+    const [first, second, ...rest] = draft.stages;
+    const content = completeContent({ ...draft, stages: [second!, first!, ...rest] });
+    content.stages.push({
+      id: null,
+      title: 'Дополнительный',
+      checkpoints: [],
+      materialIds: [],
+      assignments: [],
+    });
+    const saved = (await save(draft, content).expect(200)).body as TrajectoryDto;
+    expect(saved.stages.map((s) => s.recommendedDifficulty)).toEqual([
+      PROFILE_STAGE_DIFFICULTY.HIGH[1],
+      PROFILE_STAGE_DIFFICULTY.HIGH[0],
+      ...PROFILE_STAGE_DIFFICULTY.HIGH.slice(2),
+      null,
+    ]);
   });
 
   it('FR-036, FR-037: черновик — цели, сроки, этапы, точки, материалы и задания библиотеки', async () => {

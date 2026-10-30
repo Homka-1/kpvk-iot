@@ -1,4 +1,5 @@
 import {
+  type DifficultyLevel,
   type StageAssignmentDto,
   STANDARD_TRAJECTORY_STAGES,
   type TrajectoryDto,
@@ -9,6 +10,7 @@ import { flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mountWithApp, testUser } from '@/testing/mount';
 import { dateFromDueAt, dueAtFromDate, toContent, toForm } from './content';
+import LibraryPickerDialog from './LibraryPickerDialog.vue';
 import StageMap from './StageMap.vue';
 import TrajectoryEditor from './TrajectoryEditor.vue';
 import TrajectoryNewView from './TrajectoryNewView.vue';
@@ -20,6 +22,7 @@ const stage = (index: number, overrides: Partial<TrajectoryStageDto> = {}): Traj
   goal: STANDARD_TRAJECTORY_STAGES[index]!.goal,
   description: null,
   plannedResults: null,
+  recommendedDifficulty: null,
   startDate: null,
   endDate: null,
   status: 'NOT_STARTED',
@@ -168,6 +171,61 @@ describe('конструктор ИОТ', () => {
     expect(text).toContain('Этап 1: укажите дату начала');
     expect(text).not.toContain('Утвердить и назначить');
     expect(text).toContain('Отправить на согласование');
+  });
+});
+
+describe('выбор заданий библиотеки', () => {
+  const libraryAssignment = (id: string, title: string, difficulty: DifficultyLevel) => ({
+    id,
+    title,
+    difficulty,
+    discipline: { id: 'd1', name: 'Математика' },
+    topic: null,
+    type: { id: 'type', name: 'Практическое' },
+  });
+
+  it('FR-047, FR-033: изначально — рекомендуемая сложность этапа, фильтр можно сбросить', async () => {
+    mockApi({
+      'GET /library-assignments': [
+        libraryAssignment('a1', 'Решение уравнений', 'BASIC'),
+        libraryAssignment('a2', 'Исследовательский проект', 'ADVANCED'),
+      ],
+    });
+    await mountWithApp(LibraryPickerDialog, {
+      props: {
+        visible: true,
+        kind: 'assignments',
+        disciplineId: 'd1',
+        selectedIds: [],
+        recommendedDifficulty: 'BASIC',
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(document.body.textContent).toContain('Рекомендуемая сложность для этапа');
+    expect(document.body.textContent).toContain('Решение уравнений');
+    expect(document.body.textContent).not.toContain('Исследовательский проект');
+
+    document.querySelector('.p-select-clear-icon')!.dispatchEvent(new MouseEvent('click'));
+    await flushPromises();
+    expect(document.body.textContent).toContain('Исследовательский проект');
+  });
+
+  it('FR-047: без рекомендации этапа показываются задания любой сложности', async () => {
+    mockApi({
+      'GET /library-assignments': [
+        libraryAssignment('a1', 'Решение уравнений', 'BASIC'),
+        libraryAssignment('a2', 'Исследовательский проект', 'ADVANCED'),
+      ],
+    });
+    await mountWithApp(LibraryPickerDialog, {
+      props: { visible: true, kind: 'assignments', disciplineId: 'd1', selectedIds: [] },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(document.body.textContent).not.toContain('Рекомендуемая сложность для этапа');
+    expect(document.body.textContent).toContain('Решение уравнений');
+    expect(document.body.textContent).toContain('Исследовательский проект');
   });
 });
 

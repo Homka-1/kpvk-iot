@@ -17078,6 +17078,16 @@
           "durationDays": {
             "type": "number",
             "nullable": true
+          },
+          "recommendedDifficulty": {
+            "type": "string",
+            "enum": [
+              "BASIC",
+              "INTERMEDIATE",
+              "ADVANCED"
+            ],
+            "nullable": true,
+            "description": "Рекомендуемая сложность заданий этапа (подсказка, не ограничение)"
           }
         },
         "required": [
@@ -17085,7 +17095,8 @@
           "goal",
           "description",
           "plannedResults",
-          "durationDays"
+          "durationDays",
+          "recommendedDifficulty"
         ]
       },
       "TemplateResponseDto": {
@@ -17442,6 +17453,16 @@
             "type": "string",
             "nullable": true
           },
+          "recommendedDifficulty": {
+            "type": "string",
+            "enum": [
+              "BASIC",
+              "INTERMEDIATE",
+              "ADVANCED"
+            ],
+            "nullable": true,
+            "description": "Рекомендуемая сложность заданий этапа (подсказка, не ограничение)"
+          },
           "startDate": {
             "type": "string",
             "nullable": true,
@@ -17486,6 +17507,7 @@
           "goal",
           "description",
           "plannedResults",
+          "recommendedDifficulty",
           "startDate",
           "endDate",
           "status",
@@ -18304,6 +18326,16 @@
             "type": "string",
             "nullable": true
           },
+          "recommendedDifficulty": {
+            "type": "string",
+            "enum": [
+              "BASIC",
+              "INTERMEDIATE",
+              "ADVANCED"
+            ],
+            "nullable": true,
+            "description": "Рекомендуемая сложность заданий этапа (подсказка, не ограничение)"
+          },
           "startDate": {
             "type": "string",
             "nullable": true,
@@ -18348,6 +18380,7 @@
           "goal",
           "description",
           "plannedResults",
+          "recommendedDifficulty",
           "startDate",
           "endDate",
           "status",

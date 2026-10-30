@@ -63,6 +63,7 @@ const trajectory: CabinetTrajectoryDto = {
     goal: stage.goal,
     description: null,
     plannedResults: null,
+    recommendedDifficulty: null,
     startDate: `2026-${String(9 + Math.min(index, 3)).padStart(2, '0')}-01`,
     endDate: `2026-${String(9 + Math.min(index, 3)).padStart(2, '0')}-28`,
     status: index === 0 ? 'IN_PROGRESS' : 'NOT_STARTED',
