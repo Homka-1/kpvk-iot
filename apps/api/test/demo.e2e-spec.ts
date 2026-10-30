@@ -458,11 +458,10 @@ describe('Демо-режим (e2e)', () => {
     const repeated = await prisma.diagnosticSession.findMany({
       where: { measurementType: 'REPEATED' },
     });
-    // Один студент контрольной группы повторную диагностику пропустил (FR-073).
+    // Повторную диагностику проходят все: парный анализ строится по полным парам.
     expect(repeated.filter((item) => item.status === 'COMPLETED')).toHaveLength(
-      (experimental.length + control.length - 1) * 3,
+      (experimental.length + control.length) * 3,
     );
-    expect(repeated.filter((item) => item.status === 'EXPIRED')).toHaveLength(3);
     expect(
       repeated.every(
         (item) =>

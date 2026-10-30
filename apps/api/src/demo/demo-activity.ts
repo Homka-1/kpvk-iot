@@ -607,14 +607,6 @@ export class DemoActivityGenerator {
     const to = primary ? DEMO_PERIOD.primaryTo : DEMO_PERIOD.repeatedTo;
     const window = { startsAt: at(from, '08:00'), endsAt: at(to, '18:00') };
     const createdAt = at(addDays(from, -3), '15:00');
-    // В повторном замере один студент контрольной группы не успевает пройти диагностику:
-    // такие пропуски аналитика показывает отдельно (FR-073).
-    const missed = primary
-      ? null
-      : pick(
-          ctx.random,
-          ctx.students.filter((student) => !student.experimental),
-        ).id;
     const result = new Map<string, string[]>();
 
     for (const version of ctx.versions) {
@@ -657,20 +649,6 @@ export class DemoActivityGenerator {
               createdAt,
               readAt: at(from, '08:30'),
             });
-          }
-          if (student.id === missed) {
-            await this.prisma.diagnosticSession.create({
-              data: {
-                assignmentId: assignment.id,
-                studentId: student.id,
-                versionId: version.id,
-                status: 'EXPIRED',
-                measurementType,
-                createdAt,
-                updatedAt: window.endsAt,
-              },
-            });
-            continue;
           }
           const sessions = await this.prisma.diagnosticSession.findMany({
             where: { studentId: student.id, versionId: version.id },
