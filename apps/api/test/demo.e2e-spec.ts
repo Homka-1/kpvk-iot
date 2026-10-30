@@ -410,10 +410,11 @@ describe('Демо-режим (e2e)', () => {
     });
     expect(webDesign).toHaveLength(2);
     expect(webDesign.every((item) => item.discipline.name === 'ДО Веб-дизайн')).toBe(true);
-    // Задания — темы модуля СК01: 5 этапов × 3 уровня и одно задание только в библиотеке.
+    // Задания — темы модулей СК01–СК03: 15 заданий этапов ИОТ (СК01, 5 этапов × 3 уровня) и
+    // 39 только в библиотеке (одно из СК01, 26 из СК02, 12 из СК03).
     expect(
       await prisma.assignment.count({ where: { discipline: { name: MAIN_DISCIPLINE } } }),
-    ).toBe(16);
+    ).toBe(54);
     expect(
       await prisma.trajectory.count({ where: { discipline: { name: 'ДО Веб-дизайн' } } }),
     ).toBe(experimental.length);
