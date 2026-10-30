@@ -330,6 +330,13 @@ describe('Демо-режим (e2e)', () => {
     });
     expect(trajectories).toHaveLength(experimental.length);
     expect(trajectories.every((item) => item.discipline.name === MAIN_DISCIPLINE)).toBe(true);
+    // Контрольная группа без ИОТ получает общие задания на группу: по одному на этап.
+    const groupTasks = await prisma.trajectoryAssignment.findMany({
+      where: { trajectoryId: null },
+    });
+    expect(groupTasks).toHaveLength(control.length * 5);
+    expect(groupTasks.every((item) => control.includes(item.studentId))).toBe(true);
+    expect(groupTasks.some((item) => item.status === 'COMPLETED')).toBe(true);
     expect(trajectories.every((item) => experimental.includes(item.studentId))).toBe(true);
     expect(trajectories.every((item) => item.status === 'COMPLETED')).toBe(true);
     expect(trajectories.every((item) => item.versions.length >= 1)).toBe(true);

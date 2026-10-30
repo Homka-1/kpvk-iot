@@ -178,6 +178,7 @@ export class DemoActivityGenerator {
     await this.research(ctx, primary);
     report('Индивидуальные траектории и задания');
     await this.trajectoriesFor(ctx, discipline, library);
+    await this.controlGroupAssignments(ctx, discipline, library.assignments);
     report('Расписание и журнал наблюдений');
     await this.lessons(ctx, discipline);
     report('Обращения, консультации и наблюдения');
@@ -1180,6 +1181,68 @@ export class DemoActivityGenerator {
         assignments: library.assignments,
         materials: library.materials,
         correct: corrected.has(student.id),
+      });
+    }
+  }
+
+  /**
+   * Контрольная группа занимается без ИОТ (огр. 4), но получает общие задания на группу, как
+   * при назначении из библиотеки (`trajectoryId` пустой): на каждом этапе — одно задание
+   * среднего уровня, срок — конец этапа.
+   */
+  private async controlGroupAssignments(
+    ctx: Context,
+    discipline: DisciplineInfo,
+    assignments: LibraryAssignment[],
+  ): Promise<void> {
+    const teacherId = discipline.teacherId;
+    const students = ctx.students.filter((student) => !student.experimental);
+    for (const [index, [from, to]] of STAGE_DATES.entries()) {
+      const item = assignments.find(
+        (row) => row.stage === index && row.difficulty === 'INTERMEDIATE',
+      );
+      if (!item) continue;
+      const assignedAt = at(from, '09:00', intBetween(ctx.random, 0, 60));
+      const dueAt = at(to, '18:00');
+      for (const student of students) {
+        const row = await this.prisma.trajectoryAssignment.create({
+          data: {
+            assignmentId: item.id,
+            studentId: student.id,
+            status: 'ASSIGNED',
+            dueAt,
+            assignedById: teacherId,
+            assignedAt,
+            updatedAt: assignedAt,
+          },
+        });
+        this.notify(
+          ctx,
+          student,
+          'assignment.assigned',
+          'Новое задание',
+          item.title,
+          '/student/assignments',
+          assignedAt,
+        );
+        const theta = ctx.state.dispositions[student.id]!.INTRINSIC;
+        await this.simulateAssignment(
+          ctx,
+          student,
+          teacherId,
+          discipline,
+          row.id,
+          dueAt,
+          from,
+          theta,
+        );
+      }
+      this.audit(ctx, 'assignment.assigned', 'assignment', item.id, teacherId, assignedAt, {
+        assignmentIds: [item.id],
+        studentIds: null,
+        groupId: ctx.groups.control,
+        dueAt: dueAt.toISOString(),
+        choice: null,
       });
     }
   }
