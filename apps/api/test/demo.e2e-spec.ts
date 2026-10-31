@@ -23,6 +23,7 @@ import {
   EXPERIMENTAL_GROUP,
   MAIN_DISCIPLINE,
 } from '../src/demo/demo-catalog.js';
+import { DEMO_RESEARCH_TITLE } from '../src/demo/demo-activity.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 import { hashPassword } from '../src/auth/passwords.js';
@@ -290,6 +291,31 @@ describe('Демо-режим (e2e)', () => {
     });
     freshSessionId = await paper(mean.id, control[2]!, [5, 5, 1, 3, 3, 3]);
     await formProfile(control[2]!);
+
+    // Исследование рабочей базы в копию не переносится: в демо только исследование генератора.
+    const realProject = await prisma.researchProject.create({
+      data: { title: 'Исследование рабочей базы', status: 'ACTIVE' },
+    });
+    await prisma.researchParticipant.create({
+      data: {
+        projectId: realProject.id,
+        studentId: experimental[0]!,
+        code: 'R-001',
+        group: 'EXPERIMENTAL',
+      },
+    });
+    const realMeasurement = await prisma.researchMeasurement.create({
+      data: {
+        projectId: realProject.id,
+        versionId: mean.versions[0]!.id,
+        measurementType: 'PRIMARY',
+        title: 'Первичный замер рабочей базы',
+      },
+    });
+    await prisma.diagnosticAssignment.updateMany({
+      where: { studentId: experimental[0]! },
+      data: { researchMeasurementId: realMeasurement.id },
+    });
   }, 120_000);
 
   afterAll(async () => {
@@ -373,6 +399,9 @@ describe('Демо-режим (e2e)', () => {
       await prisma.lesson.count({ where: { discipline: { name: { not: MAIN_DISCIPLINE } } } }),
     ).toBe(0);
     expect(await prisma.lessonJournalEntry.count()).toBe(lessons * experimental.length);
+    expect(await prisma.researchProject.findMany({ select: { title: true } })).toEqual([
+      { title: DEMO_RESEARCH_TITLE },
+    ]);
     expect(await prisma.researchParticipant.count()).toBe(experimental.length + control.length);
     // Оценки за семестры — только по «ДО Веб-дизайн».
     expect(

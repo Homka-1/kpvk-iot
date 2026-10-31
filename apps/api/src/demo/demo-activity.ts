@@ -167,6 +167,7 @@ export class DemoActivityGenerator {
     report('Перенос существующих данных на период исследования');
     await this.rebaseTimeline(ctx);
     await this.resetDiagnostics(ctx);
+    await this.resetResearch();
     report('Дисциплины');
     const discipline = await this.disciplines(ctx);
     report('Библиотека заданий и материалов');
@@ -415,6 +416,26 @@ export class DemoActivityGenerator {
       await tx.diagnosticRevision.deleteMany({ where: { session: ofStudents } });
       await tx.diagnosticSession.deleteMany({ where: ofStudents });
       await tx.diagnosticAssignment.deleteMany({ where: ofStudents });
+    });
+  }
+
+  /**
+   * Исследования рабочей базы в копию не переходят: в демо остаётся только исследование,
+   * созданное генератором. Ссылки на замеры и проекты снимаются явно (триггеры отключены).
+   */
+  private async resetResearch(): Promise<void> {
+    await this.withoutTriggers(async (tx) => {
+      await tx.diagnosticAssignment.updateMany({
+        where: { researchMeasurementId: { not: null } },
+        data: { researchMeasurementId: null },
+      });
+      await tx.trajectory.updateMany({
+        where: { researchProjectId: { not: null } },
+        data: { researchProjectId: null },
+      });
+      await tx.researchMeasurement.deleteMany();
+      await tx.researchParticipant.deleteMany();
+      await tx.researchProject.deleteMany();
     });
   }
 
