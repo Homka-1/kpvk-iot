@@ -304,6 +304,66 @@ export class ResearchService {
     return this.get(id);
   }
 
+  /**
+   * Удаление архивного исследования вместе с участниками и замерами. Ответы диагностики и ИОТ
+   * не удаляются: назначения отвязываются от замеров, маршруты — от исследования. Состав
+   * удалённого записывается в журнал аудита.
+   */
+  async remove(id: string): Promise<void> {
+    const current = await this.findProject(id);
+    if (current.status !== 'ARCHIVED') {
+      throw new ConflictException('Удалить можно только исследование в архиве');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const [participants, measurements] = await Promise.all([
+        tx.researchParticipant.findMany({
+          where: { projectId: id },
+          select: { studentId: true, code: true, group: true, excludedAt: true },
+          orderBy: { code: 'asc' },
+        }),
+        tx.researchMeasurement.findMany({
+          where: { projectId: id },
+          select: { id: true, title: true, measurementType: true, versionId: true },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ]);
+      await tx.diagnosticAssignment.updateMany({
+        where: { researchMeasurement: { projectId: id } },
+        data: { researchMeasurementId: null },
+      });
+      const trajectories = await tx.trajectory.updateMany({
+        where: { researchProjectId: id },
+        data: { researchProjectId: null },
+      });
+      await tx.researchParticipant.deleteMany({ where: { projectId: id } });
+      await tx.researchMeasurement.deleteMany({ where: { projectId: id } });
+      const deleted = await tx.researchProject.deleteMany({ where: { id, status: 'ARCHIVED' } });
+      if (deleted.count === 0) {
+        throw new ConflictException('Статус исследования изменился. Обновите страницу');
+      }
+      await this.audit.log(
+        {
+          action: 'research_project.deleted',
+          entityType: 'research_project',
+          entityId: id,
+          before: {
+            title: current.title,
+            description: current.description,
+            startsOn: isoDate(current.startsAt),
+            endsOn: isoDate(current.endsAt),
+            participants: participants.map((item) => ({
+              ...item,
+              excludedAt: item.excludedAt?.toISOString() ?? null,
+            })),
+            measurements,
+            detachedTrajectories: trajectories.count,
+          },
+        },
+        tx,
+      );
+    });
+  }
+
   // ── Участники ──
 
   /** Учебные группы, из которых можно включить студентов: только названия и численность. */

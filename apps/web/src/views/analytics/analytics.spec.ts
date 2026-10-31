@@ -392,6 +392,7 @@ describe('страница исследования', () => {
     expect(text).toContain('Нет данных');
     const buttons = wrapper.findAll('button').map((button) => button.text());
     expect(buttons).toEqual(expect.arrayContaining(['Экспортировать', 'Завершить исследование']));
+    expect(buttons).not.toContain('Удалить');
   });
 
   it('п. 2.4: без права ведения — только просмотр, без включения групп и замеров', async () => {
@@ -413,5 +414,33 @@ describe('страница исследования', () => {
     expect(buttons).not.toContain('Новый замер');
     expect(buttons).not.toContain('Экспортировать');
     expect(wrapper.text()).toContain('R002');
+  });
+
+  it('удаление: кнопка только у исследования в архиве; после подтверждения — DELETE и переход в аналитику', async () => {
+    const archived = { ...project, status: 'ARCHIVED' as const, editable: false };
+    const fetchMock = mockApi({
+      [`GET /research-projects/${project.id}`]: archived,
+      [`GET /research-projects/${project.id}/participants`]: participants,
+      [`GET /research-projects/${project.id}/data`]: data,
+      [`DELETE /research-projects/${project.id}`]: {},
+    });
+    const { wrapper, router } = await mountWithApp(ResearchProjectView, {
+      path: `/analytics/research/${project.id}`,
+      user: testUser(['researcher']),
+      attachTo: document.body,
+    });
+    await flushPromises();
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Удалить')!
+      .trigger('click');
+    await flushPromises();
+    expect(document.body.textContent).toContain('Удалить исследование?');
+    document.body.querySelector('[role="dialog"] form')!.dispatchEvent(new Event('submit'));
+    await flushPromises();
+    const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')!;
+    expect(String(call[0])).toBe(`/api/research-projects/${project.id}`);
+    expect(router.currentRoute.value.path).toBe('/analytics');
+    wrapper.unmount();
   });
 });

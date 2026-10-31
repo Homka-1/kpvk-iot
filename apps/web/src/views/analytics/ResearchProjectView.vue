@@ -9,7 +9,7 @@ import {
 } from '@iot/shared';
 import Button from 'primevue/button';
 import { computed, onMounted, ref } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { api, ApiError } from '@/api/http';
 import ActionDialog from '@/components/ActionDialog.vue';
 import EmptyState from '@/components/EmptyState.vue';
@@ -25,9 +25,10 @@ import ResearchProjectDialog from './ResearchProjectDialog.vue';
 /**
  * Страница исследования (п. 4.10, UC-07): паспорт и статус, участники ЭГ и КГ, замеры, данные
  * и обезличенный экспорт. Изменения доступны с правом ведения исследований, пока исследование
- * готовится или проводится; права проверяет сервер.
+ * готовится или проводится; права проверяет сервер. Исследование из архива можно удалить.
  */
 const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const canManage = computed(() => auth.hasPermission(Permission.RESEARCH_MANAGE));
 const canExport = computed(() => auth.hasPermission(Permission.RESEARCH_EXPORT));
@@ -41,6 +42,9 @@ const addingMeasurement = ref(false);
 const transition = ref<ResearchProjectStatus | null>(null);
 const transitionBusy = ref(false);
 const transitionError = ref<string | null>(null);
+const deleteOpen = ref(false);
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
 
 const transitions = computed(() =>
   project.value && canManage.value ? RESEARCH_STATUS_TRANSITIONS[project.value.status] : [],
@@ -74,6 +78,20 @@ async function changeStatus(): Promise<void> {
       caught instanceof ApiError ? caught.message : 'Не удалось изменить статус';
   } finally {
     transitionBusy.value = false;
+  }
+}
+
+async function remove(): Promise<void> {
+  deleting.value = true;
+  deleteError.value = null;
+  try {
+    await api(`/research-projects/${id.value}`, { method: 'DELETE' });
+    deleteOpen.value = false;
+    await router.push('/analytics');
+  } catch (caught) {
+    deleteError.value = caught instanceof ApiError ? caught.message : 'Не удалось удалить';
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -125,6 +143,17 @@ onMounted(load);
             @click="
               transition = status;
               transitionError = null;
+            "
+          />
+          <Button
+            v-if="project.status === 'ARCHIVED'"
+            label="Удалить"
+            icon="pi pi-trash"
+            severity="danger"
+            text
+            @click="
+              deleteOpen = true;
+              deleteError = null;
             "
           />
         </div>
@@ -200,6 +229,16 @@ onMounted(load);
         :error="transitionError"
         @update:visible="(value) => !value && (transition = null)"
         @confirm="changeStatus"
+      />
+      <ActionDialog
+        v-model:visible="deleteOpen"
+        title="Удалить исследование?"
+        message="Исследование будет удалено вместе с участниками, кодами и замерами. Ответы диагностики и ИОТ студентов сохранятся. Действие записывается в журнал аудита и не отменяется."
+        confirm-label="Удалить"
+        danger
+        :busy="deleting"
+        :error="deleteError"
+        @confirm="remove"
       />
     </template>
   </div>

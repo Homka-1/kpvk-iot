@@ -8896,6 +8896,34 @@
         "tags": [
           "Исследования"
         ]
+      },
+      "delete": {
+        "description": "Удаляется только исследование в статусе «В архиве» (иначе 409) вместе с участниками и замерами. Ответы диагностики и ИОТ сохраняются; состав удалённого записывается в журнал аудита.",
+        "operationId": "ResearchController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Удаление исследования из архива",
+        "tags": [
+          "Исследования"
+        ]
       }
     },
     "/api/research-projects/{id}/status": {

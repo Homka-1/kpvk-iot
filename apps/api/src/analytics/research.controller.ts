@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -13,6 +14,7 @@ import {
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiProduces,
@@ -120,6 +122,20 @@ export class ResearchController {
     @Body() dto: ResearchStatusDto,
   ): Promise<ResearchProjectDetailDto> {
     return this.research.changeStatus(id, dto.status);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequirePermissions(Permission.RESEARCH_MANAGE)
+  @ApiOperation({
+    summary: 'Удаление исследования из архива',
+    description:
+      'Удаляется только исследование в статусе «В архиве» (иначе 409) вместе с участниками и замерами. ' +
+      'Ответы диагностики и ИОТ сохраняются; состав удалённого записывается в журнал аудита.',
+  })
+  @ApiNoContentResponse()
+  remove(@Param('id', uuid) id: string): Promise<void> {
+    return this.research.remove(id);
   }
 
   @Get(':id/participants')

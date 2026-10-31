@@ -508,4 +508,61 @@ describe('Аналитика и исследовательский режим (e
     // Исследователь не привязан к группам: аналитика преподавателя ему недоступна.
     await as(researcher, http().get('/api/analytics')).expect(403);
   });
+
+  it('удаление исследования: только из архива; участники и замеры удаляются, ответы и ИОТ сохраняются; аудит', async () => {
+    const remove = (session: LoggedIn) =>
+      as(session, http().delete(`/api/research-projects/${project.id}`));
+    // Предыдущий тест завершил исследование: удалить можно только после переноса в архив.
+    await remove(researcher).expect(409);
+    await as(researcher, http().post(`/api/research-projects/${project.id}/status`))
+      .send({ status: 'ARCHIVED' })
+      .expect(200);
+    await remove(teacher).expect(403);
+
+    // Связи, которые ставит демо-режим: назначение диагностики ↔ замер, ИОТ ↔ исследование.
+    const measurement = await prisma.researchMeasurement.findFirstOrThrow({
+      where: { projectId: project.id },
+    });
+    const assignment = await prisma.diagnosticAssignment.findFirstOrThrow({
+      where: { versionId },
+    });
+    await prisma.diagnosticAssignment.update({
+      where: { id: assignment.id },
+      data: { researchMeasurementId: measurement.id },
+    });
+    const trajectory = await prisma.trajectory.findFirstOrThrow({ where: { disciplineId } });
+    await prisma.trajectory.update({
+      where: { id: trajectory.id },
+      data: { researchProjectId: project.id },
+    });
+    const participants = await prisma.researchParticipant.count({
+      where: { projectId: project.id },
+    });
+    const sessions = await prisma.diagnosticSession.count({ where: { versionId } });
+
+    await remove(researcher).expect(204);
+    expect(await prisma.researchProject.findUnique({ where: { id: project.id } })).toBeNull();
+    expect(await prisma.researchParticipant.count({ where: { projectId: project.id } })).toBe(0);
+    expect(await prisma.researchMeasurement.count({ where: { projectId: project.id } })).toBe(0);
+    expect(
+      await prisma.diagnosticAssignment.findUniqueOrThrow({ where: { id: assignment.id } }),
+    ).toMatchObject({ researchMeasurementId: null });
+    expect(
+      await prisma.trajectory.findUniqueOrThrow({ where: { id: trajectory.id } }),
+    ).toMatchObject({ researchProjectId: null });
+    expect(await prisma.diagnosticSession.count({ where: { versionId } })).toBe(sessions);
+
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: 'research_project.deleted', entityId: project.id },
+    });
+    const before = audit.before as {
+      title: string;
+      participants: unknown[];
+      measurements: unknown[];
+    };
+    expect(before.title).toBe(project.title);
+    expect(before.participants).toHaveLength(participants);
+    expect(before.measurements.length).toBeGreaterThan(0);
+    await remove(researcher).expect(404);
+  });
 });
