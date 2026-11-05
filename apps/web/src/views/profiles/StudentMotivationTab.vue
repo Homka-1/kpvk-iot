@@ -30,7 +30,12 @@ import StrategyCard from './StrategyCard.vue';
  * подтверждением или корректировкой с причиной (FR-029). Карточки стратегий (FR-030),
  * переход к конструктору ИОТ (FR-031), история (FR-032).
  */
-const props = defineProps<{ studentId: string; archived: boolean }>();
+const props = defineProps<{
+  studentId: string;
+  archived: boolean;
+  /** Студент в контрольной группе исследования: ИОТ не назначается (огр. 4). */
+  controlGroup?: boolean;
+}>();
 const emit = defineEmits<{ changed: [] }>();
 const auth = useAuthStore();
 const canManage = computed(() => auth.hasPermission(Permission.PROFILES_MANAGE));
@@ -149,7 +154,7 @@ const levelText = (level: keyof typeof MOTIVATION_LEVEL_LABELS | null) =>
       />
       <!-- FR-031: переход к конструктору ИОТ с утверждённым профилем. -->
       <RouterLink
-        v-if="decided"
+        v-if="decided && !controlGroup"
         class="p-button p-button-outlined motivation__link"
         :to="{ name: 'trajectory-new', query: { studentId } }"
       >

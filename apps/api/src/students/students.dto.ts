@@ -263,6 +263,13 @@ export class StudentSummaryResponseDto {
   currentTrajectory: StudentTrajectoryRefDto | null;
   @ApiProperty({ description: 'Есть завершённая ИОТ' })
   hasCompletedTrajectory: boolean;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'Исследование, в контрольную группу которого входит студент: ИОТ ему не назначается (огр. 4). null — не входит',
+  })
+  controlGroupResearch: string | null;
   @ApiProperty({ nullable: true, type: Number, description: 'null — нет данных' })
   averageScore: number | null;
   @ApiProperty({ nullable: true, type: Number, description: 'null — нет данных' })

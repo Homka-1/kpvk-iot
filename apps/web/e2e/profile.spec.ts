@@ -41,6 +41,7 @@ const summary: StudentSummaryDto = {
   motivationProfile: null,
   currentTrajectory: null,
   hasCompletedTrajectory: false,
+  controlGroupResearch: null,
   averageScore: null,
   completedAssignments: null,
   lastActivityAt: null,

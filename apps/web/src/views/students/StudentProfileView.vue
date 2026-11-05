@@ -23,7 +23,13 @@ import { useAuthStore } from '@/stores/auth';
 import { useContextStore } from '@/stores/context';
 import { formatDate, formatDateTime } from '@/utils/format';
 import { setDocumentTitle } from '@/utils/title';
-import { NO_DATA, profileBadge, trajectoryBadge } from './labels';
+import {
+  CONTROL_GROUP_SHORT,
+  controlGroupNote,
+  NO_DATA,
+  profileBadge,
+  trajectoryBadge,
+} from './labels';
 import ObservationDialog from './ObservationDialog.vue';
 import StudentMotivationTab from '@/views/profiles/StudentMotivationTab.vue';
 import StudentAssignmentsTab from '@/views/assignments/StudentAssignmentsTab.vue';
@@ -222,13 +228,16 @@ function onStudentChanged(): void {
                 {{ profile.currentTrajectory.disciplineName }}
                 <StatusBadge v-bind="trajectoryBadge(profile.currentTrajectory.status)" />
               </template>
+              <span v-else-if="profile.controlGroupResearch" class="profile__muted">
+                {{ CONTROL_GROUP_SHORT }}
+              </span>
               <span v-else class="profile__muted">Нет ИОТ</span>
             </dd>
           </div>
         </dl>
         <div v-if="canObserve || canManage || canTrajectories" class="profile__actions">
           <RouterLink
-            v-if="canTrajectories && !profile.archivedAt"
+            v-if="canTrajectories && !profile.archivedAt && !profile.controlGroupResearch"
             :to="{ name: 'trajectory-new', query: { studentId } }"
             class="p-button p-component p-button-outlined"
           >
@@ -251,6 +260,13 @@ function onStudentChanged(): void {
         </div>
       </section>
 
+      <Message
+        v-if="profile.controlGroupResearch && !profile.archivedAt"
+        severity="info"
+        icon="pi pi-info-circle"
+      >
+        {{ controlGroupNote(profile.controlGroupResearch) }}.
+      </Message>
       <Message v-if="profile.archivedAt" severity="secondary">
         В архиве с {{ formatDateTime(profile.archivedAt) }}. Причина: {{ profile.archiveReason }}.
       </Message>
@@ -332,11 +348,16 @@ function onStudentChanged(): void {
             <StudentMotivationTab
               :student-id="studentId"
               :archived="!!profile.archivedAt"
+              :control-group="!!profile.controlGroupResearch"
               @changed="onMotivationChanged"
             />
           </TabPanel>
           <TabPanel value="trajectory">
-            <StudentTrajectoriesTab :student-id="studentId" :archived="!!profile.archivedAt" />
+            <StudentTrajectoriesTab
+              :student-id="studentId"
+              :archived="!!profile.archivedAt"
+              :control-group="!!profile.controlGroupResearch"
+            />
           </TabPanel>
           <TabPanel value="assignments">
             <StudentAssignmentsTab :student-id="studentId" />

@@ -8,6 +8,7 @@ import {
   RoleCode,
   STANDARD_TRAJECTORY_STAGES,
   type StudentCreatedDto,
+  type StudentDetailsDto,
   type StudentHistoryItemDto,
   type TrajectoryContent,
   type TrajectoryDto,
@@ -536,6 +537,9 @@ describe('Индивидуальные траектории (e2e)', () => {
       },
     });
     expect((await options(student.student.id)).blockedReason).toContain('контрольную группу');
+    const card = (await as(teacher, http().get(`/api/students/${student.student.id}`)).expect(200))
+      .body as StudentDetailsDto;
+    expect(card.controlGroupResearch).toBe(project.title);
     const res = await action(draft, 'approve').expect(403);
     expect(res.body.message).toContain('контрольную группу');
     await create({ studentId: student.student.id, disciplineId: secondDisciplineId }).expect(403);

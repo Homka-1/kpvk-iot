@@ -3,7 +3,13 @@ import { computed } from 'vue';
 import { formatFullName, type StudentSummaryDto } from '@iot/shared';
 import StatusBadge from '@/components/StatusBadge.vue';
 import { formatDateTime, formatNumber } from '@/utils/format';
-import { NO_DATA, profileBadge, trajectoryBadge } from './labels';
+import {
+  CONTROL_GROUP_SHORT,
+  controlGroupNote,
+  NO_DATA,
+  profileBadge,
+  trajectoryBadge,
+} from './labels';
 import SupportStatusBadge from './SupportStatusBadge.vue';
 
 /**
@@ -67,6 +73,16 @@ const progress = computed(() => {
             {{ student.currentTrajectory.disciplineName }}
             <StatusBadge v-bind="trajectoryBadge(student.currentTrajectory.status)" />
           </template>
+          <span
+            v-else-if="student.controlGroupResearch"
+            class="student-card__empty"
+            :title="controlGroupNote(student.controlGroupResearch)"
+          >
+            {{ CONTROL_GROUP_SHORT }}
+            <span class="iot-visually-hidden"
+              >: {{ controlGroupNote(student.controlGroupResearch) }}</span
+            >
+          </span>
           <span v-else class="student-card__empty">Нет ИОТ</span>
         </dd>
       </div>

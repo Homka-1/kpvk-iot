@@ -45,6 +45,7 @@ function student(index: number, overrides: Partial<StudentSummaryDto> = {}): Stu
     motivationProfile: null,
     currentTrajectory: null,
     hasCompletedTrajectory: false,
+    controlGroupResearch: null,
     averageScore: null,
     completedAssignments: null,
     lastActivityAt: null,

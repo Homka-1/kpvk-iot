@@ -29,6 +29,7 @@ const profile: StudentProfileDto = {
   motivationProfile: null,
   currentTrajectory: null,
   hasCompletedTrajectory: false,
+  controlGroupResearch: null,
   averageScore: null,
   completedAssignments: null,
   lastActivityAt: null,
@@ -139,9 +140,10 @@ describe('StudentProfileView', () => {
     observations: ObservationDto[] = [],
     history: StudentHistoryItemDto[] = [],
     user = teacher,
+    data: StudentProfileDto = profile,
   ) {
     mockApi({
-      [`/students/${STUDENT_ID}/profile`]: profile,
+      [`/students/${STUDENT_ID}/profile`]: data,
       [`/students/${STUDENT_ID}/observations`]: observations,
       [`/students/${STUDENT_ID}/history`]: history,
       [`/students/${STUDENT_ID}/diagnostics`]: [],
@@ -200,6 +202,20 @@ describe('StudentProfileView', () => {
     expect(text).toContain('Студент пока не указал интересы');
     expect(text).toContain('Нет ИОТ');
     expect(text).toContain('Добавить наблюдение');
+    wrapper.unmount();
+  });
+
+  it('огр. 4: студент контрольной группы — пояснение вместо «Создать ИОТ»', async () => {
+    const { wrapper } = await mountProfile([], [], teacher, {
+      ...profile,
+      controlGroupResearch: 'Пилот',
+    });
+    const text = wrapper.text();
+    expect(text).toContain('Не назначается (КГ)');
+    expect(text).toContain(
+      'Студент входит в контрольную группу исследования «Пилот»: ИОТ ему не назначается',
+    );
+    expect(text).not.toContain('Создать ИОТ');
     wrapper.unmount();
   });
 

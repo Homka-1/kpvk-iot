@@ -22,7 +22,12 @@ import TrajectoryCards from './TrajectoryCards.vue';
  * (FR-041) — цели, этапы, прогресс; ниже все маршруты по дисциплинам (FR-045) и переход
  * в конструктор (UC-03).
  */
-const props = defineProps<{ studentId: string; archived: boolean }>();
+const props = defineProps<{
+  studentId: string;
+  archived: boolean;
+  /** Студент в контрольной группе исследования: ИОТ не назначается (огр. 4). */
+  controlGroup?: boolean;
+}>();
 const auth = useAuthStore();
 const canManage = computed(() => auth.hasPermission(Permission.TRAJECTORIES_MANAGE));
 const page = ref<TrajectoryPageDto | null>(null);
@@ -129,7 +134,7 @@ watch(() => props.studentId, load, { immediate: true });
           Все маршруты студента
         </h2>
         <RouterLink
-          v-if="!archived"
+          v-if="!archived && !controlGroup"
           :to="{ name: 'trajectory-new', query: { studentId } }"
           class="p-button p-component"
         >
@@ -140,7 +145,11 @@ watch(() => props.studentId, load, { immediate: true });
         v-if="page.total === 0"
         icon="pi pi-directions"
         title="Индивидуальная траектория не создана"
-        description="Создайте ИОТ: дисциплина, шаблон по мотивационному профилю, цели, этапы, задания и сроки."
+        :description="
+          controlGroup
+            ? 'Студент входит в контрольную группу исследования: ИОТ ему не назначается.'
+            : 'Создайте ИОТ: дисциплина, шаблон по мотивационному профилю, цели, этапы, задания и сроки.'
+        "
       />
       <TrajectoryCards v-else :items="page.items" :show-student="false" />
     </section>

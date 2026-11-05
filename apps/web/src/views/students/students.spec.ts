@@ -30,6 +30,7 @@ function student(overrides: Partial<StudentSummaryDto> = {}): StudentSummaryDto 
     motivationProfile: null,
     currentTrajectory: null,
     hasCompletedTrajectory: false,
+    controlGroupResearch: null,
     averageScore: null,
     completedAssignments: null,
     lastActivityAt: null,
@@ -71,6 +72,19 @@ describe('StudentCard', () => {
     expect(text).toContain('Нет ИОТ');
     expect(text.match(/Нет данных/g)).toHaveLength(5);
     expect(text).not.toMatch(/\b0\b/);
+  });
+
+  it('огр. 4: студент контрольной группы — краткая метка в поле «Текущая ИОТ»', () => {
+    const wrapper = mount(StudentCard, {
+      props: { student: student({ controlGroupResearch: 'Пилот' }) },
+      global: { plugins: [PrimeVue] },
+    });
+    const mark = wrapper.find('[title]');
+    expect(mark.text()).toContain('Не назначается (КГ)');
+    expect(mark.attributes('title')).toBe(
+      'Студент входит в контрольную группу исследования «Пилот»: ИОТ ему не назначается',
+    );
+    expect(wrapper.text()).not.toContain('Нет ИОТ');
   });
 
   it('п. 4.2: без текущей ИОТ, но с завершённой — прогресс «Завершён»', () => {

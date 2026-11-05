@@ -34,6 +34,7 @@ import {
   AccessScopeService,
   activeAssignmentWhere,
 } from '../auth/access-scope.service.js';
+import { CONTROL_GROUP_PARTICIPANT } from '../analytics/research.service.js';
 import { generateTemporaryPassword, hashPassword } from '../auth/passwords.js';
 import { AuditService } from '../audit/audit.service.js';
 import { IdempotencyService } from '../common/idempotency.service.js';
@@ -72,6 +73,11 @@ const summaryInclude = {
       discipline: { select: { name: true } },
       assignments: { select: { status: true, dueAt: true } },
     },
+  },
+  researchParticipants: {
+    where: CONTROL_GROUP_PARTICIPANT,
+    take: 1,
+    select: { project: { select: { title: true } } },
   },
   _count: { select: { trajectories: { where: { status: 'COMPLETED' } } } },
 } satisfies Prisma.StudentInclude;
@@ -263,6 +269,7 @@ function toSummary(row: SummaryRow, metrics: StudentMetrics): StudentSummaryDto 
         }
       : null,
     hasCompletedTrajectory: row._count.trajectories > 0,
+    controlGroupResearch: row.researchParticipants[0]?.project.title ?? null,
     ...metrics,
   };
 }

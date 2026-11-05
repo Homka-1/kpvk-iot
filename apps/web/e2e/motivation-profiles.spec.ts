@@ -77,6 +77,7 @@ test.describe('UC-02: формирование мотивационного пр
       motivationProfile: { status: 'PROPOSED', level: null, proposedLevel: 'LOW' },
       currentTrajectory: null,
       hasCompletedTrajectory: false,
+      controlGroupResearch: null,
       averageScore: null,
       completedAssignments: null,
       lastActivityAt: null,

@@ -72,6 +72,16 @@ const ROUTES_IN_WORK: TrajectoryStatus[] = [
   TrajectoryStatus.NEEDS_CORRECTION,
 ];
 
+/**
+ * Участие в контрольной группе исследования, которое ещё идёт: такому студенту ИОТ не назначается
+ * (огр. 4). Одно правило для запрета на сервере и для метки в карточке студента.
+ */
+export const CONTROL_GROUP_PARTICIPANT = {
+  group: 'CONTROL',
+  excludedAt: null,
+  project: { status: { in: ['DRAFT', 'ACTIVE'] } },
+} satisfies Prisma.ResearchParticipantWhereInput;
+
 const projectInclude = {
   participants: { where: { excludedAt: null }, select: { group: true } },
   _count: { select: { measurements: true } },

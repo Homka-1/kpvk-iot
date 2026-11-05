@@ -69,3 +69,10 @@ export const PROFILE_FILTER_LABELS: Record<ProfileFilterValue, string> = {
 };
 
 export const NO_DATA = 'Нет данных';
+
+/** Краткая метка студента контрольной группы исследования в поле «Текущая ИОТ» (огр. 4). */
+export const CONTROL_GROUP_SHORT = 'Не назначается (КГ)';
+
+export function controlGroupNote(research: string): string {
+  return `Студент входит в контрольную группу исследования «${research}»: ИОТ ему не назначается`;
+}

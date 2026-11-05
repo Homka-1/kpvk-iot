@@ -51,6 +51,7 @@ import {
 } from '../auth/access-scope.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { IdempotencyService } from '../common/idempotency.service.js';
+import { CONTROL_GROUP_PARTICIPANT } from '../analytics/research.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { toFileDto } from '../library/files.service.js';
 import { assignmentScopeWhere, materialScopeWhere } from '../library/library-scope.js';
@@ -1281,12 +1282,7 @@ export class TrajectoriesService {
 
   private async controlGroupReason(db: Db, studentId: string): Promise<string | null> {
     const participant = await db.researchParticipant.findFirst({
-      where: {
-        studentId,
-        group: 'CONTROL',
-        excludedAt: null,
-        project: { status: { in: ['DRAFT', 'ACTIVE'] } },
-      },
+      where: { studentId, ...CONTROL_GROUP_PARTICIPANT },
       select: { project: { select: { title: true } } },
     });
     return participant
