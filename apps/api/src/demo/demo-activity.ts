@@ -27,8 +27,8 @@ import {
   CONSULTATION_NOTES,
   CONSULTATION_SUMMARIES,
   CONSULTATION_TOPICS,
-  CONTROL_GROUP,
   DEMO_FRESH_DIAGNOSTICS,
+  DEMO_GROUP,
   CORRECTION_REASONS,
   DEMO_ASSIGNMENTS,
   DEMO_CONTROL_WORKS,
@@ -37,7 +37,6 @@ import {
   DEMO_MATERIALS,
   DEMO_PERIOD,
   type DemoControlWork,
-  EXPERIMENTAL_GROUP,
   FINAL_ASSESSMENTS,
   MAIN_DISCIPLINE,
   MAIN_TEACHER_LOGIN,
@@ -47,6 +46,7 @@ import {
   REFLECTION_NEXT_STEPS,
   RETURN_COMMENTS,
   ROUTE_PROPOSALS,
+  SOURCE_GROUPS,
   STUDENT_DIFFICULTIES,
   STUDENT_QUESTIONS,
   SUBMISSION_TEXTS,
@@ -93,15 +93,18 @@ const STAGE_DATES: [string, string][] = [
   ['2026-02-16', '2026-03-22'],
   ['2026-03-23', DEMO_PERIOD.trajectoriesEnd],
 ];
-const LESSON_TIMES = { experimental: '08:30', control: '10:10' };
+const LESSON_TIME = '08:30';
 /** Дни занятий: вторник и четверг. */
 const LESSON_WEEKDAYS = [2, 4];
 const TIMELINE_START = '2025-08-25';
+/** Порядок уровней профиля при распределении по ЭГ и КГ. */
+const LEVEL_RANK: Record<MotivationLevel, number> = { LOW: 0, MEDIUM: 1, HIGH: 2 };
 
 interface StudentInfo {
   id: string;
   userId: string | null;
   groupId: string;
+  /** Экспериментальная группа исследования: решается после первичного замера и входного контроля. */
   experimental: boolean;
 }
 
@@ -130,7 +133,7 @@ interface LibraryAssignment {
 interface Context {
   random: Random;
   students: StudentInfo[];
-  groups: { experimental: string; control: string };
+  groupId: string;
   versions: VersionInfo[];
   state: DemoState;
   adminId: string | null;
@@ -163,8 +166,9 @@ export class DemoActivityGenerator {
 
   /** Первичный замер и весь учебный период до окончания ИОТ. */
   async generatePrimary(random: Random, report: (step: string) => void): Promise<void> {
-    const ctx = await this.context(random, null);
     report('Перенос существующих данных на период исследования');
+    await this.mergeGroups();
+    const ctx = await this.context(random, null);
     await this.rebaseTimeline(ctx);
     await this.resetDiagnostics(ctx);
     await this.resetResearch();
@@ -176,8 +180,11 @@ export class DemoActivityGenerator {
     const primary = await this.diagnostics(ctx, 'PRIMARY');
     report('Мотивационные профили');
     await this.motivationProfiles(ctx, DEMO_PERIOD.profilesOn, true);
+    report('Входной контроль');
+    const [entryWork, ...currentWorks] = DEMO_CONTROL_WORKS;
+    const entry = await this.controlWork(ctx, discipline.id, discipline.teacherId, entryWork!);
     report('Исследование ЭГ и КГ');
-    await this.research(ctx, primary);
+    await this.research(ctx, primary, entry);
     report('Индивидуальные траектории и задания');
     await this.trajectoriesFor(ctx, discipline, library);
     await this.controlGroupAssignments(ctx, discipline, library.assignments);
@@ -188,8 +195,8 @@ export class DemoActivityGenerator {
     await this.observations(ctx, discipline);
     report('Оценки за семестры');
     await this.grades(ctx, discipline);
-    report('Входной и текущий контроль');
-    for (const work of DEMO_CONTROL_WORKS) {
+    report('Текущий контроль');
+    for (const work of currentWorks) {
       await this.controlWork(ctx, discipline.id, discipline.teacherId, work);
     }
     report('Завершение');
@@ -197,7 +204,10 @@ export class DemoActivityGenerator {
     await this.finish(ctx, DemoStage.PRIMARY);
   }
 
-  /** Повторный замер после завершения ИОТ: мотивация ЭГ выросла, КГ почти без изменений. */
+  /**
+   * Повторный замер после завершения ИОТ: мотивация ЭГ заметно выросла, у КГ изменения малы и
+   * разнонаправленны (без значимого сдвига).
+   */
   async generateRepeated(random: Random, report: (step: string) => void): Promise<void> {
     const state = await this.readState();
     if (!state || state.stage !== DemoStage.PRIMARY) {
@@ -209,7 +219,7 @@ export class DemoActivityGenerator {
       if (!before) continue;
       const delta = student.experimental
         ? (ctx.state.growth[student.id] ?? 0.2)
-        : between(random, -0.04, 0.06);
+        : between(random, -0.06, 0.07);
       ctx.state.dispositions[student.id] = {
         INTRINSIC: clamp(before.INTRINSIC + delta, 0.05, 0.97),
         EXTRINSIC: clamp(before.EXTRINSIC + (student.experimental ? -0.05 : 0.01), 0.05, 0.95),
@@ -258,21 +268,28 @@ export class DemoActivityGenerator {
   // ── Контекст ──
 
   private async context(random: Random, state: DemoState | null): Promise<Context> {
-    const groups = await this.prisma.group.findMany({
-      where: { name: { in: [EXPERIMENTAL_GROUP, CONTROL_GROUP] } },
-      select: { id: true, name: true },
+    const group = await this.prisma.group.findUnique({
+      where: { name: DEMO_GROUP },
+      select: { id: true },
     });
-    const experimental = groups.find((group) => group.name === EXPERIMENTAL_GROUP);
-    const control = groups.find((group) => group.name === CONTROL_GROUP);
-    if (!experimental || !control) {
-      throw new Error(`Не найдены группы «${EXPERIMENTAL_GROUP}» и «${CONTROL_GROUP}»`);
-    }
+    if (!group) throw new Error(`Не найдена группа «${DEMO_GROUP}»`);
     const students = await this.prisma.student.findMany({
-      where: { currentGroupId: { in: [experimental.id, control.id] }, archivedAt: null },
-      select: { id: true, userId: true, currentGroupId: true },
+      where: { currentGroupId: group.id, archivedAt: null },
+      select: { id: true, userId: true },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     });
-    if (students.length === 0) throw new Error('В группах исследования нет студентов');
+    if (students.length === 0) throw new Error('В группе исследования нет студентов');
+    // Распределение по ЭГ и КГ известно только после первичного замера (исследование генератора).
+    const experimental = new Set(
+      state?.projectId
+        ? (
+            await this.prisma.researchParticipant.findMany({
+              where: { projectId: state.projectId, group: 'EXPERIMENTAL' },
+              select: { studentId: true },
+            })
+          ).map((row) => row.studentId)
+        : [],
+    );
 
     const published = await this.prisma.questionnaireVersion.findMany({
       where: { status: 'PUBLISHED', questionnaire: { status: 'ACTIVE' } },
@@ -304,10 +321,10 @@ export class DemoActivityGenerator {
       students: students.map((student) => ({
         id: student.id,
         userId: student.userId,
-        groupId: student.currentGroupId!,
-        experimental: student.currentGroupId === experimental.id,
+        groupId: group.id,
+        experimental: experimental.has(student.id),
       })),
-      groups: { experimental: experimental.id, control: control.id },
+      groupId: group.id,
       versions: [...chosen.values()].map((version) => ({
         id: version.id,
         questionnaireId: version.questionnaireId,
@@ -365,19 +382,16 @@ export class DemoActivityGenerator {
         EXTRINSIC: between(random, 0.3, 0.8),
         REFERENCE: clamp(intrinsic * 0.6 + between(random, 0, 0.4), 0, 1),
       };
-      if (student.experimental) ctx.state.growth[student.id] = between(random, 0.15, 0.3);
+      // Прирост за время ИОТ: задаётся всем, применяется к тем, кто попадёт в ЭГ.
+      ctx.state.growth[student.id] = between(random, 0.15, 0.3);
     }
-    // Отстающие — самые слабо мотивированные: по одному в каждой группе, иногда ещё один.
+    // Отстающие — двое-трое самых слабо мотивированных; при распределении по результатам
+    // замера двое слабейших, как правило, оказываются в разных группах исследования.
     const intrinsic = (id: string) => ctx.state.dispositions[id]!.INTRINSIC;
     const weakest = [...ctx.students].sort((a, b) => intrinsic(a.id) - intrinsic(b.id));
-    const lagging = [true, false].flatMap((experimental) =>
-      weakest.filter((student) => student.experimental === experimental).slice(0, 1),
-    );
-    if (chance(ctx.random, 0.5)) {
-      const extra = weakest.find((student) => !lagging.includes(student));
-      if (extra) lagging.push(extra);
-    }
-    ctx.state.lagging = lagging.map((student) => student.id);
+    ctx.state.lagging = weakest
+      .slice(0, chance(ctx.random, 0.5) ? 3 : 2)
+      .map((student) => student.id);
   }
 
   // ── Перенос существующих данных ──
@@ -440,13 +454,89 @@ export class DemoActivityGenerator {
   }
 
   /**
+   * Группы рабочей базы (`SOURCE_GROUPS`) сливаются в одну группу `DEMO_GROUP`: студенты и все
+   * записи групп переходят в первую найденную группу, которая переименовывается; остальные
+   * группы удаляются вместе со своими записями журнала аудита. Записей о переводе нет:
+   * в демо студенты учатся в одной группе с начала года. Повторный вызов ничего не меняет.
+   */
+  private async mergeGroups(): Promise<void> {
+    const names = [DEMO_GROUP, ...SOURCE_GROUPS];
+    const found = await this.prisma.group.findMany({
+      where: { name: { in: names } },
+      select: { id: true, name: true },
+    });
+    found.sort((a, b) => names.indexOf(a.name) - names.indexOf(b.name));
+    const [target, ...others] = found;
+    if (!target) throw new Error(`Не найдены группы «${SOURCE_GROUPS.join('», «')}»`);
+    await this.withoutTriggers(async (tx) => {
+      for (const { id } of others) {
+        // Закрепления и группы контрольных работ, которые уже есть у итоговой группы, не дублируются.
+        await tx.$executeRaw`
+          DELETE FROM teacher_assignments a USING teacher_assignments b
+          WHERE a.group_id = ${id}::uuid AND b.group_id = ${target.id}::uuid
+            AND b.teacher_id = a.teacher_id AND b.discipline_id = a.discipline_id`;
+        await tx.$executeRaw`
+          DELETE FROM control_work_groups a USING control_work_groups b
+          WHERE a.group_id = ${id}::uuid AND b.group_id = ${target.id}::uuid
+            AND b.work_id = a.work_id`;
+        // Совпавшие по времени занятия объединяются: журнал переходит в занятие итоговой группы.
+        await tx.$executeRaw`
+          UPDATE lesson_journal_entries e SET lesson_id = b.id
+          FROM lessons a, lessons b
+          WHERE e.lesson_id = a.id AND a.group_id = ${id}::uuid AND b.group_id = ${target.id}::uuid
+            AND b.discipline_id = a.discipline_id AND b.date = a.date
+            AND b.start_time = a.start_time`;
+        await tx.$executeRaw`
+          DELETE FROM lessons a USING lessons b
+          WHERE a.group_id = ${id}::uuid AND b.group_id = ${target.id}::uuid
+            AND b.discipline_id = a.discipline_id AND b.date = a.date
+            AND b.start_time = a.start_time`;
+        // Закрытые записи о зачислении в сливаемую группу стали бы переводом внутри одной группы.
+        await tx.enrollment.deleteMany({ where: { groupId: id, endsAt: { not: null } } });
+        const from = { where: { groupId: id }, data: { groupId: target.id } };
+        await tx.student.updateMany({
+          where: { currentGroupId: id },
+          data: { currentGroupId: target.id },
+        });
+        await tx.enrollment.updateMany(from);
+        await tx.teacherAssignment.updateMany(from);
+        await tx.diagnosticAssignment.updateMany(from);
+        await tx.lesson.updateMany(from);
+        await tx.academicResult.updateMany(from);
+        await tx.controlWorkGroup.updateMany(from);
+        await tx.controlResult.updateMany(from);
+        await tx.auditLog.deleteMany({ where: { entityType: 'group', entityId: id } });
+        await tx.group.delete({ where: { id } });
+      }
+      if (target.name !== DEMO_GROUP) {
+        await tx.group.update({ where: { id: target.id }, data: { name: DEMO_GROUP } });
+      }
+      // Прежние переводы между сливаемыми группами в демо не видны.
+      if (others.length > 0) {
+        const students = await tx.student.findMany({
+          where: { currentGroupId: target.id },
+          select: { id: true },
+        });
+        const ids = students.map((student) => student.id);
+        await tx.enrollment.updateMany({
+          where: { groupId: target.id, studentId: { in: ids } },
+          data: { reason: null },
+        });
+        await tx.auditLog.deleteMany({
+          where: { action: 'student.transferred', entityType: 'student', entityId: { in: ids } },
+        });
+      }
+    });
+  }
+
+  /**
    * Учётные записи, группы, студенты и методики созданы в рабочей базе позже периода
    * исследования; в копии их даты переносятся на начало учебного года.
    */
   private async rebaseTimeline(ctx: Context): Promise<void> {
     const base = at(TIMELINE_START, '10:00');
     const later = { gt: base };
-    const groupIds = [ctx.groups.experimental, ctx.groups.control];
+    const groupIds = [ctx.groupId];
     await this.withoutTriggers(async (tx) => {
       await tx.user.updateMany({ where: { createdAt: later }, data: { createdAt: base } });
       await tx.group.updateMany({ where: { id: { in: groupIds } }, data: { createdAt: base } });
@@ -519,17 +609,15 @@ export class DemoActivityGenerator {
       .filter((user) => !user.roles.some(({ role }) => role.code === RoleCode.ADMIN))
       .map((user) => user.id);
     const pairs: Prisma.TeacherAssignmentCreateManyInput[] = [];
-    for (const groupId of [ctx.groups.experimental, ctx.groups.control]) {
-      for (const id of new Set([teacherId, ...assistants])) {
-        pairs.push({
-          teacherId: id,
-          groupId,
-          disciplineId: main!.id,
-          startsAt: at(TIMELINE_START, '12:00'),
-          createdById: ctx.adminId,
-          createdAt: at(TIMELINE_START, '12:00'),
-        });
-      }
+    for (const id of new Set([teacherId, ...assistants])) {
+      pairs.push({
+        teacherId: id,
+        groupId: ctx.groupId,
+        disciplineId: main!.id,
+        startsAt: at(TIMELINE_START, '12:00'),
+        createdById: ctx.adminId,
+        createdAt: at(TIMELINE_START, '12:00'),
+      });
     }
     const current = await this.prisma.teacherAssignment.findMany({
       where: { endsAt: null },
@@ -631,113 +719,122 @@ export class DemoActivityGenerator {
     const result = new Map<string, string[]>();
 
     for (const version of ctx.versions) {
-      for (const groupId of [ctx.groups.experimental, ctx.groups.control]) {
-        let assignment = primary
-          ? await this.prisma.diagnosticAssignment.findFirst({
-              where: { versionId: version.id, groupId, cancelledAt: null, measurementType },
-              orderBy: { createdAt: 'asc' },
-            })
-          : null;
-        assignment = assignment
-          ? await this.prisma.diagnosticAssignment.update({
-              where: { id: assignment.id },
-              data: { ...window, createdAt },
-            })
-          : await this.prisma.diagnosticAssignment.create({
-              data: {
-                versionId: version.id,
-                groupId,
-                measurementType,
-                ...window,
-                assignedById: ctx.state.curatorId,
-                createdAt,
-              },
-            });
-        result.set(version.id, [...(result.get(version.id) ?? []), assignment.id]);
-
-        for (const student of ctx.students.filter((item) => item.groupId === groupId)) {
-          const completedAt = workTime(
-            addDays(from, intBetween(ctx.random, 0, daysBetween(from, to))),
-            ctx.random,
-          );
-          if (student.userId) {
-            ctx.notifications.push({
-              userId: student.userId,
-              type: 'diagnostic.assigned',
-              title: 'Назначена диагностика',
-              body: version.title,
-              link: '/student/diagnostics',
-              createdAt,
-              readAt: at(from, '08:30'),
-            });
-          }
-          const sessions = await this.prisma.diagnosticSession.findMany({
-            where: { studentId: student.id, versionId: version.id },
-            orderBy: { createdAt: 'asc' },
-          });
-          const done = primary ? sessions.find((item) => item.status === 'COMPLETED') : undefined;
-          let sessionId = done?.id;
-          if (done) {
-            await this.shiftSession(done.id, completedAt, measurementType);
-          } else {
-            const open =
-              (primary
-                ? sessions.find((item) =>
-                    ['ASSIGNED', 'IN_PROGRESS', 'EXPIRED'].includes(item.status),
-                  )
-                : undefined) ??
-              (await this.prisma.diagnosticSession.create({
-                data: {
-                  assignmentId: assignment.id,
-                  studentId: student.id,
-                  versionId: version.id,
-                  measurementType,
-                  createdAt,
-                },
-              }));
-            sessionId = open.id;
-            await this.completeSession(
-              ctx,
-              student,
-              version,
-              open.id,
-              completedAt,
-              measurementType,
-            );
-          }
-          if (primary) {
-            // Прочие завершённые прохождения методики в рабочей базе (прежние версии, повторные
-            // попытки) уходят в историю до замера: профиль берёт последнее прохождение методики.
-            const earlier = await this.prisma.diagnosticSession.findMany({
-              where: {
-                studentId: student.id,
-                status: 'COMPLETED',
-                id: { not: sessionId },
-                version: { questionnaireId: version.questionnaireId },
-              },
-              orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
-            });
-            for (const [index, item] of earlier.entries()) {
-              await this.shiftSession(
-                item.id,
-                new Date(completedAt.getTime() - (index + 1) * 24 * 3600 * 1000),
-                item.measurementType,
-              );
-            }
-          }
-          // Прочие незавершённые прохождения той же методики в копии не нужны.
-          await this.prisma.diagnosticSession.updateMany({
-            where: {
-              studentId: student.id,
+      const groupId = ctx.groupId;
+      let assignment = primary ? await this.groupAssignment(version.id, groupId) : null;
+      assignment = assignment
+        ? await this.prisma.diagnosticAssignment.update({
+            where: { id: assignment.id },
+            data: { ...window, createdAt },
+          })
+        : await this.prisma.diagnosticAssignment.create({
+            data: {
               versionId: version.id,
-              status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+              groupId,
+              measurementType,
+              ...window,
+              assignedById: ctx.state.curatorId,
+              createdAt,
             },
-            data: { status: 'CANCELLED' },
+          });
+      result.set(version.id, [assignment.id]);
+
+      for (const student of ctx.students) {
+        const completedAt = workTime(
+          addDays(from, intBetween(ctx.random, 0, daysBetween(from, to))),
+          ctx.random,
+        );
+        if (student.userId) {
+          ctx.notifications.push({
+            userId: student.userId,
+            type: 'diagnostic.assigned',
+            title: 'Назначена диагностика',
+            body: version.title,
+            link: '/student/diagnostics',
+            createdAt,
+            readAt: at(from, '08:30'),
           });
         }
+        const sessions = await this.prisma.diagnosticSession.findMany({
+          where: { studentId: student.id, versionId: version.id },
+          orderBy: { createdAt: 'asc' },
+        });
+        const done = primary ? sessions.find((item) => item.status === 'COMPLETED') : undefined;
+        let sessionId = done?.id;
+        if (done) {
+          await this.shiftSession(done.id, completedAt, measurementType);
+        } else {
+          const open =
+            (primary
+              ? sessions.find((item) =>
+                  ['ASSIGNED', 'IN_PROGRESS', 'EXPIRED'].includes(item.status),
+                )
+              : undefined) ??
+            (await this.prisma.diagnosticSession.create({
+              data: {
+                assignmentId: assignment.id,
+                studentId: student.id,
+                versionId: version.id,
+                measurementType,
+                createdAt,
+              },
+            }));
+          sessionId = open.id;
+          await this.completeSession(ctx, student, version, open.id, completedAt, measurementType);
+        }
+        if (primary) {
+          // Прочие завершённые прохождения методики в рабочей базе (прежние версии, повторные
+          // попытки) уходят в историю до замера: профиль берёт последнее прохождение методики.
+          const earlier = await this.prisma.diagnosticSession.findMany({
+            where: {
+              studentId: student.id,
+              status: 'COMPLETED',
+              id: { not: sessionId },
+              version: { questionnaireId: version.questionnaireId },
+            },
+            orderBy: [{ completedAt: 'desc' }, { id: 'desc' }],
+          });
+          for (const [index, item] of earlier.entries()) {
+            await this.shiftSession(
+              item.id,
+              new Date(completedAt.getTime() - (index + 1) * 24 * 3600 * 1000),
+              item.measurementType,
+            );
+          }
+        }
+        // Прочие незавершённые прохождения той же методики в копии не нужны.
+        await this.prisma.diagnosticSession.updateMany({
+          where: {
+            studentId: student.id,
+            versionId: version.id,
+            status: { in: ['ASSIGNED', 'IN_PROGRESS'] },
+          },
+          data: { status: 'CANCELLED' },
+        });
       }
     }
     return result;
+  }
+
+  /**
+   * Назначение первичного замера группе: после слияния групп у методики их может быть
+   * несколько — прохождения переходят к самому раннему, остальные назначения удаляются.
+   */
+  private async groupAssignment(versionId: string, groupId: string) {
+    const [first, ...rest] = await this.prisma.diagnosticAssignment.findMany({
+      where: { versionId, groupId, cancelledAt: null, measurementType: 'PRIMARY' },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (first && rest.length > 0) {
+      const ids = rest.map((item) => item.id);
+      await this.withoutTriggers(async (tx) => {
+        await tx.diagnosticSession.updateMany({
+          where: { assignmentId: { in: ids } },
+          data: { assignmentId: first.id },
+        });
+        await tx.diagnosticAssignment.deleteMany({ where: { id: { in: ids } } });
+      });
+    }
+    return first ?? null;
   }
 
   private async completeSession(
@@ -1075,12 +1172,23 @@ export class DemoActivityGenerator {
 
   // ── Исследование ──
 
-  private async research(ctx: Context, primary: Map<string, string[]>): Promise<void> {
+  /**
+   * Исследование ЭГ и КГ. Проект и первичный замер заводятся до диагностики; участников
+   * распределяют после первичного замера и входного контроля по их результатам: студенты
+   * упорядочиваются по уровню мотивационного профиля и баллу входного контроля, из каждой
+   * соседней пары один случайно попадает в ЭГ, другой — в КГ (группы сопоставимы на старте).
+   * Учебная группа у всех одна — `DEMO_GROUP`.
+   */
+  private async research(
+    ctx: Context,
+    primary: Map<string, string[]>,
+    entry: Map<string, number>,
+  ): Promise<void> {
     const createdAt = at('2025-09-25', '14:00');
     const project = await this.prisma.researchProject.create({
       data: {
         title: DEMO_RESEARCH_TITLE,
-        description: `Экспериментальная группа ${EXPERIMENTAL_GROUP} занимается по индивидуальным образовательным траекториям (математика, информатика), контрольная группа ${CONTROL_GROUP} — по обычной программе. Первичный замер — октябрь 2025 года, повторный — апрель 2026 года.`,
+        description: `Участники — студенты группы ${DEMO_GROUP}. По результатам первичного замера мотивации и входного контроля по дисциплине «${MAIN_DISCIPLINE}» студенты распределены на сопоставимые экспериментальную и контрольную группы: экспериментальная занимается по индивидуальным образовательным траекториям, контрольная — по обычной программе. Первичный замер — октябрь 2025 года, повторный — апрель 2026 года.`,
         status: 'ACTIVE',
         startsAt: day(DEMO_PERIOD.researchFrom),
         endsAt: day(DEMO_PERIOD.researchTo),
@@ -1090,19 +1198,6 @@ export class DemoActivityGenerator {
       },
     });
     ctx.state.projectId = project.id;
-    const ordered = [
-      ...ctx.students.filter((student) => student.experimental),
-      ...ctx.students.filter((student) => !student.experimental),
-    ];
-    await this.prisma.researchParticipant.createMany({
-      data: ordered.map((student, index) => ({
-        projectId: project.id,
-        studentId: student.id,
-        code: `R${String(index + 1).padStart(3, '0')}`,
-        group: student.experimental ? 'EXPERIMENTAL' : 'CONTROL',
-        includedAt: at(DEMO_PERIOD.researchFrom, '10:00'),
-      })),
-    });
     this.audit(
       ctx,
       'research_project.created',
@@ -1115,6 +1210,49 @@ export class DemoActivityGenerator {
       },
     );
     await this.measurements(ctx, project.id, primary, 'PRIMARY');
+
+    const profiles = await this.prisma.student.findMany({
+      where: { id: { in: ctx.students.map((student) => student.id) } },
+      select: { id: true, currentMotivationProfile: { select: { level: true } } },
+    });
+    const rank = new Map(
+      profiles.map((row) => [
+        row.id,
+        LEVEL_RANK[row.currentMotivationProfile?.level ?? 'MEDIUM'] * 1000 +
+          (entry.get(row.id) ?? 0),
+      ]),
+    );
+    const ordered = [...ctx.students].sort((a, b) => rank.get(b.id)! - rank.get(a.id)!);
+    for (let i = 0; i < ordered.length; i += 2) {
+      const pair = shuffle(ctx.random, ordered.slice(i, i + 2));
+      pair[0]!.experimental = pair.length > 1 || chance(ctx.random, 0.5);
+    }
+
+    const includedAt = at(DEMO_PERIOD.groupsSplitOn, '10:00');
+    await this.prisma.researchParticipant.createMany({
+      data: shuffle(ctx.random, ctx.students).map((student, index) => ({
+        projectId: project.id,
+        studentId: student.id,
+        code: `R${String(index + 1).padStart(3, '0')}`,
+        group: student.experimental ? 'EXPERIMENTAL' : 'CONTROL',
+        includedAt,
+      })),
+    });
+    for (const experimental of [true, false]) {
+      this.audit(
+        ctx,
+        'research_participants.added',
+        'research_project',
+        project.id,
+        ctx.researcherId,
+        includedAt,
+        {
+          groupId: ctx.groupId,
+          group: experimental ? 'EXPERIMENTAL' : 'CONTROL',
+          count: ctx.students.filter((student) => student.experimental === experimental).length,
+        },
+      );
+    }
   }
 
   private async measurements(
@@ -1187,9 +1325,9 @@ export class DemoActivityGenerator {
   }
 
   /**
-   * Контрольная группа занимается без ИОТ (огр. 4), но получает общие задания на группу, как
-   * при назначении из библиотеки (`trajectoryId` пустой): на каждом этапе — одно задание
-   * среднего уровня, срок — конец этапа.
+   * Контрольная группа занимается без ИОТ (огр. 4), но получает общие задания, как при
+   * назначении из библиотеки выбранным студентам (`trajectoryId` пустой): на каждом этапе —
+   * одно задание среднего уровня, срок — конец этапа.
    */
   private async controlGroupAssignments(
     ctx: Context,
@@ -1240,8 +1378,8 @@ export class DemoActivityGenerator {
       }
       this.audit(ctx, 'assignment.assigned', 'assignment', item.id, teacherId, assignedAt, {
         assignmentIds: [item.id],
-        studentIds: null,
-        groupId: ctx.groups.control,
+        studentIds: students.map((student) => student.id),
+        groupId: null,
         dueAt: dueAt.toISOString(),
         choice: null,
       });
@@ -2019,8 +2157,8 @@ export class DemoActivityGenerator {
   // ── Расписание и журнал ──
 
   /**
-   * Два занятия «ДО Веб-дизайн» в неделю у каждой группы (вторник, четверг); журнал
-   * заполняется по каждому студенту. У ЭГ оценки наблюдений растут по ходу ИОТ.
+   * Два занятия «ДО Веб-дизайн» в неделю у группы (вторник, четверг); журнал заполняется
+   * по каждому студенту. У ЭГ оценки наблюдений растут по ходу ИОТ.
    */
   private async lessons(ctx: Context, discipline: DisciplineInfo): Promise<void> {
     const { random } = ctx;
@@ -2044,50 +2182,45 @@ export class DemoActivityGenerator {
       if (!LESSON_WEEKDAYS.includes(weekday(date)) || (date >= breakFrom && date <= breakTo))
         continue;
       const progress = clamp(daysBetween(DEMO_PERIOD.trajectoriesOn, date) / trajectorySpan, 0, 1);
-      for (const [groupId, time] of [
-        [ctx.groups.experimental, LESSON_TIMES.experimental],
-        [ctx.groups.control, LESSON_TIMES.control],
-      ] as const) {
-        const lessonId = randomUUID();
-        const filledAt = at(date, time, 120 + intBetween(random, 0, 300));
-        lessons.push({
-          id: lessonId,
-          groupId,
-          disciplineId: discipline.id,
-          teacherId: discipline.teacherId,
-          date: day(date),
-          startTime: time,
-          createdById: discipline.teacherId,
-          createdAt: at(DEMO_PERIOD.lessonsFrom, '08:00', -3 * 24 * 60),
+      const lessonId = randomUUID();
+      const filledAt = at(date, LESSON_TIME, 120 + intBetween(random, 0, 300));
+      lessons.push({
+        id: lessonId,
+        groupId: ctx.groupId,
+        disciplineId: discipline.id,
+        teacherId: discipline.teacherId,
+        date: day(date),
+        startTime: LESSON_TIME,
+        createdById: discipline.teacherId,
+        createdAt: at(DEMO_PERIOD.lessonsFrom, '08:00', -3 * 24 * 60),
+        updatedAt: filledAt,
+      });
+      for (const student of ctx.students) {
+        const disposition = ctx.state.dispositions[student.id]!;
+        const absent = chance(random, 0.03 + 0.07 * (1 - disposition.INTRINSIC));
+        const entryId = randomUUID();
+        entries.push({
+          id: entryId,
+          lessonId,
+          studentId: student.id,
+          absent,
+          updatedById: discipline.teacherId,
+          createdAt: filledAt,
           updatedAt: filledAt,
         });
-        for (const student of ctx.students.filter((item) => item.groupId === groupId)) {
-          const disposition = ctx.state.dispositions[student.id]!;
-          const absent = chance(random, 0.03 + 0.07 * (1 - disposition.INTRINSIC));
-          const entryId = randomUUID();
-          entries.push({
-            id: entryId,
-            lessonId,
-            studentId: student.id,
-            absent,
-            updatedById: discipline.teacherId,
-            createdAt: filledAt,
-            updatedAt: filledAt,
+        if (absent) continue;
+        const growth = student.experimental
+          ? (ctx.state.growth[student.id] ?? 0) * 1.2 * progress
+          : 0;
+        const engagement = 0.3 + 0.45 * disposition.INTRINSIC + growth + offsets.get(student.id)!;
+        for (const criterion of criteria) {
+          ratings.push({
+            entryId,
+            criterionId: criterion.id,
+            score: chance(random, 0.04)
+              ? null
+              : clamp(Math.round(1 + 4 * (engagement + noise(random, 0.12))), 1, 5),
           });
-          if (absent) continue;
-          const growth = student.experimental
-            ? (ctx.state.growth[student.id] ?? 0) * 1.2 * progress
-            : 0;
-          const engagement = 0.3 + 0.45 * disposition.INTRINSIC + growth + offsets.get(student.id)!;
-          for (const criterion of criteria) {
-            ratings.push({
-              entryId,
-              criterionId: criterion.id,
-              score: chance(random, 0.04)
-                ? null
-                : clamp(Math.round(1 + 4 * (engagement + noise(random, 0.12))), 1, 5),
-            });
-          }
         }
       }
     }
@@ -2103,17 +2236,18 @@ export class DemoActivityGenerator {
   // ── Контрольные работы ──
 
   /**
-   * Контрольная работа обеих групп с результатами: у каждого студента балл, без отметок.
+   * Контрольная работа группы с результатами: у каждого студента балл, без отметок.
    * Входной уровень следует мотивации студента по шкале колледжа («4» с 70, «5» с 90):
    * ниже 70 на входном контроле — только 2–3 отстающих (`DemoState.lagging`);
-   * к итоговому ЭГ растёт заметно (прирост мотивации за ИОТ), КГ — немного.
+   * к итоговому ЭГ растёт заметно (прирост мотивации за ИОТ), у КГ изменения малы и
+   * разнонаправленны. Возвращает баллы студентов.
    */
   private async controlWork(
     ctx: Context,
     disciplineId: string,
     teacherId: string,
     plan: DemoControlWork,
-  ): Promise<void> {
+  ): Promise<Map<string, number>> {
     const { random } = ctx;
     const createdAt = at(addDays(plan.date, -7), '15:30');
     const recordedAt = at(addDays(plan.date, 1), '16:00', intBetween(random, 0, 90));
@@ -2127,10 +2261,7 @@ export class DemoActivityGenerator {
         createdAt,
         updatedAt: createdAt,
         groups: {
-          create: [ctx.groups.experimental, ctx.groups.control].map((groupId) => ({
-            groupId,
-            date: day(plan.date),
-          })),
+          create: { groupId: ctx.groupId, date: day(plan.date) },
         },
       },
     });
@@ -2147,7 +2278,8 @@ export class DemoActivityGenerator {
       const lagging = ctx.state.lagging?.includes(student.id) ?? false;
       const base = lagging ? 58 + 8 * level : 66 + 24 * level;
       // Рост — доля запаса до 100 баллов: слабые растут сильнее, сильные не упираются в потолок.
-      const share = student.experimental ? 0.55 + growth : between(random, 0.1, 0.25);
+      // У КГ сдвиг около нуля в обе стороны: заметного роста без ИОТ нет.
+      const share = student.experimental ? 0.55 + growth : between(random, -0.08, 0.15);
       // На входном контроле ниже 70 баллов — только отстающие.
       const [min, max] = plan.kind === 'ENTRY' ? (lagging ? [40, 69] : [70, 100]) : [40, 100];
       const score = clamp(
@@ -2166,14 +2298,12 @@ export class DemoActivityGenerator {
       });
     }
     await this.prisma.controlResult.createMany({ data: rows });
-    for (const groupId of [ctx.groups.experimental, ctx.groups.control]) {
-      const own = rows.filter((row) => row.groupId === groupId);
-      this.audit(ctx, 'control_results.saved', 'control_work', work.id, teacherId, recordedAt, {
-        groupId,
-        scored: own.length,
-        marked: 0,
-      });
-    }
+    this.audit(ctx, 'control_results.saved', 'control_work', work.id, teacherId, recordedAt, {
+      groupId: ctx.groupId,
+      scored: rows.length,
+      marked: 0,
+    });
+    return new Map(rows.map((row) => [row.studentId, row.score as number]));
   }
 
   // ── Оценки за семестры ──
@@ -2201,7 +2331,7 @@ export class DemoActivityGenerator {
         if (semester === 2) {
           score += student.experimental
             ? 10 * (ctx.state.growth[student.id] ?? 0.2) + between(random, 3, 8)
-            : between(random, 1, 4);
+            : between(random, -3, 3.5);
         }
         rows.push({
           studentId: student.id,
@@ -2218,7 +2348,7 @@ export class DemoActivityGenerator {
       }
       const gradeImport = await this.prisma.gradeImport.create({
         data: {
-          fileName: `Успеваемость ${EXPERIMENTAL_GROUP} и ${CONTROL_GROUP}, ${semester} семестр 2025-2026.xlsx`,
+          fileName: `Успеваемость ${DEMO_GROUP}, ${semester} семестр 2025-2026.xlsx`,
           contentHash: randomBytes(32).toString('hex'),
           rowCount: rows.length,
           createdById: authorId,

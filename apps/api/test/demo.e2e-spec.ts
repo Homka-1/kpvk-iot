@@ -17,11 +17,11 @@ import {
 } from '@iot/shared';
 import request from 'supertest';
 import {
-  CONTROL_GROUP,
   DEMO_DISCIPLINES,
   DEMO_FRESH_DIAGNOSTICS,
-  EXPERIMENTAL_GROUP,
+  DEMO_GROUP,
   MAIN_DISCIPLINE,
+  SOURCE_GROUPS,
 } from '../src/demo/demo-catalog.js';
 import { DEMO_RESEARCH_TITLE } from '../src/demo/demo-activity.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
@@ -105,8 +105,13 @@ describe('Демо-режим (e2e)', () => {
   let teacher: LoggedIn;
   let paperSessionId: string;
   let freshSessionId: string;
-  const experimental: string[] = [];
-  const control: string[] = [];
+  // Студенты двух групп рабочей базы; в копии группы сливаются в одну.
+  const first: string[] = [];
+  const second: string[] = [];
+  const all = () => [...first, ...second];
+  // ЭГ и КГ исследования — распределение генератора по результатам первичного замера.
+  let experimental: string[] = [];
+  let control: string[] = [];
 
   const http = () => request(app.getHttpServer());
   const as = (session: LoggedIn, req: request.Test) =>
@@ -179,8 +184,8 @@ describe('Демо-режим (e2e)', () => {
     const studentRole = await prisma.role.findUniqueOrThrow({ where: { code: RoleCode.STUDENT } });
     const passwordHash = await hashPassword('Студент-пароль-2026');
     for (const [name, list] of [
-      [EXPERIMENTAL_GROUP, experimental],
-      [CONTROL_GROUP, control],
+      [SOURCE_GROUPS[0]!, first],
+      [SOURCE_GROUPS[1]!, second],
     ] as const) {
       const group = await prisma.group.create({
         data: { name, course: 1, specialty: 'Программное обеспечение' },
@@ -258,13 +263,13 @@ describe('Демо-режим (e2e)', () => {
 
     // Один студент уже прошёл методику в рабочей базе: в копии прохождение переносится на октябрь.
     // Вопросы a, b, c (c — обратный) — шкала внутренней мотивации.
-    paperSessionId = await paper(mean.id, experimental[0]!, [4, 4, 4, 4, 4, 4]);
+    paperSessionId = await paper(mean.id, second[0]!, [4, 4, 4, 4, 4, 4]);
 
     // Студент КГ прошёл методику на прежней версии, затем вышла версия с ролями шкал. В копии
     // прежнее прохождение уходит в историю и не мешает профилю по актуальным версиям.
-    await paper(mean.id, control[1]!, [4, 3, 3, 3, 3, 3]);
-    await paper(sum.id, control[1]!, [4, 3, 3, 3, 3, 3]);
-    await formProfile(control[1]!);
+    await paper(mean.id, first[1]!, [4, 3, 3, 3, 3, 3]);
+    await paper(sum.id, first[1]!, [4, 3, 3, 3, 3, 3]);
+    await formProfile(first[1]!);
     const draft = (
       await as(teacher, http().post(`/api/questionnaires/${sum.id}/versions`))
         .send({ changeNote: 'Роли шкал' })
@@ -280,17 +285,17 @@ describe('Демо-режим (e2e)', () => {
 
     // У другого студента КГ методики расходятся (высокий и низкий уровень): профиль
     // «Требуется дополнительная диагностика». Демо такого профиля не оставляет.
-    await paper(mean.id, control[0]!, [5, 5, 1, 3, 3, 3]);
-    await paper(sum.id, control[0]!, [1, 1, 5, 3, 3, 3]);
-    expect((await formProfile(control[0]!)).status).toBe('NEEDS_MORE_DIAGNOSTICS');
+    await paper(mean.id, first[0]!, [5, 5, 1, 3, 3, 3]);
+    await paper(sum.id, first[0]!, [1, 1, 5, 3, 3, 3]);
+    expect((await formProfile(first[0]!)).status).toBe('NEEDS_MORE_DIAGNOSTICS');
 
     // Прохождения студента из DEMO_FRESH_DIAGNOSTICS в копию не переносятся.
     await prisma.student.update({
-      where: { id: control[2]! },
+      where: { id: first[2]! },
       data: { participantCode: DEMO_FRESH_DIAGNOSTICS[0] },
     });
-    freshSessionId = await paper(mean.id, control[2]!, [5, 5, 1, 3, 3, 3]);
-    await formProfile(control[2]!);
+    freshSessionId = await paper(mean.id, first[2]!, [5, 5, 1, 3, 3, 3]);
+    await formProfile(first[2]!);
 
     // Исследование рабочей базы в копию не переносится: в демо только исследование генератора.
     const realProject = await prisma.researchProject.create({
@@ -299,7 +304,7 @@ describe('Демо-режим (e2e)', () => {
     await prisma.researchParticipant.create({
       data: {
         projectId: realProject.id,
-        studentId: experimental[0]!,
+        studentId: second[0]!,
         code: 'R-001',
         group: 'EXPERIMENTAL',
       },
@@ -313,7 +318,7 @@ describe('Демо-режим (e2e)', () => {
       },
     });
     await prisma.diagnosticAssignment.updateMany({
-      where: { studentId: experimental[0]! },
+      where: { studentId: second[0]! },
       data: { researchMeasurementId: realMeasurement.id },
     });
   }, 120_000);
@@ -350,6 +355,36 @@ describe('Демо-режим (e2e)', () => {
   it('включённое отображение показывает копию: профили, ИОТ ЭГ, журнал, исследование', async () => {
     await as(admin, http().put('/api/admin/demo/mode')).send({ active: true }).expect(200);
 
+    // Обе группы рабочей базы слиты в одну без записей о переводе.
+    const groups = await prisma.group.findMany({ include: { currentStudents: true } });
+    expect(groups.map((group) => group.name)).toEqual([DEMO_GROUP]);
+    expect(groups[0]!.currentStudents.map((student) => student.id).sort()).toEqual(all().sort());
+    expect(await prisma.enrollment.count({ where: { groupId: { not: groups[0]!.id } } })).toBe(0);
+    expect(await prisma.auditLog.count({ where: { action: 'student.transferred' } })).toBe(0);
+    // ЭГ и КГ — участники исследования, распределены поровну после первичного замера
+    // и входного контроля.
+    const participants = await prisma.researchParticipant.findMany();
+    experimental = participants
+      .filter((item) => item.group === 'EXPERIMENTAL')
+      .map((item) => item.studentId);
+    control = participants.filter((item) => item.group === 'CONTROL').map((item) => item.studentId);
+    expect(experimental).toHaveLength(all().length / 2);
+    expect(control).toHaveLength(all().length / 2);
+    expect(participants.every((item) => item.includedAt > new Date('2025-10-22T00:00:00Z'))).toBe(
+      true,
+    );
+    const entryResults = await prisma.controlResult.findMany({
+      where: { work: { kind: 'ENTRY' } },
+    });
+    const lastPrimary = await prisma.diagnosticSession.findFirstOrThrow({
+      where: { status: 'COMPLETED' },
+      orderBy: { completedAt: 'desc' },
+    });
+    const decidedBy = [...entryResults.map((row) => row.createdAt), lastPrimary.completedAt!];
+    expect(
+      participants.every((item) => decidedBy.every((moment) => item.includedAt > moment)),
+    ).toBe(true);
+
     // ИОТ по «ДО Веб-дизайн» — только у экспериментальной группы (огр. 4).
     const trajectories = await prisma.trajectory.findMany({
       include: { versions: true, assignments: true, discipline: true },
@@ -380,7 +415,7 @@ describe('Демо-режим (e2e)', () => {
       true,
     );
     expect(sessions.some((item) => item.id === freshSessionId)).toBe(false);
-    expect(await prisma.diagnosticAssignment.count({ where: { studentId: control[2]! } })).toBe(0);
+    expect(await prisma.diagnosticAssignment.count({ where: { studentId: first[2]! } })).toBe(0);
     const moved = sessions.find((item) => item.id === paperSessionId)!;
     expect(moved.completedAt!.toISOString().slice(0, 7)).toBe('2025-10');
     const students = await prisma.student.findMany({
@@ -392,13 +427,13 @@ describe('Демо-режим (e2e)', () => {
       ),
     ).toBe(true);
 
-    // Два занятия «ДО Веб-дизайн» в неделю у каждой группы, журнал по каждому студенту.
+    // Два занятия «ДО Веб-дизайн» в неделю у группы, журнал по каждому студенту.
     const lessons = await prisma.lesson.count();
-    expect(lessons).toBeGreaterThan(100);
+    expect(lessons).toBeGreaterThan(50);
     expect(
       await prisma.lesson.count({ where: { discipline: { name: { not: MAIN_DISCIPLINE } } } }),
     ).toBe(0);
-    expect(await prisma.lessonJournalEntry.count()).toBe(lessons * experimental.length);
+    expect(await prisma.lessonJournalEntry.count()).toBe(lessons * all().length);
     expect(await prisma.researchProject.findMany({ select: { title: true } })).toEqual([
       { title: DEMO_RESEARCH_TITLE },
     ]);
@@ -450,12 +485,12 @@ describe('Демо-режим (e2e)', () => {
     ).toBe(2);
 
     // Администратор-преподаватель закреплён только за своей дисциплиной, остальные преподаватели
-    // рабочей базы — за «ДО Веб-дизайн» в группах исследования.
+    // рабочей базы — за «ДО Веб-дизайн» в группе исследования.
     const webDesign = await prisma.teacherAssignment.findMany({
       where: { teacherId: webDesignerId },
       include: { discipline: true },
     });
-    expect(webDesign).toHaveLength(2);
+    expect(webDesign).toHaveLength(1);
     expect(webDesign.every((item) => item.discipline.name === 'ДО Веб-дизайн')).toBe(true);
     // Задания — темы модулей СК01–СК03: 15 заданий этапов ИОТ (СК01, 5 этапов × 3 уровня) и
     // 39 только в библиотеке (одно из СК01, 26 из СК02, 12 из СК03).
@@ -466,7 +501,7 @@ describe('Демо-режим (e2e)', () => {
       await prisma.trajectory.count({ where: { discipline: { name: 'ДО Веб-дизайн' } } }),
     ).toBe(experimental.length);
 
-    // Входной и три текущих контроля — одни и те же работы у обеих групп (этап 28).
+    // Входной и три текущих контроля в группе исследования (этап 28).
     const works = await prisma.controlWork.findMany({ include: { groups: true, results: true } });
     expect(works.map((work) => work.kind).sort()).toEqual([
       'CURRENT',
@@ -474,7 +509,7 @@ describe('Демо-режим (e2e)', () => {
       'CURRENT',
       'ENTRY',
     ]);
-    expect(works.every((work) => work.groups.length === 2)).toBe(true);
+    expect(works.every((work) => work.groups.length === 1)).toBe(true);
     expect(
       works.every((work) => work.results.length === experimental.length + control.length),
     ).toBe(true);
@@ -518,7 +553,7 @@ describe('Демо-режим (e2e)', () => {
       }),
     ).toBe(0);
 
-    // Итоговый контроль — та же работа, что входной: ЭГ растёт заметнее КГ.
+    // Итоговый контроль — та же работа, что входной: ЭГ заметно растёт, у КГ сдвиг мал.
     const scores = async (kind: 'ENTRY' | 'FINAL', students: string[]) => {
       const rows = await prisma.controlResult.findMany({
         where: { work: { kind }, studentId: { in: students }, score: { not: null } },
@@ -529,8 +564,7 @@ describe('Демо-режим (e2e)', () => {
     const growthKg = (await scores('FINAL', control)) - (await scores('ENTRY', control));
     expect(growthEg).toBeGreaterThan(growthKg);
     expect(growthEg).toBeGreaterThan(8);
-    // КГ тоже немного растёт, но слабее ЭГ.
-    expect(growthKg).toBeGreaterThan(0);
+    expect(Math.abs(growthKg)).toBeLessThan(6);
     // Шкала колледжа: «4» — с 70 баллов; в среднем КГ к итоговому контролю на «4».
     expect(await scores('FINAL', control)).toBeGreaterThanOrEqual(70);
     expect(await prisma.controlResult.count({ where: { mark: { not: null } } })).toBe(0);

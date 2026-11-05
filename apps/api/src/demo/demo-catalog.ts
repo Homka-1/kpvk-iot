@@ -6,9 +6,13 @@ import type { ControlKind, DifficultyLevel, MotivationLevel, SubmissionFormat } 
  */
 export const DEMO_FRESH_DIAGNOSTICS = ['S-8JGXYQ'];
 
-/** Группы исследования: экспериментальная занимается по ИОТ, контрольная — без ИОТ. */
-export const EXPERIMENTAL_GROUP = 'ДВ-2 ЭГ';
-export const CONTROL_GROUP = 'ДВ-1 КГ';
+/**
+ * Учебная группа исследования в демо. Группы рабочей базы (`SOURCE_GROUPS`) в копии сливаются
+ * в неё без записей о переводе; экспериментальную и контрольную группы исследование формирует
+ * из её студентов по результатам первичного замера.
+ */
+export const DEMO_GROUP = 'ДВ-1';
+export const SOURCE_GROUPS = ['ДВ-1 КГ', 'ДВ-2 ЭГ'];
 
 /** Период исследования и ключевые даты (местное время колледжа). */
 export const DEMO_PERIOD = {
@@ -18,6 +22,8 @@ export const DEMO_PERIOD = {
   primaryFrom: '2025-10-06',
   primaryTo: '2025-10-17',
   profilesOn: '2025-10-21',
+  /** Распределение студентов по ЭГ и КГ — после первичного замера и входного контроля. */
+  groupsSplitOn: '2025-10-23',
   trajectoriesOn: '2025-10-27',
   winterBreak: ['2025-12-29', '2026-01-11'] as const,
   semester2From: '2026-01-12',
