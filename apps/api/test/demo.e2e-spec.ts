@@ -213,6 +213,17 @@ describe('Демо-режим (e2e)', () => {
       }
     }
     const discipline = await prisma.discipline.create({ data: { name: 'Педагогика' } });
+
+    // Студента переводили между группами: в демо записей о переводах не остаётся.
+    const [groupA, groupB] = await Promise.all(
+      SOURCE_GROUPS.map((name) => prisma.group.findUniqueOrThrow({ where: { name } })),
+    );
+    for (const groupId of [groupB!.id, groupA!.id]) {
+      await as(admin, http().post(`/api/students/${first[3]!}/transfer`))
+        .send({ groupId, reason: 'Перевод по заявлению' })
+        .expect(200);
+    }
+    expect(await prisma.enrollment.count({ where: { studentId: first[3]! } })).toBe(3);
     const groups = await prisma.group.findMany();
     await prisma.teacherAssignment.createMany({
       data: groups.map((group) => ({
@@ -359,7 +370,13 @@ describe('Демо-режим (e2e)', () => {
     const groups = await prisma.group.findMany({ include: { currentStudents: true } });
     expect(groups.map((group) => group.name)).toEqual([DEMO_GROUP]);
     expect(groups[0]!.currentStudents.map((student) => student.id).sort()).toEqual(all().sort());
-    expect(await prisma.enrollment.count({ where: { groupId: { not: groups[0]!.id } } })).toBe(0);
+    const enrollments = await prisma.enrollment.findMany();
+    expect(enrollments.map((row) => row.studentId).sort()).toEqual(all().sort());
+    expect(
+      enrollments.every(
+        (row) => row.groupId === groups[0]!.id && row.endsAt === null && row.reason === null,
+      ),
+    ).toBe(true);
     expect(await prisma.auditLog.count({ where: { action: 'student.transferred' } })).toBe(0);
     // ЭГ и КГ — участники исследования, распределены поровну после первичного замера
     // и входного контроля.

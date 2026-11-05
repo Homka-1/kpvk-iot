@@ -456,8 +456,9 @@ export class DemoActivityGenerator {
   /**
    * Группы рабочей базы (`SOURCE_GROUPS`) сливаются в одну группу `DEMO_GROUP`: студенты и все
    * записи групп переходят в первую найденную группу, которая переименовывается; остальные
-   * группы удаляются вместе со своими записями журнала аудита. Записей о переводе нет:
-   * в демо студенты учатся в одной группе с начала года. Повторный вызов ничего не меняет.
+   * группы удаляются вместе со своими записями журнала аудита. Записей о переводе нет — ни
+   * новых, ни прежних из рабочей базы: в демо студенты учатся в одной группе с начала года.
+   * Повторный вызов ничего не меняет.
    */
   private async mergeGroups(): Promise<void> {
     const names = [DEMO_GROUP, ...SOURCE_GROUPS];
@@ -491,8 +492,6 @@ export class DemoActivityGenerator {
           WHERE a.group_id = ${id}::uuid AND b.group_id = ${target.id}::uuid
             AND b.discipline_id = a.discipline_id AND b.date = a.date
             AND b.start_time = a.start_time`;
-        // Закрытые записи о зачислении в сливаемую группу стали бы переводом внутри одной группы.
-        await tx.enrollment.deleteMany({ where: { groupId: id, endsAt: { not: null } } });
         const from = { where: { groupId: id }, data: { groupId: target.id } };
         await tx.student.updateMany({
           where: { currentGroupId: id },
@@ -511,21 +510,43 @@ export class DemoActivityGenerator {
       if (target.name !== DEMO_GROUP) {
         await tx.group.update({ where: { id: target.id }, data: { name: DEMO_GROUP } });
       }
-      // Прежние переводы между сливаемыми группами в демо не видны.
-      if (others.length > 0) {
-        const students = await tx.student.findMany({
-          where: { currentGroupId: target.id },
-          select: { id: true },
-        });
-        const ids = students.map((student) => student.id);
-        await tx.enrollment.updateMany({
-          where: { groupId: target.id, studentId: { in: ids } },
-          data: { reason: null },
-        });
-        await tx.auditLog.deleteMany({
-          where: { action: 'student.transferred', entityType: 'student', entityId: { in: ids } },
-        });
-      }
+      // Записей о переводах у студентов группы в демо нет: прежние зачисления в другие группы
+      // и записи аудита о переводе удаляются, остаётся одно текущее зачисление без причины.
+      const students = await tx.student.findMany({
+        where: { currentGroupId: target.id },
+        select: { id: true },
+      });
+      const ids = students.map((student) => student.id);
+      await tx.enrollment.deleteMany({
+        where: {
+          studentId: { in: ids },
+          OR: [{ endsAt: { not: null } }, { groupId: { not: target.id } }],
+        },
+      });
+      await tx.enrollment.updateMany({
+        where: { studentId: { in: ids } },
+        data: { reason: null },
+      });
+      const enrolled = new Set(
+        (
+          await tx.enrollment.findMany({
+            where: { studentId: { in: ids } },
+            select: { studentId: true },
+          })
+        ).map((row) => row.studentId),
+      );
+      await tx.enrollment.createMany({
+        data: ids
+          .filter((studentId) => !enrolled.has(studentId))
+          .map((studentId) => ({
+            studentId,
+            groupId: target.id,
+            startsAt: at(TIMELINE_START, '10:00'),
+          })),
+      });
+      await tx.auditLog.deleteMany({
+        where: { action: 'student.transferred', entityType: 'student', entityId: { in: ids } },
+      });
     });
   }
 
