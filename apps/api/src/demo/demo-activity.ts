@@ -65,6 +65,7 @@ import {
   type Random,
   shuffle,
 } from './demo-random.js';
+import { balancedSplit } from './demo-split.js';
 import { addDays, at, day, daysBetween, laterOf, weekday, workday, workTime } from './demo-time.js';
 
 type Tx = Prisma.TransactionClient;
@@ -97,8 +98,6 @@ const LESSON_TIME = '08:30';
 /** Дни занятий: вторник и четверг. */
 const LESSON_WEEKDAYS = [2, 4];
 const TIMELINE_START = '2025-08-25';
-/** Порядок уровней профиля при распределении по ЭГ и КГ. */
-const LEVEL_RANK: Record<MotivationLevel, number> = { LOW: 0, MEDIUM: 1, HIGH: 2 };
 
 interface StudentInfo {
   id: string;
@@ -385,8 +384,7 @@ export class DemoActivityGenerator {
       // Прирост за время ИОТ: задаётся всем, применяется к тем, кто попадёт в ЭГ.
       ctx.state.growth[student.id] = between(random, 0.15, 0.3);
     }
-    // Отстающие — двое-трое самых слабо мотивированных; при распределении по результатам
-    // замера двое слабейших, как правило, оказываются в разных группах исследования.
+    // Отстающие — двое-трое самых слабо мотивированных.
     const intrinsic = (id: string) => ctx.state.dispositions[id]!.INTRINSIC;
     const weakest = [...ctx.students].sort((a, b) => intrinsic(a.id) - intrinsic(b.id));
     ctx.state.lagging = weakest
@@ -1195,10 +1193,8 @@ export class DemoActivityGenerator {
 
   /**
    * Исследование ЭГ и КГ. Проект и первичный замер заводятся до диагностики; участников
-   * распределяют после первичного замера и входного контроля по их результатам: студенты
-   * упорядочиваются по уровню мотивационного профиля и баллу входного контроля, из каждой
-   * соседней пары один случайно попадает в ЭГ, другой — в КГ (группы сопоставимы на старте).
-   * Учебная группа у всех одна — `DEMO_GROUP`.
+   * распределяют после первичного замера и входного контроля так, чтобы группы были
+   * на одном уровне на старте (см. `balancedSplit`). Учебная группа у всех одна — `DEMO_GROUP`.
    */
   private async research(
     ctx: Context,
@@ -1232,22 +1228,11 @@ export class DemoActivityGenerator {
     );
     await this.measurements(ctx, project.id, primary, 'PRIMARY');
 
-    const profiles = await this.prisma.student.findMany({
-      where: { id: { in: ctx.students.map((student) => student.id) } },
-      select: { id: true, currentMotivationProfile: { select: { level: true } } },
-    });
-    const rank = new Map(
-      profiles.map((row) => [
-        row.id,
-        LEVEL_RANK[row.currentMotivationProfile?.level ?? 'MEDIUM'] * 1000 +
-          (entry.get(row.id) ?? 0),
-      ]),
-    );
-    const ordered = [...ctx.students].sort((a, b) => rank.get(b.id)! - rank.get(a.id)!);
-    for (let i = 0; i < ordered.length; i += 2) {
-      const pair = shuffle(ctx.random, ordered.slice(i, i + 2));
-      pair[0]!.experimental = pair.length > 1 || chance(ctx.random, 0.5);
-    }
+    const experimental = balancedSplit(ctx.random, ctx.students, [
+      ...(await this.primaryScales(ctx)),
+      entry,
+    ]);
+    for (const student of ctx.students) student.experimental = experimental.has(student.id);
 
     const includedAt = at(DEMO_PERIOD.groupsSplitOn, '10:00');
     await this.prisma.researchParticipant.createMany({
@@ -1274,6 +1259,36 @@ export class DemoActivityGenerator {
         },
       );
     }
+  }
+
+  /**
+   * Баллы шкал первичного замера по студентам: одна карта на шкалу каждой методики
+   * (действующая ревизия завершённого прохождения).
+   */
+  private async primaryScales(ctx: Context): Promise<Map<string, number>[]> {
+    const sessions = await this.prisma.diagnosticSession.findMany({
+      where: {
+        studentId: { in: ctx.students.map((student) => student.id) },
+        versionId: { in: ctx.versions.map((version) => version.id) },
+        measurementType: 'PRIMARY',
+        status: 'COMPLETED',
+      },
+      select: {
+        studentId: true,
+        currentRevision: true,
+        scores: { select: { scaleId: true, revision: true, rawScore: true } },
+      },
+    });
+    const scales = new Map<string, Map<string, number>>();
+    for (const session of sessions) {
+      for (const score of session.scores) {
+        if (score.revision !== session.currentRevision || score.rawScore === null) continue;
+        const values = scales.get(score.scaleId) ?? new Map<string, number>();
+        values.set(session.studentId, Number(score.rawScore));
+        scales.set(score.scaleId, values);
+      }
+    }
+    return [...scales.values()];
   }
 
   private async measurements(
