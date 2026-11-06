@@ -23,9 +23,11 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 
-FROM base AS build
+FROM base AS deps
 RUN --mount=type=cache,id=iot-pnpm-store,target=/pnpm/store \
   pnpm install --frozen-lockfile --filter @iot/api... --filter iot-college
+
+FROM deps AS build
 COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
@@ -33,8 +35,11 @@ RUN pnpm --filter @iot/shared build && pnpm --filter @iot/api build
 
 FROM base AS runtime
 ENV NODE_ENV=production
-RUN --mount=type=cache,id=iot-pnpm-store,target=/pnpm/store \
-  pnpm install --frozen-lockfile --prod --filter @iot/api... \
+# Установка ждёт стадию deps (монтирование из неё) и берёт пакеты из уже заполненного хранилища.
+# Без этого обе установки шли параллельно в пустое хранилище и скачивали пакеты дважды.
+RUN --mount=type=bind,from=deps,source=/app/pnpm-lock.yaml,target=/tmp/deps-ready \
+  --mount=type=cache,id=iot-pnpm-store,target=/pnpm/store \
+  pnpm install --frozen-lockfile --prefer-offline --prod --filter @iot/api... \
   && rm -rf /root/.cache
 COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/apps/api/dist apps/api/dist
