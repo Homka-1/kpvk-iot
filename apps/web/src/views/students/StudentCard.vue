@@ -101,7 +101,11 @@ const progress = computed(() => {
       <div>
         <dt>Выполнено заданий</dt>
         <dd :class="{ 'student-card__empty': student.completedAssignments == null }">
-          {{ student.completedAssignments ?? NO_DATA }}
+          {{
+            student.completedAssignments == null
+              ? NO_DATA
+              : `${student.completedAssignments} из ${student.totalAssignments}`
+          }}
         </dd>
       </div>
       <div>

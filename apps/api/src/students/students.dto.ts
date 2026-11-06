@@ -276,6 +276,12 @@ export class StudentSummaryResponseDto {
   completedAssignments: number | null;
   @ApiProperty({
     nullable: true,
+    type: Number,
+    description: 'Действующие задания студента (без отменённых). null — нет данных',
+  })
+  totalAssignments: number | null;
+  @ApiProperty({
+    nullable: true,
     type: String,
     format: 'date-time',
     description: 'null — нет данных',

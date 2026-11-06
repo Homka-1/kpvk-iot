@@ -48,6 +48,7 @@ function student(index: number, overrides: Partial<StudentSummaryDto> = {}): Stu
     controlGroupResearch: null,
     averageScore: null,
     completedAssignments: null,
+    totalAssignments: null,
     lastActivityAt: null,
     ...overrides,
   };

@@ -32,6 +32,7 @@ const profile: StudentProfileDto = {
   controlGroupResearch: null,
   averageScore: null,
   completedAssignments: null,
+  totalAssignments: null,
   lastActivityAt: null,
   archiveReason: null,
   createdAt: '2026-09-01T08:00:00.000Z',

@@ -117,6 +117,8 @@ export interface StudentSummaryDto {
   averageScore: number | null;
   /** Выполненные задания; действующих заданий нет — null («Нет данных», а не 0). */
   completedAssignments: number | null;
+  /** Действующие задания (без отменённых); заданий нет — null. */
+  totalAssignments: number | null;
   /** Последнее учебное действие студента (входы в систему не учитываются, FR-062). */
   lastActivityAt: string | null;
 }

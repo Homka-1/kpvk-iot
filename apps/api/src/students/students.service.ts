@@ -147,7 +147,7 @@ type DetailsRow = Prisma.StudentGetPayload<{ include: typeof detailsInclude }>;
 /** Показатели карточки, которые собираются из других модулей (FR-012). */
 type StudentMetrics = Pick<
   StudentSummaryDto,
-  'averageScore' | 'completedAssignments' | 'lastActivityAt'
+  'averageScore' | 'completedAssignments' | 'totalAssignments' | 'lastActivityAt'
 >;
 
 const toProgressItem = (item: { status: string; dueAt: Date | null }) => ({
@@ -233,6 +233,7 @@ async function loadMetrics(
               .map((item) => ({ score: Number(item.score), maxScore: Number(item.maxScore) })),
           ),
           completedAssignments: progress.total > 0 ? progress.completed : null,
+          totalAssignments: progress.total > 0 ? progress.total : null,
           lastActivityAt: lastActivity?.toISOString() ?? null,
         },
       ];

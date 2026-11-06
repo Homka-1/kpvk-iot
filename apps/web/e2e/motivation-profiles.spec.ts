@@ -80,6 +80,7 @@ test.describe('UC-02: формирование мотивационного пр
       controlGroupResearch: null,
       averageScore: null,
       completedAssignments: null,
+      totalAssignments: null,
       lastActivityAt: null,
       archiveReason: null,
       createdAt: '2026-09-01T08:00:00.000Z',

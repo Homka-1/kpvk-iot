@@ -44,6 +44,7 @@ const summary: StudentSummaryDto = {
   controlGroupResearch: null,
   averageScore: null,
   completedAssignments: null,
+  totalAssignments: null,
   lastActivityAt: null,
 };
 

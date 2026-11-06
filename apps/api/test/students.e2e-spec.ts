@@ -167,6 +167,7 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
         currentTrajectory: null,
         averageScore: null,
         completedAssignments: null,
+        totalAssignments: null,
         lastActivityAt: null,
       });
 
@@ -453,6 +454,7 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
       expect(empty.currentTrajectory).toBeNull();
       expect(empty.averageScore).toBeNull();
       expect(empty.completedAssignments).toBeNull();
+      expect(empty.totalAssignments).toBeNull();
       expect(empty.lastActivityAt).toBeNull();
 
       const type = await prisma.assignmentType.findUniqueOrThrow({ where: { code: 'practical' } });
@@ -513,6 +515,8 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
       expect(filled.currentTrajectory?.progress).toBe(50);
       expect(filled.averageScore).toBe(70);
       expect(filled.completedAssignments).toBe(1);
+      // Отменённое задание не входит в общее число (как и в прогресс ИОТ).
+      expect(filled.totalAssignments).toBe(2);
       expect(filled.lastActivityAt).toBe(submittedAt.toISOString());
 
       const question = new Date('2026-09-15T10:00:00Z');
@@ -534,6 +538,7 @@ describe('Группы, дисциплины и студенты (e2e)', () => {
         hasCompletedTrajectory: false,
         averageScore: 70,
         completedAssignments: 1,
+        totalAssignments: 2,
         lastActivityAt: question.toISOString(),
       });
 

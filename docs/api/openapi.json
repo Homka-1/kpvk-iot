@@ -11353,6 +11353,11 @@
             "type": "boolean",
             "description": "Есть завершённая ИОТ"
           },
+          "controlGroupResearch": {
+            "type": "string",
+            "nullable": true,
+            "description": "Исследование, в контрольную группу которого входит студент: ИОТ ему не назначается (огр. 4). null — не входит"
+          },
           "averageScore": {
             "type": "number",
             "nullable": true,
@@ -11362,6 +11367,11 @@
             "type": "number",
             "nullable": true,
             "description": "null — нет данных"
+          },
+          "totalAssignments": {
+            "type": "number",
+            "nullable": true,
+            "description": "Действующие задания студента (без отменённых). null — нет данных"
           },
           "lastActivityAt": {
             "type": "string",
@@ -11383,8 +11393,10 @@
           "motivationProfile",
           "currentTrajectory",
           "hasCompletedTrajectory",
+          "controlGroupResearch",
           "averageScore",
           "completedAssignments",
+          "totalAssignments",
           "lastActivityAt"
         ]
       },
@@ -11552,6 +11564,11 @@
             "type": "boolean",
             "description": "Есть завершённая ИОТ"
           },
+          "controlGroupResearch": {
+            "type": "string",
+            "nullable": true,
+            "description": "Исследование, в контрольную группу которого входит студент: ИОТ ему не назначается (огр. 4). null — не входит"
+          },
           "averageScore": {
             "type": "number",
             "nullable": true,
@@ -11561,6 +11578,11 @@
             "type": "number",
             "nullable": true,
             "description": "null — нет данных"
+          },
+          "totalAssignments": {
+            "type": "number",
+            "nullable": true,
+            "description": "Действующие задания студента (без отменённых). null — нет данных"
           },
           "lastActivityAt": {
             "type": "string",
@@ -11597,8 +11619,10 @@
           "motivationProfile",
           "currentTrajectory",
           "hasCompletedTrajectory",
+          "controlGroupResearch",
           "averageScore",
           "completedAssignments",
+          "totalAssignments",
           "lastActivityAt",
           "archiveReason",
           "createdAt",
@@ -11917,6 +11941,11 @@
             "type": "boolean",
             "description": "Есть завершённая ИОТ"
           },
+          "controlGroupResearch": {
+            "type": "string",
+            "nullable": true,
+            "description": "Исследование, в контрольную группу которого входит студент: ИОТ ему не назначается (огр. 4). null — не входит"
+          },
           "averageScore": {
             "type": "number",
             "nullable": true,
@@ -11926,6 +11955,11 @@
             "type": "number",
             "nullable": true,
             "description": "null — нет данных"
+          },
+          "totalAssignments": {
+            "type": "number",
+            "nullable": true,
+            "description": "Действующие задания студента (без отменённых). null — нет данных"
           },
           "lastActivityAt": {
             "type": "string",
@@ -11974,8 +12008,10 @@
           "motivationProfile",
           "currentTrajectory",
           "hasCompletedTrajectory",
+          "controlGroupResearch",
           "averageScore",
           "completedAssignments",
+          "totalAssignments",
           "lastActivityAt",
           "archiveReason",
           "createdAt",

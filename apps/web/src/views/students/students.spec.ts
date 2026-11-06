@@ -33,6 +33,7 @@ function student(overrides: Partial<StudentSummaryDto> = {}): StudentSummaryDto 
     controlGroupResearch: null,
     averageScore: null,
     completedAssignments: null,
+    totalAssignments: null,
     lastActivityAt: null,
     ...overrides,
   };
@@ -109,7 +110,8 @@ describe('StudentCard', () => {
             disciplineName: 'Математика',
             progress: 40,
           },
-          completedAssignments: 0,
+          completedAssignments: 4,
+          totalAssignments: 5,
         }),
       },
       global: { plugins: [PrimeVue] },
@@ -120,6 +122,7 @@ describe('StudentCard', () => {
     expect(text).toContain('Математика');
     expect(text).toContain('Активна');
     expect(text).toContain('40 %');
+    expect(text).toContain('4 из 5');
   });
 
   it('п. 4.5: профиль без уровня — «Требуется дополнительная диагностика»', () => {
